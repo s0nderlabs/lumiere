@@ -179,14 +179,26 @@ export function registerMeasure(server: McpServer): void {
         if (m) roiCrop = { x: parseInt(m[1], 10), y: parseInt(m[2], 10), w: parseInt(m[3], 10), h: parseInt(m[4], 10) }
       }
 
-      // Decide adaptive
+      // v0.7.1: precedence matches watch.ts so measure's prediction lines up
+      // with what watch will actually do.
       const motionWindows = manifest?.analysis?.motion_windows ?? []
-      const useAdaptive =
-        params.adaptive_sampling === true ||
-        (params.adaptive_sampling !== false &&
-          params.narrative_mode === true &&
-          motionWindows.length >= 1 &&
-          metadata.duration_seconds > 4)
+
+      // narrative (used only to mirror watch's auto-adaptive condition)
+      let narrativeOn: boolean
+      if (params.narrative_mode === true) narrativeOn = true
+      else if (params.narrative_mode === false) narrativeOn = false
+      else if (config.default_narrative_mode === true) narrativeOn = true
+      else narrativeOn = false
+
+      // adaptive
+      const adaptiveExplicit = params.adaptive_sampling
+      const adaptiveAuto = narrativeOn && motionWindows.length >= 1 && metadata.duration_seconds > 4
+      let useAdaptive: boolean
+      if (adaptiveExplicit === true) useAdaptive = true
+      else if (adaptiveExplicit === false) useAdaptive = false
+      else if (adaptiveAuto) useAdaptive = true
+      else if (config.default_adaptive_sampling === true && motionWindows.length >= 1 && metadata.duration_seconds > 4) useAdaptive = true
+      else useAdaptive = false
 
       // Build segments OR uniform fps
       const startSec = params.start_time ? parseHMS(params.start_time) : 0

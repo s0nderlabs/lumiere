@@ -2,6 +2,26 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] - 2026-05-20
+
+Configurable server defaults for narrative_mode and adaptive_sampling. Until now these were per-call params with auto-suggest heuristics; you could not pin them as a baseline. v0.7.1 adds two optional Config fields so a user who always wants narrative on (or always off) can set it once.
+
+### Added
+
+- **`default_narrative_mode` config field** (`true | false | "auto"`). When set to `true`, watch and measure default `narrative_mode=true` whenever the per-call param is omitted AND the auto-suggest heuristic doesn't already fire. When set to `false`, force off (unless per-call passes `true`). When omitted or set to `"auto"`, behavior is unchanged from v0.7.0 (auto-suggest from motion/cuts/palette signals).
+- **`default_adaptive_sampling` config field** (`true | false | "auto"`). Same semantics for adaptive sampling. When `true`, adaptive activates whenever motion_windows are cached and duration > 4s (even without narrative_mode being on). `false` forces off. `"auto"` or unset = v0.7.0 behavior (auto-enable only when narrative is also on).
+
+### Changed
+
+- **watch precedence ordering moved up front** so adaptive sampling can see the final narrative decision. Was scattered/late before. Order is now: explicit per-call > auto-suggest > server default > off.
+- **Budget block** in watch response now reports the source of each setting: `auto-suggested`, `server default (configure.default_X)`, `explicit`, or `off`.
+- **`configure` schema** expanded with the two new fields. Pass `"auto"` to clear a previously-set default and revert to heuristic behavior.
+
+### Notes
+
+- Per-call params always win. Server defaults only fill in when the caller omits the param.
+- The auto-suggest heuristic (motion windows, scene cuts, palette outliers, small subject bbox) still has higher priority than the server default. Server default is the floor, not the ceiling.
+
 ## [0.7.0] - 2026-05-20
 
 Exact token forecasting via Anthropic's count_tokens endpoint. Adds the `measure` MCP tool and the `lumiere-cost` CLI, both giving exact conversation-token counts for any planned watch call without consuming the tokens themselves.

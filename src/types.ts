@@ -7,6 +7,15 @@ export interface Config {
   backend: Backend
   whisper_model: WhisperModel
   default_mode: WatchMode
+  // v0.7.1: per-server defaults for narrative_mode and adaptive_sampling.
+  // Undefined = use heuristics (auto-suggest from analyze data); true/false =
+  // force on/off when the per-call param is unset. Precedence:
+  //   1. explicit per-call param wins (true or false)
+  //   2. auto-suggest fires (returns true based on motion/cuts/palette)
+  //   3. server default_* setting (true/false)
+  //   4. off
+  default_narrative_mode?: boolean
+  default_adaptive_sampling?: boolean
 }
 
 export interface VideoMetadata {

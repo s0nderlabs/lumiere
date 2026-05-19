@@ -506,20 +506,33 @@ export function registerWatch(server: McpServer): void {
       // v0.5: resolve ROI crop. "auto" reads cached subject_bbox; "x,y,w,h" is explicit.
       const roiCrop = resolveRoi(params.roi, manifest)
 
-      // v0.6: decide whether to run adaptive sampling. Explicit param wins; otherwise
-      // auto-enable when narrative_mode is on AND we have motion_windows cached
-      // AND duration > 4s AND user didn't supply explicit segments.
+      // v0.7.1: decide narrative + adaptive UP FRONT (was scattered/late before).
+      // Precedence (both fields):
+      //   1. explicit per-call param (true/false) wins
+      //   2. auto-suggest fires (returns true based on analyze data)
+      //   3. server default (config.default_narrative_mode / config.default_adaptive_sampling)
+      //   4. off
+      const autoSuggested = shouldAutoSuggestNarrative(manifest, metadata.duration_seconds)
+      let useNarrative: boolean
+      if (params.narrative_mode === true) useNarrative = true
+      else if (params.narrative_mode === false) useNarrative = false
+      else if (autoSuggested) useNarrative = true
+      else if (config.default_narrative_mode === true) useNarrative = true
+      else useNarrative = false
+
       const motionWindows = manifest?.analysis?.motion_windows ?? []
       const adaptiveExplicit = params.adaptive_sampling
       const adaptiveAuto =
-        adaptiveExplicit === undefined &&
         !params.segments &&
-        params.narrative_mode === true &&
+        useNarrative &&
         motionWindows.length >= 1 &&
         metadata.duration_seconds > 4
-      const useAdaptiveSampling =
-        adaptiveExplicit === true ||
-        (adaptiveExplicit !== false && adaptiveAuto)
+      let useAdaptiveSampling: boolean
+      if (adaptiveExplicit === true) useAdaptiveSampling = true
+      else if (adaptiveExplicit === false) useAdaptiveSampling = false
+      else if (adaptiveAuto) useAdaptiveSampling = true
+      else if (config.default_adaptive_sampling === true && !params.segments && motionWindows.length >= 1 && metadata.duration_seconds > 4) useAdaptiveSampling = true
+      else useAdaptiveSampling = false
 
       // Build adaptive segments when active. Empty when adaptive is off or windows missing.
       let adaptiveSegs: AdaptiveSegment[] = []
@@ -675,11 +688,7 @@ export function registerWatch(server: McpServer): void {
       if (useSession && manifest && sessionDir) saveManifest(sessionDir, manifest)
       if (!useSession) rmSync(workDir, { recursive: true, force: true })
 
-      // Decide if we should inject narrative guidance: explicit param OR auto-suggested
-      // from prior analyze() motion data on this same video session.
-      const autoSuggested = shouldAutoSuggestNarrative(manifest, metadata.duration_seconds)
-      const useNarrative = params.narrative_mode === true || autoSuggested
-
+      // useNarrative is computed up front (v0.7.1) — see top of the handler.
       const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = []
 
       // v0.5: default skip_metadata=true when narrative_mode is on. The
@@ -707,13 +716,17 @@ export function registerWatch(server: McpServer): void {
         const narrativeReason = useNarrative
           ? params.narrative_mode === true
             ? "explicit (narrative_mode=true)"
-            : "auto-suggested (analyze data indicates high motion or dense scene cuts)"
-          : "off"
+            : autoSuggested
+              ? "auto-suggested (analyze data indicates high motion or dense scene cuts)"
+              : "server default (configure.default_narrative_mode=true)"
+          : params.narrative_mode === false
+            ? "off (explicit narrative_mode=false)"
+            : "off"
         const roiDesc = roiCrop
           ? `${roiCrop.x},${roiCrop.y},${roiCrop.w}x${roiCrop.h} (${params.roi === "auto" ? "auto from analyze.subject_bbox" : "explicit"})`
           : "none (full frame)"
         const adaptiveDesc = adaptiveSegs.length > 0
-          ? `on (${adaptiveExplicit === true ? "explicit" : "auto-enabled because narrative_mode + motion_windows cached"})\n${formatAdaptiveSummary(adaptiveSegs)}`
+          ? `on (${adaptiveExplicit === true ? "explicit" : adaptiveAuto ? "auto-enabled (narrative_mode + motion_windows cached)" : "server default (configure.default_adaptive_sampling=true)"})\n${formatAdaptiveSummary(adaptiveSegs)}`
           : adaptiveExplicit === false
             ? "off (explicitly disabled)"
             : "off (no motion_windows or duration <= 4s)"
