@@ -1,0 +1,217 @@
+#!/usr/bin/env bun
+// CLI wrapper around the `measure` tool. Spawns the MCP server in stdio mode,
+// runs analyze + measure for the given video and tier, prints exact tokens.
+// No CC session needed.
+
+import { spawn } from "child_process"
+import { resolve, dirname } from "path"
+import { fileURLToPath } from "url"
+import { existsSync } from "fs"
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const PLUGIN_ROOT = resolve(HERE, "..")
+const SERVER = resolve(PLUGIN_ROOT, "src", "index.ts")
+
+interface CliArgs {
+  path: string
+  mode?: string
+  resolution?: number
+  view_sample?: number
+  start_time?: string
+  end_time?: string
+  narrative_mode?: boolean
+  adaptive_sampling?: boolean
+  roi?: string
+  model?: string
+  skip_analyze?: boolean
+  json?: boolean
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const args = argv.slice(2)
+  if (args.length === 0 || args[0] === "-h" || args[0] === "--help") {
+    printUsage()
+    process.exit(args.length === 0 ? 1 : 0)
+  }
+  const path = args[0]
+  const out: CliArgs = { path, narrative_mode: true, adaptive_sampling: true, roi: "auto" }
+  for (let i = 1; i < args.length; i++) {
+    const a = args[i]
+    const next = () => args[++i]
+    if (a === "--mode") out.mode = next()
+    else if (a === "--resolution") out.resolution = parseInt(next(), 10)
+    else if (a === "--view-sample" || a === "--view_sample") out.view_sample = parseInt(next(), 10)
+    else if (a === "--start" || a === "--start-time") out.start_time = next()
+    else if (a === "--end" || a === "--end-time") out.end_time = next()
+    else if (a === "--no-narrative") out.narrative_mode = false
+    else if (a === "--no-adaptive") out.adaptive_sampling = false
+    else if (a === "--roi") out.roi = next()
+    else if (a === "--no-roi") out.roi = undefined
+    else if (a === "--model") out.model = next()
+    else if (a === "--skip-analyze") out.skip_analyze = true
+    else if (a === "--json") out.json = true
+    else {
+      process.stderr.write(`Unknown arg: ${a}\n`)
+      printUsage()
+      process.exit(1)
+    }
+  }
+  return out
+}
+
+function printUsage(): void {
+  process.stderr.write(`Usage: lumiere-cost <video-path-or-url> [options]
+
+Exact token-cost forecast for a watch() call, without consuming the tokens.
+Calls Anthropic's free /v1/messages/count_tokens endpoint.
+
+Options:
+  --mode <low|mid|high|max>   Tier preset (default from configure)
+  --resolution <N>            Override mode with raw px width
+  --view-sample <N>           Override auto-budget frame count
+  --start <HH:MM:SS>          Start time (default 00:00:00)
+  --end <HH:MM:SS>            End time (default full duration)
+  --roi <auto|x,y,w,h>        Crop to ROI (default auto, uses analyze.subject_bbox)
+  --no-roi                    Disable ROI crop (use full frame)
+  --no-narrative              Disable narrative_mode (default on)
+  --no-adaptive               Disable adaptive_sampling (default on)
+  --model <model-id>          Override auto-detected model
+  --skip-analyze              Skip the analyze pass (re-use cached signals only)
+  --json                      Emit raw JSON instead of pretty summary
+  -h, --help                  Show this help
+
+Examples:
+  lumiere-cost /tmp/video.mp4 --mode high
+  lumiere-cost https://x.com/.../status/123 --mode max --start 00:00:05 --end 00:00:15
+  lumiere-cost video.mp4 --mode high --view-sample 50 --json
+
+Requires LUMIERE_ANTHROPIC_API_KEY or keychain entry dev.lumiere-anthropic-api-key.
+`)
+}
+
+interface Req { jsonrpc: string; id: number; method: string; params?: any }
+
+async function mcpSession(envOverrides: Record<string, string>) {
+  if (!existsSync(SERVER)) {
+    process.stderr.write(`lumiere server not found at ${SERVER}\n`)
+    process.exit(1)
+  }
+  const proc = spawn("bun", ["run", SERVER], {
+    cwd: PLUGIN_ROOT,
+    env: { ...process.env, ...envOverrides },
+    stdio: ["pipe", "pipe", "pipe"],
+  })
+  let buf = ""
+  const pending = new Map<number, (r: any) => void>()
+  proc.stdout.on("data", (d) => {
+    buf += d.toString()
+    let i: number
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim()
+      buf = buf.slice(i + 1)
+      if (!line) continue
+      try {
+        const p = JSON.parse(line)
+        if (p.id !== undefined && pending.has(p.id)) {
+          pending.get(p.id)!(p)
+          pending.delete(p.id)
+        }
+      } catch { /* skip */ }
+    }
+  })
+  // surface stderr in --json runs? no — only on errors. silence by default.
+  let errBuf = ""
+  proc.stderr.on("data", (d) => { errBuf += d.toString() })
+
+  return {
+    call: (req: Req) => new Promise<any>((resolve) => {
+      pending.set(req.id, resolve)
+      proc.stdin.write(JSON.stringify(req) + "\n")
+    }),
+    close: () => proc.kill(),
+    getErr: () => errBuf,
+  }
+}
+
+async function main() {
+  const args = parseArgs(process.argv)
+  const s = await mcpSession({ MAX_MCP_OUTPUT_TOKENS: "100000" })
+
+  // Init MCP
+  await s.call({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "lumiere-cost", version: "1" } } })
+  await new Promise((r) => setTimeout(r, 300))
+
+  // Analyze first so motion_windows + subject_bbox are populated (unless --skip-analyze)
+  if (!args.skip_analyze) {
+    const a = await s.call({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "analyze", arguments: {
+      path: args.path,
+      filters: { motion: true, exposure: true, scene_changes: false, silence: false, freeze: false, blur: false, black_intervals: false, loudness: false, transcription: false },
+    } } })
+    if (a.error) {
+      process.stderr.write(`analyze error: ${JSON.stringify(a.error).slice(0, 300)}\n`)
+      s.close()
+      process.exit(1)
+    }
+  }
+
+  // Measure
+  const measureArgs: Record<string, any> = { path: args.path }
+  if (args.mode) measureArgs.mode = args.mode
+  if (args.resolution) measureArgs.resolution = args.resolution
+  if (args.view_sample) measureArgs.view_sample = args.view_sample
+  if (args.start_time) measureArgs.start_time = args.start_time
+  if (args.end_time) measureArgs.end_time = args.end_time
+  if (args.roi) measureArgs.roi = args.roi
+  if (args.narrative_mode !== undefined) measureArgs.narrative_mode = args.narrative_mode
+  if (args.adaptive_sampling !== undefined) measureArgs.adaptive_sampling = args.adaptive_sampling
+  if (args.model) measureArgs.model = args.model
+
+  const r = await s.call({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "measure", arguments: measureArgs } })
+  s.close()
+
+  if (r.error) {
+    process.stderr.write(`measure error: ${JSON.stringify(r.error)}\n`)
+    process.exit(1)
+  }
+  const text = r.result?.content?.[0]?.text
+  if (!text) {
+    process.stderr.write(`unexpected response shape\n${JSON.stringify(r).slice(0, 500)}\n`)
+    process.exit(1)
+  }
+
+  let parsed: any
+  try { parsed = JSON.parse(text) } catch { process.stdout.write(text + "\n"); return }
+
+  if (args.json) {
+    process.stdout.write(JSON.stringify(parsed, null, 2) + "\n")
+    return
+  }
+
+  // Pretty summary
+  const m = parsed.measurement ?? {}
+  const lines = [
+    `path:                  ${args.path}`,
+    `model:                 ${m.model}`,
+    `method:                ${m.method}`,
+    `mode/resolution:       ${m.mode} (${m.resolution}px)`,
+    `roi:                   ${m.roi}`,
+    `frames_proposed:       ${m.frames_proposed}`,
+    `conversation_tokens:   ${m.conversation_tokens_exact}  (image=${m.conversation_image_tokens}, text=${m.conversation_text_tokens})`,
+    `avg_tokens_per_frame:  ${m.avg_image_tokens_per_frame}`,
+    `mcp_cap_estimate:      ${m.mcp_cap_tokens_estimate} / ${m.mcp_cap_limit}  fits=${m.fits_in_mcp_cap}`,
+    `pct_of_1m_window:      ${m.pct_of_1m_window}%`,
+    `would_autocompact:     ${m.would_trigger_autocompact}`,
+  ]
+  if (m.adaptive_segments?.length) {
+    lines.push("adaptive_segments:")
+    for (const seg of m.adaptive_segments) {
+      lines.push(`  ${seg.range}  ${seg.kind.padEnd(7)} ${String(seg.budget_frames).padStart(3)}f @ ${String(seg.fps).padStart(5)}fps${seg.intensity ? ` (intensity=${seg.intensity})` : ""}`)
+    }
+  }
+  process.stdout.write(lines.join("\n") + "\n")
+}
+
+main().catch((e) => {
+  process.stderr.write(`fatal: ${e?.message || e}\n`)
+  process.exit(1)
+})

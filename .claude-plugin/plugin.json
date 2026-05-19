@@ -1,0 +1,13 @@
+{
+  "name": "lumiere",
+  "description": "Video perception + launch-video creation for Claude Code. Analyze references, scaffold scenes, render with HyperFrames.",
+  "version": "0.7.0",
+  "author": {
+    "name": "s0nderlabs",
+    "email": "s0nderlabs.hq@gmail.com",
+    "url": "https://github.com/s0nderlabs"
+  },
+  "repository": "https://github.com/s0nderlabs/lumiere",
+  "license": "MIT",
+  "keywords": ["video", "vision", "launch-video", "hyperframes", "perception", "creation"]
+}

@@ -1,0 +1,304 @@
+import { z } from "zod"
+import { join } from "path"
+import { mkdirSync, rmSync, readFileSync } from "fs"
+import { tmpdir } from "os"
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
+import {
+  DEFAULTS,
+  autoBudgetViewSample,
+  calculateAutoFps,
+  MODE_RESOLUTION,
+} from "../defaults.js"
+import { loadConfig, SESSIONS_DIR } from "../config.js"
+import {
+  getVideoMetadata,
+  extractFrames,
+  extractFramesBySegments,
+} from "../extractors/frames.js"
+import { resolveVideoInputDetailed } from "../utils/video-source.js"
+import { getSessionDir, loadManifest, computeVideoHash } from "../session/manager.js"
+import {
+  countTokens,
+  hasAnthropicKey,
+  estimateMcpCapTokens,
+  detectCurrentModel,
+  type ContentBlock,
+} from "../utils/count-tokens.js"
+import { parseHMS } from "../utils/timestamps.js"
+import type { SessionManifest, Segment, Frame } from "../types.js"
+
+const HMS_REGEX = /^\d{2}:\d{2}:\d{2}$/
+
+interface AdaptiveSegInfo {
+  start: string
+  end: string
+  startSec: number
+  endSec: number
+  fps: number
+  budgetFrames: number
+  kind: "motion" | "static"
+  intensity?: number
+}
+
+function buildAdaptiveSegments(opts: {
+  motionWindows: Array<{ start: string; end: string; intensity: number }>
+  startSec: number
+  endSec: number
+  totalBudget: number
+}): AdaptiveSegInfo[] {
+  const { motionWindows, startSec, endSec, totalBudget } = opts
+  const clamped = motionWindows
+    .map(w => ({ startSec: Math.max(startSec, parseHMS(w.start)), endSec: Math.min(endSec, parseHMS(w.end)), intensity: w.intensity }))
+    .filter(w => w.endSec > w.startSec + 0.2)
+    .sort((a, b) => a.startSec - b.startSec)
+  const merged: typeof clamped = []
+  for (const w of clamped) {
+    const last = merged[merged.length - 1]
+    if (last && w.startSec <= last.endSec) {
+      last.endSec = Math.max(last.endSec, w.endSec)
+      last.intensity = Math.max(last.intensity, w.intensity)
+    } else merged.push({ ...w })
+  }
+  const staticSpans: Array<{ startSec: number; endSec: number }> = []
+  let cursor = startSec
+  for (const w of merged) {
+    if (w.startSec > cursor + 0.05) staticSpans.push({ startSec: cursor, endSec: w.startSec })
+    cursor = w.endSec
+  }
+  if (cursor < endSec - 0.05) staticSpans.push({ startSec: cursor, endSec })
+
+  const motionTotal = merged.reduce((a, w) => a + (w.endSec - w.startSec), 0)
+  const staticTotal = staticSpans.reduce((a, s) => a + (s.endSec - s.startSec), 0)
+  let motionBudget: number, staticBudget: number
+  if (motionTotal === 0) { motionBudget = 0; staticBudget = totalBudget }
+  else if (staticTotal === 0) { motionBudget = totalBudget; staticBudget = 0 }
+  else { motionBudget = Math.floor(totalBudget * 0.7); staticBudget = totalBudget - motionBudget }
+
+  const segs: AdaptiveSegInfo[] = []
+  const formatBound = (s: number) => {
+    const t = Math.max(0, Math.round(s))
+    const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), ss = t % 60
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
+  }
+
+  if (motionBudget > 0 && merged.length > 0) {
+    const weights = merged.map(w => (w.endSec - w.startSec) * Math.max(1, w.intensity))
+    const totalWeight = weights.reduce((a, b) => a + b, 0)
+    let alloc = 0
+    for (let i = 0; i < merged.length; i++) {
+      const share = totalWeight > 0 ? weights[i] / totalWeight : 1 / merged.length
+      let f = Math.max(2, Math.round(motionBudget * share))
+      if (i === merged.length - 1) f = Math.max(2, motionBudget - alloc)
+      alloc += f
+      const dur = merged[i].endSec - merged[i].startSec
+      segs.push({
+        start: formatBound(merged[i].startSec),
+        end: formatBound(merged[i].endSec),
+        startSec: merged[i].startSec,
+        endSec: merged[i].endSec,
+        fps: Math.max(0.5, f / dur),
+        budgetFrames: f,
+        kind: "motion",
+        intensity: merged[i].intensity,
+      })
+    }
+  }
+  if (staticBudget > 0 && staticSpans.length > 0) {
+    let alloc = 0
+    for (let i = 0; i < staticSpans.length; i++) {
+      const s = staticSpans[i]
+      const dur = s.endSec - s.startSec
+      const share = staticTotal > 0 ? dur / staticTotal : 1 / staticSpans.length
+      let f = Math.max(1, Math.round(staticBudget * share))
+      if (i === staticSpans.length - 1) f = Math.max(1, staticBudget - alloc)
+      alloc += f
+      segs.push({
+        start: formatBound(s.startSec),
+        end: formatBound(s.endSec),
+        startSec: s.startSec,
+        endSec: s.endSec,
+        fps: Math.max(0.2, f / dur),
+        budgetFrames: f,
+        kind: "static",
+      })
+    }
+  }
+  segs.sort((a, b) => a.startSec - b.startSec)
+  return segs
+}
+
+export function registerMeasure(server: McpServer): void {
+  server.tool(
+    "measure",
+    "Measure the EXACT context-burn and MCP-cap impact of a `watch` call without actually delivering frames. Extracts frames, builds the would-be response, counts tokens via Anthropic's /v1/messages/count_tokens (free endpoint, requires LUMIERE_ANTHROPIC_API_KEY or keychain). Returns: conversation_tokens (what Claude will see as input tokens, exact for the chosen model), mcp_cap_tokens (heuristic estimate of CC's MCP per-call cap usage), frames_proposed, image_tokens, text_tokens, fits_in_mcp_cap, fits_in_context_window. Use BEFORE a high-stakes watch() call to know the exact cost. Same args as watch.",
+    {
+      path: z.string().describe("Local path or any URL supported by yt-dlp"),
+      mode: z.enum(["low", "mid", "high", "max"]).optional(),
+      resolution: z.coerce.number().min(128).max(2048).optional(),
+      view_sample: z.number().min(1).optional(),
+      start_time: z.string().regex(HMS_REGEX).optional(),
+      end_time: z.string().regex(HMS_REGEX).optional(),
+      narrative_mode: z.boolean().optional(),
+      adaptive_sampling: z.boolean().optional(),
+      roi: z.union([z.literal("auto"), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional(),
+      model: z.string().optional().describe("Anthropic model id for token counting. Defaults to auto-detect from the current CC session (reads CLAUDE_CODE_SESSION_ID transcript). Fallback claude-opus-4-7. Override per-call to compare tokenizers (e.g. claude-opus-4-6)."),
+    },
+    async (params) => {
+      if (!hasAnthropicKey()) {
+        return {
+          content: [{
+            type: "text",
+            text: "## Error\nmeasure requires LUMIERE_ANTHROPIC_API_KEY. Set it via:\n```\nsecurity add-generic-password -a lumiere -s dev.lumiere-anthropic-api-key -w 'sk-ant-...'\n```\nOr export `LUMIERE_ANTHROPIC_API_KEY` in your shell. The key is only used for the free `/v1/messages/count_tokens` endpoint, no per-call charges.",
+          }],
+        }
+      }
+
+      const config = loadConfig()
+      const resolution = params.resolution
+        ?? (params.mode ? MODE_RESOLUTION[params.mode] : undefined)
+        ?? MODE_RESOLUTION[config.default_mode]
+        ?? DEFAULTS.frame_resolution
+
+      const resolved = await resolveVideoInputDetailed(params.path)
+      const safePath = resolved.path
+      const metadata = await getVideoMetadata(safePath)
+
+      const sessionDir = getSessionDir(SESSIONS_DIR, safePath)
+      const manifest: SessionManifest | null = loadManifest(sessionDir)
+
+      // Resolve view_sample (auto-budget if omitted)
+      const effectiveViewSample = params.view_sample ?? autoBudgetViewSample(resolution)
+
+      // Resolve ROI
+      let roiCrop: { x: number; y: number; w: number; h: number } | null = null
+      if (params.roi === "auto") {
+        const bbox = manifest?.analysis?.subject_bbox
+        if (bbox) roiCrop = { x: bbox.x, y: bbox.y, w: bbox.w, h: bbox.h }
+      } else if (params.roi) {
+        const m = /^(\d+),(\d+),(\d+),(\d+)$/.exec(params.roi)
+        if (m) roiCrop = { x: parseInt(m[1], 10), y: parseInt(m[2], 10), w: parseInt(m[3], 10), h: parseInt(m[4], 10) }
+      }
+
+      // Decide adaptive
+      const motionWindows = manifest?.analysis?.motion_windows ?? []
+      const useAdaptive =
+        params.adaptive_sampling === true ||
+        (params.adaptive_sampling !== false &&
+          params.narrative_mode === true &&
+          motionWindows.length >= 1 &&
+          metadata.duration_seconds > 4)
+
+      // Build segments OR uniform fps
+      const startSec = params.start_time ? parseHMS(params.start_time) : 0
+      const endSec = params.end_time ? parseHMS(params.end_time) : metadata.duration_seconds
+      const activeDur = Math.max(0.5, endSec - startSec)
+
+      const workDir = join(tmpdir(), `lumiere-measure-${Date.now()}`)
+      mkdirSync(workDir, { recursive: true })
+      let extractedFrames: Frame[] = []
+      let extractMode = "uniform"
+      let adaptiveSegs: AdaptiveSegInfo[] = []
+      try {
+        if (useAdaptive && motionWindows.length > 0) {
+          adaptiveSegs = buildAdaptiveSegments({
+            motionWindows,
+            startSec,
+            endSec,
+            totalBudget: effectiveViewSample,
+          })
+          extractMode = "adaptive"
+          const segs: Segment[] = adaptiveSegs.map(s => ({ start: s.start, end: s.end, fps: s.fps, resolution }))
+          extractedFrames = await extractFramesBySegments(safePath, segs, workDir, DEFAULTS.frame_format, roiCrop ?? undefined)
+        } else {
+          const fps = effectiveViewSample / activeDur
+          extractedFrames = await extractFrames(safePath, {
+            fps,
+            resolution,
+            outputDir: workDir,
+            format: DEFAULTS.frame_format,
+            startTime: params.start_time,
+            endTime: params.end_time,
+            maxFrames: DEFAULTS.max_frames,
+            crop: roiCrop ?? undefined,
+          })
+        }
+
+        // Limit to view_sample
+        if (extractedFrames.length > effectiveViewSample) {
+          const step = extractedFrames.length / effectiveViewSample
+          const sampled: Frame[] = []
+          for (let i = 0; i < effectiveViewSample; i++) {
+            sampled.push(extractedFrames[Math.floor(i * step)])
+          }
+          extractedFrames = sampled
+        }
+
+        // Build content blocks (text + image)
+        const content: ContentBlock[] = []
+        for (const f of extractedFrames) {
+          content.push({ type: "text", text: `### Frame at ${f.timestamp}` })
+          if (f.image) {
+            content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: f.image } })
+          }
+        }
+
+        // Compute exact conversation tokens via count_tokens
+        const ct = await countTokens(content, { model: params.model })
+
+        // Compute MCP cap heuristic
+        const imageChars = extractedFrames.reduce((a, f) => a + (f.image?.length ?? 0), 0)
+        const textOverheadChars = 15000  // typical: budget block + narrative guidance + manifest + audio
+        const mcpCapTokens = estimateMcpCapTokens({
+          imageChars,
+          frameCount: extractedFrames.length,
+          textOverheadChars,
+        })
+
+        const MCP_CAP = parseInt(process.env.MAX_MCP_OUTPUT_TOKENS ?? "100000", 10)
+        const CONTEXT_WINDOW = 1_000_000
+        const AUTOCOMPACT_PCT = 81
+
+        // Image vs text token split (approximate, by subtracting text-only count)
+        const textOnlyContent: ContentBlock[] = []
+        for (const f of extractedFrames) textOnlyContent.push({ type: "text", text: `### Frame at ${f.timestamp}` })
+        const textOnlyCt = await countTokens(textOnlyContent, { model: params.model })
+        const imageTokens = ct.input_tokens - textOnlyCt.input_tokens
+        const textTokens = textOnlyCt.input_tokens
+
+        const output = {
+          ...(resolved.source ? { source: resolved.source } : {}),
+          measurement: {
+            model: params.model ?? detectCurrentModel(),
+            method: extractMode,
+            mode: params.mode ?? config.default_mode,
+            resolution,
+            roi: roiCrop ? `${roiCrop.x},${roiCrop.y},${roiCrop.w}x${roiCrop.h}` : "none",
+            adaptive_segments: adaptiveSegs.length > 0 ? adaptiveSegs.map(s => ({
+              range: `${s.start}-${s.end}`,
+              kind: s.kind,
+              intensity: s.intensity,
+              budget_frames: s.budgetFrames,
+              fps: Number(s.fps.toFixed(2)),
+            })) : undefined,
+            frames_proposed: extractedFrames.length,
+            image_chars_total: imageChars,
+            conversation_tokens_exact: ct.input_tokens,
+            conversation_image_tokens: imageTokens,
+            conversation_text_tokens: textTokens,
+            avg_image_tokens_per_frame: extractedFrames.length > 0 ? Math.round(imageTokens / extractedFrames.length) : 0,
+            mcp_cap_tokens_estimate: mcpCapTokens,
+            mcp_cap_limit: MCP_CAP,
+            fits_in_mcp_cap: mcpCapTokens < MCP_CAP,
+            fits_in_context_window: ct.input_tokens < CONTEXT_WINDOW,
+            pct_of_1m_window: Number(((ct.input_tokens / CONTEXT_WINDOW) * 100).toFixed(2)),
+            would_trigger_autocompact: (ct.input_tokens / CONTEXT_WINDOW) * 100 >= AUTOCOMPACT_PCT,
+          },
+        }
+
+        return { content: [{ type: "text", text: JSON.stringify(output, null, 2) }] }
+      } finally {
+        rmSync(workDir, { recursive: true, force: true })
+      }
+    },
+  )
+}
