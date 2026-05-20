@@ -4,6 +4,7 @@ import { readFileSync, readdirSync, mkdirSync, existsSync } from "fs"
 import { join } from "path"
 import type { VideoMetadata, Frame, FrameFormat, Segment, SegmentFrame } from "../types.js"
 import { formatHMS, formatHMSPrecise, parseHMS } from "../utils/timestamps.js"
+import { roiBucketKey } from "../utils/roi.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -162,9 +163,16 @@ export async function extractFramesBySegments(
   crop?: { x: number; y: number; w: number; h: number },
 ): Promise<SegmentFrame[]> {
   const out: SegmentFrame[] = []
-  for (const seg of segments) {
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]
     const res = seg.resolution ?? 512
-    const dir = join(baseOutputDir, String(res))
+    // Per-segment crop wins over the global crop. Different crops produce
+    // different pixel content per segment, so they need their own output
+    // directory to avoid colliding on frame_NNNN.jpg names.
+    const segCrop = seg.crop ?? crop
+    const bucket = seg.crop ? roiBucketKey(seg.crop) : ""
+    const dirSuffix = bucket ? `${bucket}-s${i}` : `s${i}`
+    const dir = join(baseOutputDir, String(res), dirSuffix)
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 
     const frames = await extractFrames(videoPath, {
@@ -175,9 +183,9 @@ export async function extractFramesBySegments(
       startTime: seg.start,
       endTime: seg.end,
       maxFrames: 1000,
-      crop,
+      crop: segCrop,
     })
-    for (const f of frames) out.push({ ...f, resolution: res })
+    for (const f of frames) out.push({ ...f, resolution: res, crop: seg.crop })
   }
   return out
 }

@@ -19,6 +19,8 @@ export interface AdaptiveSegment {
   budgetFrames: number
   kind: "motion" | "static"
   intensity?: number
+  // Set by assignPerWindowCrops (utils/roi.ts) when roi="per-window".
+  crop?: { x: number; y: number; w: number; h: number }
 }
 
 export interface BuildAdaptiveSegmentsOpts {

@@ -2,6 +2,35 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-05-20
+
+Per-window zoom: each motion window can carry its own subject bbox so a traveling subject (e.g. a mascot dashing from top-left to bottom-right) stays tight in every cropped frame instead of being averaged out by a video-wide union bbox. Plus a roi-aware cache so `view=` lookups never silently return frames from the wrong crop bucket, and a defense-in-depth pass on the keychain shell-out path. Tested end-to-end via a tmux MCP session against the V1 ClaudeDevs source.
+
+### Added
+
+- **`roi="per-window"` on `watch` and `measure`**. Assigns each motion-window's frames its own bbox from `analyze.window_bboxes`. Requires `adaptive_sampling=true` and a prior `analyze(motion=true)` call.
+- **`analyze.window_bboxes`**: per-motion-window subject bboxes, computed via cc-segmentation restricted to each window's time range. Aligned by index with `analyze.motion_windows`. Null entries mean no usable blob found in that window (very short, very static).
+- **`src/utils/concurrency.ts`**: `mapWithConcurrency` bounded-concurrency helper. Used by the per-window bbox loop in `analyze` to cap simultaneous ffmpeg invocations at 4 so action-heavy videos with many motion windows don't fan out 20+ ffmpegs and starve the decoder.
+- **`src/utils/roi.ts`** gains `formatRoiCrop`, `roiBucketKey`, `assignPerWindowCrops`, plus `ROI_AUTO` / `ROI_PER_WINDOW` constants. Single canonical crop format across cache keys, on-disk dir names, metadata labels, and measure JSON output.
+
+### Changed
+
+- **Cache key now encodes the roi bucket**: `frameCacheKey(resolution, format, roiBucket?)` produces `1024/jpeg` for full frame and `1024/jpeg/roi=x,y,wxh` for a cropped variant. `view=` lookups filter by the current request's roi bucket so a `roi=auto` call no longer silently returns full-frame frames from the cache (or vice versa). Backwards-compat: pre-v0.8 caches under the bare `1024/jpeg` key remain readable as the full-frame bucket.
+- **`Segment.crop` and `SegmentFrame.crop`**: optional per-segment crop carried through `extractFramesBySegments`. Per-segment crop wins over the call-level crop; each crop variant gets its own output subdir so different crops at the same timestamp don't collide on `frame_NNNN.jpg`.
+- **`extractFramesBySegments` writes to `<res>/<bucket>-s<i>/`** instead of the bare `<res>/`. Latent bug fix: pre-v0.8, every segment wrote into the same dir and overwrote earlier `frame_NNNN.jpg` files, so `sourcePath` entries cached in the session manifest pointed at files that later segments had clobbered. Callers that round-tripped through `sourcePath` (the watch tool's session-cache merge path) were serving stale bytes.
+- **`detectSubjectBboxViaCC` accepts optional `bounds: { startTime, endTime }`** so the per-window planner can run it on a sub-segment.
+
+### Fixed
+
+- **`src/auth.ts` shell hardening**: keychain `find-generic-password` / `add-generic-password` / `delete-generic-password` calls switched from `execSync` with template-string interpolation to `execFileSync` with arg arrays. No current vector (keys come from internal `dev.lumiere-*` constants) but eliminates a future shell-injection surface if any caller ever passes user-influenced data.
+- **`view=` cache lookup ignored mode + roi context**. Before v0.8 the lookup picked the highest-resolution cached frame regardless of crop, so a `view=` call without `roi` could return roi-cropped frames silently. Now scoped to the current request's roi bucket.
+
+### Internal
+
+- Eliminated ~35 lines of duplicated per-window crop matching between `tools/watch.ts` and `tools/measure.ts` via the shared `assignPerWindowCrops` helper.
+- All four bbox-to-string call sites (`watch`, `measure`, cache key, on-disk dir name) now route through `formatRoiCrop`.
+- Dropped `parseHMS` aliases (`parseSimpleHms` in `bbox.ts`, `parseHmsToSec` in `analyze.ts`); both files import `parseHMS` directly to match codebase convention.
+
 ## [0.7.2] - 2026-05-20
 
 Retroactive cleanup pass triggered after seal-guard v2 surfaced that v0.7.0 and v0.7.1 had shipped via raw `git commit` bypassing the proper Skill('commit') chain. This release is the audit-and-fix pass: full-codebase /simplify + security review + README sweep, all driven through the proper /seal + Skill('commit') chain so the v2 hook can validate it. No public API changes; internal refactor + one latent bug fix.

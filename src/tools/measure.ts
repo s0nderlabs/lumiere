@@ -29,7 +29,13 @@ import {
   buildAdaptiveSegments,
   type AdaptiveSegment,
 } from "../utils/adaptive-segments.js"
-import { resolveRoi } from "../utils/roi.js"
+import {
+  resolveRoi,
+  assignPerWindowCrops,
+  formatRoiCrop,
+  ROI_AUTO,
+  ROI_PER_WINDOW,
+} from "../utils/roi.js"
 import {
   decideAdaptive,
   decideNarrative,
@@ -52,7 +58,7 @@ export function registerMeasure(server: McpServer): void {
       end_time: z.string().regex(HMS_REGEX).optional(),
       narrative_mode: z.boolean().optional(),
       adaptive_sampling: z.boolean().optional(),
-      roi: z.union([z.literal("auto"), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional(),
+      roi: z.union([z.literal(ROI_AUTO), z.literal(ROI_PER_WINDOW), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional(),
       model: z.string().optional().describe("Anthropic model id for token counting. Defaults to auto-detect from the current CC session (reads CLAUDE_CODE_SESSION_ID transcript). Fallback claude-opus-4-7. Override per-call to compare tokenizers (e.g. claude-opus-4-6)."),
     },
     async (params) => {
@@ -116,7 +122,17 @@ export function registerMeasure(server: McpServer): void {
             totalBudget: effectiveViewSample,
           })
           extractMode = "adaptive"
-          const segs: Segment[] = adaptiveSegs.map(s => ({ start: s.start, end: s.end, fps: s.fps, resolution }))
+
+          if (params.roi === ROI_PER_WINDOW && manifest?.analysis?.window_bboxes?.length) {
+            assignPerWindowCrops(
+              adaptiveSegs,
+              motionWindows,
+              manifest.analysis.window_bboxes,
+              manifest.analysis.subject_bbox,
+            )
+          }
+
+          const segs: Segment[] = adaptiveSegs.map(s => ({ start: s.start, end: s.end, fps: s.fps, resolution, crop: s.crop }))
           extractedFrames = await extractFramesBySegments(safePath, segs, workDir, DEFAULTS.frame_format, roiCrop ?? undefined)
         } else {
           const fps = effectiveViewSample / activeDur
@@ -183,6 +199,16 @@ export function registerMeasure(server: McpServer): void {
         const imageTokens = ct.input_tokens - textOnlyCt.input_tokens
         const textTokens = textOnlyCt.input_tokens
 
+        let roiLabel: string
+        if (params.roi === ROI_PER_WINDOW) {
+          const cropped = adaptiveSegs.filter(s => s.crop).length
+          roiLabel = cropped > 0
+            ? `per-window (${cropped}/${adaptiveSegs.length} segs cropped)`
+            : "per-window (no window_bboxes cached, ran un-cropped)"
+        } else {
+          roiLabel = roiCrop ? formatRoiCrop(roiCrop) : "none"
+        }
+
         const output = {
           ...(resolved.source ? { source: resolved.source } : {}),
           measurement: {
@@ -190,13 +216,14 @@ export function registerMeasure(server: McpServer): void {
             method: extractMode,
             mode: params.mode ?? config.default_mode,
             resolution,
-            roi: roiCrop ? `${roiCrop.x},${roiCrop.y},${roiCrop.w}x${roiCrop.h}` : "none",
+            roi: roiLabel,
             adaptive_segments: adaptiveSegs.length > 0 ? adaptiveSegs.map(s => ({
               range: `${s.start}-${s.end}`,
               kind: s.kind,
               intensity: s.intensity,
               budget_frames: s.budgetFrames,
               fps: Number(s.fps.toFixed(2)),
+              crop: s.crop ? formatRoiCrop(s.crop) : undefined,
             })) : undefined,
             frames_proposed: extractedFrames.length,
             image_chars_total: imageChars,

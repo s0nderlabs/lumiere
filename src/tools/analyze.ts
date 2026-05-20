@@ -40,6 +40,8 @@ import { detectSubjectBboxViaCC } from "../extractors/bbox.js"
 import { loadManifest, saveManifest, computeVideoHash } from "../session/manager.js"
 import { createManifest } from "../session/manifest.js"
 import { detectLowConfidenceTranscript } from "../utils/hallucination.js"
+import { parseHMS } from "../utils/timestamps.js"
+import { mapWithConcurrency } from "../utils/concurrency.js"
 import type { AnalysisFilters, VideoAnalysis, AudioResult } from "../types.js"
 
 const execFileAsync = promisify(execFile)
@@ -219,7 +221,28 @@ export function registerAnalyze(server: McpServer): void {
             analysis.subject_motion ?? {},
           )
           if (bbox) analysis.subject_bbox = bbox
-          if (motionWindows) analysis.motion_windows = motionWindows
+          if (motionWindows) {
+            analysis.motion_windows = motionWindows
+            // Per-window bboxes power watch's roi="per-window". Concurrency
+            // capped so action-heavy videos with many windows don't fan out
+            // 20+ simultaneous ffmpegs and starve the decoder.
+            if (motionWindows.length > 0) {
+              analysis.window_bboxes = await mapWithConcurrency(motionWindows, 4, async (w) => {
+                if (parseHMS(w.end) - parseHMS(w.start) < 1) return null
+                try {
+                  return await detectSubjectBboxViaCC(
+                    safePath,
+                    metadata.width,
+                    metadata.height,
+                    workDir,
+                    { startTime: w.start, endTime: w.end },
+                  )
+                } catch {
+                  return null
+                }
+              })
+            }
+          }
         }
 
         if (filters.transcription && metadata.has_audio) {

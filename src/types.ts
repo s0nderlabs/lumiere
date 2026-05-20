@@ -36,6 +36,8 @@ export interface Frame {
 
 export interface SegmentFrame extends Frame {
   resolution: number
+  // Mirror of the segment's crop so cache buckets can be tagged per-frame.
+  crop?: { x: number; y: number; w: number; h: number }
 }
 
 export interface TranscriptionSegment {
@@ -153,6 +155,10 @@ export interface VideoAnalysis {
   // mode to allocate the per-call frame budget non-uniformly: more frames inside
   // motion windows, fewer in static spans.
   motion_windows?: Array<{ start: string; end: string; intensity: number }>
+  // Per-motion-window subject bboxes (cc-segmentation per window range).
+  // Powers watch's roi="per-window" so a traveling subject stays tight.
+  // Null entries: detection found no usable blob in that window.
+  window_bboxes?: Array<SubjectBbox | null>
 }
 
 export interface SessionManifest {
@@ -168,6 +174,8 @@ export interface Segment {
   end: string
   fps: number
   resolution?: number
+  // Per-segment crop applied before scaling; lets roi=per-window vary bbox per motion window.
+  crop?: { x: number; y: number; w: number; h: number }
 }
 
 export interface ChunkPlan {

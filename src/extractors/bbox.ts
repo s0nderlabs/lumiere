@@ -4,6 +4,7 @@ import { readFileSync, readdirSync, mkdirSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import type { SubjectBbox } from "../types.js"
+import { parseHMS } from "../utils/timestamps.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -110,11 +111,14 @@ function dilateOnce(mask: Uint8Array, width: number, height: number): Uint8Array
 // returns their combined envelope so multi-subject videos still get a useful
 // crop instead of the union-of-all-motion that plain cropdetect produces.
 // Returns null on no usable blob; callers should fall back to the cropdetect path.
+// Optional bounds restrict detection to a sub-segment so the per-window zoom
+// planner can build a separate bbox per motion window.
 export async function detectSubjectBboxViaCC(
   videoPath: string,
   frameW: number,
   frameH: number,
   workDirRoot?: string,
+  bounds?: { startTime?: string; endTime?: string },
 ): Promise<SubjectBbox | null> {
   if (!frameW || !frameH) return null
 
@@ -127,12 +131,20 @@ export async function detectSubjectBboxViaCC(
 
     const filter = `tblend=all_mode=difference,lutyuv=y=if(gt(val\\,10)\\,255\\,0),fps=2,scale=${scaledW}:${scaledH},format=gray`
 
-    const args = [
-      "-i", videoPath, "-y",
+    const args: string[] = []
+    if (bounds?.startTime) args.push("-ss", bounds.startTime)
+    args.push("-i", videoPath, "-y")
+    if (bounds?.endTime) {
+      const startSec = bounds.startTime ? parseHMS(bounds.startTime) : 0
+      const endSec = parseHMS(bounds.endTime)
+      const dur = endSec - startSec
+      if (dur > 0) args.push("-t", String(dur))
+    }
+    args.push(
       "-vf", filter,
       "-frames:v", "24",
       join(workDir, "mask_%04d.pgm"),
-    ]
+    )
 
     try {
       await execFileAsync("ffmpeg", args, { timeout: 60_000, maxBuffer: 50 * 1024 * 1024 })

@@ -2,8 +2,27 @@ import type { SessionManifest } from "../types.js"
 
 type ManifestFrame = { timestamp: string; file: string }
 
-export function frameCacheKey(resolution: string | number, format = "jpeg"): string {
-  return `${resolution}/${format}`
+// Cache key for a (resolution, format, roiBucket) tuple. roiBucket="" means
+// the full frame; otherwise a canonical "roi=x,y,wxh" string keeps roi-cropped
+// frames in their own bucket so `view=` lookups never silently return the wrong
+// crop for a request expecting full-frame (or vice versa).
+export function frameCacheKey(
+  resolution: string | number,
+  format = "jpeg",
+  roiBucket = "",
+): string {
+  return roiBucket ? `${resolution}/${format}/${roiBucket}` : `${resolution}/${format}`
+}
+
+// Parse a cache key back into its parts so lookups can filter by roiBucket.
+export function parseFrameCacheKey(key: string): { resolution: number; format: string; roiBucket: string } | null {
+  const parts = key.split("/")
+  if (parts.length < 2) return null
+  const resolution = parseInt(parts[0], 10)
+  if (!Number.isFinite(resolution)) return null
+  const format = parts[1]
+  const roiBucket = parts.slice(2).join("/")
+  return { resolution, format, roiBucket }
 }
 
 export function createManifest(videoHash: string, videoPath: string): SessionManifest {

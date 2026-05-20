@@ -56,7 +56,7 @@ Frame extraction + audio. Returns base64 images with narrative guidance. Key par
 - `mode`: `low` (384px) | `mid` (512px) | `high` (1024px, default) | `max` (1536px)
 - `narrative_mode`: temporal sequence reading instead of frame-by-frame
 - `adaptive_sampling`: motion-window-aware frame allocation (70/30 motion/static split)
-- `roi`: `"auto"` reads `analyze.subject_bbox`; subject gets full target resolution
+- `roi`: `"auto"` reads `analyze.subject_bbox`; `"per-window"` (v0.8) assigns each motion window its own bbox from `analyze.window_bboxes` so a traveling subject stays tight in every crop (requires `adaptive_sampling=true` + prior `analyze` with motion=true); `"x,y,w,h"` explicit. Subject gets full target resolution
 - `start_time` / `end_time`: chunk a sub-segment
 - `view_sample`: override the auto-budget
 
@@ -94,6 +94,12 @@ Higher tiers = fewer frames per call. For long action sequences at `high` or `ma
 ## How ROI auto-crop works (v0.5)
 
 When the moving subject is small relative to the frame (mascot inside a brand card), the subject's pixels get averaged into uniform color blobs at typical resolutions. ROI auto-crop reads `analyze.subject_bbox` (computed via connected-component segmentation of the binary motion mask) and crops `watch` frames to it before scaling. The subject fills the target resolution. 10x+ effective pixel density on the subject.
+
+## How per-window zoom works (v0.8)
+
+`roi=auto` uses ONE global bbox for the whole call, which has to be a union over every motion window's subject position. If the subject travels (mascot dashes top-left to bottom-right), that union balloons and the crop barely tightens. `roi=per-window` assigns each motion window its OWN bbox: `analyze` runs the cc-segmentation detector separately on each window's time range and stores them in `analysis.window_bboxes`. `watch` (with `adaptive_sampling=true`) then maps each adaptive segment to its window and crops with that window's bbox. Static segments fall back to the global subject_bbox. Result: max pixel density per window even when the subject moves across the frame.
+
+Requires `adaptive_sampling=true` and a prior `analyze(motion=true)` call.
 
 ## How narrative_mode works (v0.3+)
 

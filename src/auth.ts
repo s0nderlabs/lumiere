@@ -1,4 +1,4 @@
-import { execSync } from "child_process"
+import { execFileSync } from "child_process"
 import { readFileSync, writeFileSync, mkdirSync, chmodSync } from "fs"
 import { join } from "path"
 import { homedir, platform } from "os"
@@ -17,7 +17,11 @@ export function credGet(key: string): string | null {
 
   if (isMac) {
     try {
-      return execSync(`security find-generic-password -s ${key} -w 2>/dev/null`, { encoding: "utf8" }).trim()
+      const out = execFileSync("security", ["find-generic-password", "-s", key, "-w"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      })
+      return out.trim()
     } catch {}
   }
 
@@ -37,9 +41,13 @@ export function credSet(key: string, value: string): void {
 
   if (isMac) {
     try {
-      execSync(`security delete-generic-password -s ${key} 2>/dev/null`)
+      execFileSync("security", ["delete-generic-password", "-s", key], {
+        stdio: ["ignore", "ignore", "ignore"],
+      })
     } catch {}
-    execSync(`security add-generic-password -a lumiere -s ${key} -w "${value.replace(/"/g, '\\"')}"`)
+    execFileSync("security", ["add-generic-password", "-a", "lumiere", "-s", key, "-w", value], {
+      stdio: ["ignore", "ignore", "pipe"],
+    })
     return
   }
 

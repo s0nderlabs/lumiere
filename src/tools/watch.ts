@@ -32,6 +32,7 @@ import { loadManifest, saveManifest, computeVideoHash } from "../session/manager
 import {
   createManifest,
   frameCacheKey,
+  parseFrameCacheKey,
   mergeFrames,
   sampleFrameIndices,
 } from "../session/manifest.js"
@@ -40,7 +41,14 @@ import {
   formatAdaptiveSummary,
   type AdaptiveSegment,
 } from "../utils/adaptive-segments.js"
-import { resolveRoi } from "../utils/roi.js"
+import {
+  resolveRoi,
+  roiBucketKey,
+  assignPerWindowCrops,
+  formatRoiCrop,
+  ROI_AUTO,
+  ROI_PER_WINDOW,
+} from "../utils/roi.js"
 import {
   decideAdaptive,
   decideNarrative,
@@ -147,18 +155,20 @@ function lookupTimestampsInManifest(
   manifest: SessionManifest,
   timestamps: string[],
   format: string,
+  roiBucket: string,
 ): ViewableFrame[] {
   const out: ViewableFrame[] = []
   for (const ts of timestamps) {
     let bestRes = -1
     let bestFile: string | null = null
     for (const [key, data] of Object.entries(manifest.resolutions)) {
-      const [resStr, fmt = "jpeg"] = key.split("/")
-      if (fmt !== format) continue
-      const res = parseInt(resStr, 10)
+      const parsed = parseFrameCacheKey(key)
+      if (!parsed) continue
+      if (parsed.format !== format) continue
+      if (parsed.roiBucket !== roiBucket) continue
       const entry = data.frames.find(f => f.timestamp === ts)
-      if (entry && res > bestRes) {
-        bestRes = res
+      if (entry && parsed.resolution > bestRes) {
+        bestRes = parsed.resolution
         bestFile = entry.file
       }
     }
@@ -264,7 +274,7 @@ export function registerWatch(server: McpServer): void {
       view_sample: z.number().min(1).optional().describe("Return N evenly spaced frames (omit to use auto-budget default by resolution)"),
       view: z.array(z.string().regex(HMS_REGEX)).optional().describe("Look up specific timestamps from session cache (requires enable_index=true and at least one prior watch/analyze call). Bypasses extraction."),
       narrative_mode: z.boolean().optional().describe("Inject temporal-narrative guidance into the response so Claude reads frames as a continuous action sequence (anchors/changes/actions) rather than as independent images. Recommended for action/motion-heavy segments. Auto-suggested when analyze() reports high motion or dense scene cuts."),
-      roi: z.union([z.literal("auto"), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional().describe("Crop frames to a region of interest before scaling. 'auto' uses analyze().subject_bbox (must have run analyze with motion=true first). 'x,y,w,h' is an explicit pixel bbox. ROI crop gives the subject the full target resolution instead of being averaged out by background pixels - critical for small-subject videos (mascot < 15% of frame)."),
+      roi: z.union([z.literal(ROI_AUTO), z.literal(ROI_PER_WINDOW), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional().describe("Crop frames to a region of interest before scaling. 'auto' uses a single global analyze().subject_bbox. 'per-window' assigns each motion-window's frames its OWN bbox from analyze().window_bboxes - tracks a traveling subject so each window's pixels land tight on the subject even when the subject moves across the frame (requires adaptive_sampling and prior analyze with motion=true). 'x,y,w,h' is an explicit pixel bbox. ROI crop gives the subject the full target resolution instead of being averaged out by background pixels."),
       adaptive_sampling: z.boolean().optional().describe("Motion-adaptive frame allocation. When true (or auto-enabled because narrative_mode is on AND analyze().motion_windows is cached AND duration > 4s), the per-call frame budget is split non-uniformly: 70% to motion-dense windows (weighted by duration * intensity), 30% to static spans. Same total frame count, but temporal resolution biased toward where action is happening. Pass false to force uniform sampling. Ignored if `segments` is given."),
     },
     async (params) => {
@@ -302,10 +312,18 @@ export function registerWatch(server: McpServer): void {
             content: [{ type: "text", text: "## Error\n`view` requires session indexing, but no manifest exists. Call `watch` or `analyze` first to populate the cache." }],
           }
         }
-        const frames = lookupTimestampsInManifest(manifest, params.view, frameFormat)
+        if (params.roi === ROI_PER_WINDOW) {
+          return {
+            content: [{ type: "text", text: "## Error\n`view` does not support `roi=per-window`. Use `roi=auto` or omit `roi` to look up cached timestamps." }],
+          }
+        }
+        const viewRoi = resolveRoi(params.roi, manifest)
+        const viewBucket = roiBucketKey(viewRoi)
+        const frames = lookupTimestampsInManifest(manifest, params.view, frameFormat, viewBucket)
         const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = []
         if (resolved.source && !params.skip_metadata) content.push({ type: "text", text: `## Source\n${JSON.stringify(resolved.source, null, 2)}` })
-        content.push({ type: "text", text: `## Cache lookup: ${frames.length}/${params.view.length} timestamps found` })
+        const bucketLabel = viewBucket || "full-frame"
+        content.push({ type: "text", text: `## Cache lookup: ${frames.length}/${params.view.length} timestamps found (bucket=${bucketLabel})` })
         if (params.narrative_mode) {
           content.push({ type: "text", text: NARRATIVE_GUIDANCE })
           if (resolution <= 512) content.push({ type: "text", text: LOW_TIER_HEDGE_HINT })
@@ -371,7 +389,20 @@ export function registerWatch(server: McpServer): void {
           endSec,
           totalBudget,
         })
+
+        // roi="per-window" tracks a traveling subject (e.g. mascot top-left in
+        // window 1, bottom-right in window 3) instead of a video-wide union bbox.
+        if (params.roi === ROI_PER_WINDOW && manifest?.analysis?.window_bboxes?.length) {
+          assignPerWindowCrops(
+            adaptiveSegs,
+            motionWindows,
+            manifest.analysis.window_bboxes,
+            manifest.analysis.subject_bbox,
+          )
+        }
       }
+
+      const globalRoiBucket = roiBucketKey(roiCrop)
 
       let framesPromise: Promise<Frame[]>
       if (params.segments && params.segments.length > 0) {
@@ -381,7 +412,7 @@ export function registerWatch(server: McpServer): void {
             if (useSession && manifest && !params.skip_cached) {
               for (const f of sf) {
                 if (!f.sourcePath) continue
-                const cacheKey = frameCacheKey(String(f.resolution), frameFormat)
+                const cacheKey = frameCacheKey(String(f.resolution), frameFormat, globalRoiBucket)
                 manifest = mergeFrames(manifest!, cacheKey, [{ timestamp: f.timestamp, file: f.sourcePath }])
               }
             }
@@ -395,13 +426,15 @@ export function registerWatch(server: McpServer): void {
           end: s.end,
           fps: s.fps,
           resolution,
+          crop: s.crop,
         }))
         framesPromise = extractFramesBySegments(safePath, segs, extractDir, frameFormat, roiCrop ?? undefined)
           .then((sf: SegmentFrame[]) => {
             if (useSession && manifest && !params.skip_cached) {
               for (const f of sf) {
                 if (!f.sourcePath) continue
-                const cacheKey = frameCacheKey(String(f.resolution), frameFormat)
+                const segBucket = f.crop ? roiBucketKey(f.crop) : globalRoiBucket
+                const cacheKey = frameCacheKey(String(f.resolution), frameFormat, segBucket)
                 manifest = mergeFrames(manifest!, cacheKey, [{ timestamp: f.timestamp, file: f.sourcePath }])
               }
             }
@@ -419,8 +452,9 @@ export function registerWatch(server: McpServer): void {
           crop: roiCrop ?? undefined,
         }).then(async ext => {
           if (useSession && manifest && sessionDir && !params.skip_cached) {
-            const cacheKey = frameCacheKey(resolution, frameFormat)
-            const resDir = join(sessionDir, "frames", frameFormat, String(resolution))
+            const cacheKey = frameCacheKey(resolution, frameFormat, globalRoiBucket)
+            const bucketDir = globalRoiBucket || "full"
+            const resDir = join(sessionDir, "frames", frameFormat, String(resolution), bucketDir)
             mkdirSync(resDir, { recursive: true })
             const entries: { timestamp: string; file: string }[] = []
             for (const f of ext) {
@@ -534,9 +568,20 @@ export function registerWatch(server: McpServer): void {
           duration_seconds: metadata.duration_seconds,
         })
         const narrativeDesc = describeNarrative(narrativeReason)
-        const roiDesc = roiCrop
-          ? `${roiCrop.x},${roiCrop.y},${roiCrop.w}x${roiCrop.h} (${params.roi === "auto" ? "auto from analyze.subject_bbox" : "explicit"})`
-          : "none (full frame)"
+        let roiDesc: string
+        if (params.roi === ROI_PER_WINDOW) {
+          const segsWithCrop = adaptiveSegs.filter(s => s.crop).length
+          if (segsWithCrop > 0) {
+            const uniqueCrops = new Set(adaptiveSegs.filter(s => s.crop).map(s => formatRoiCrop(s.crop!)))
+            roiDesc = `per-window: ${segsWithCrop}/${adaptiveSegs.length} segments cropped, ${uniqueCrops.size} unique bboxes (from analyze.window_bboxes)`
+          } else {
+            roiDesc = "per-window requested but analyze.window_bboxes missing or empty; ran un-cropped (call analyze with motion=true first to populate)"
+          }
+        } else if (roiCrop) {
+          roiDesc = `${formatRoiCrop(roiCrop)} (${params.roi === ROI_AUTO ? "auto from analyze.subject_bbox" : "explicit"})`
+        } else {
+          roiDesc = "none (full frame)"
+        }
         const adaptiveDesc = adaptiveSegs.length > 0
           ? `on (${describeAdaptiveSource(adaptiveReason)})\n${formatAdaptiveSummary(adaptiveSegs)}`
           : describeAdaptiveSource(adaptiveReason)
