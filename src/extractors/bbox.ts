@@ -3,19 +3,11 @@ import { promisify } from "util"
 import { readFileSync, readdirSync, mkdirSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
+import type { SubjectBbox } from "../types.js"
 
 const execFileAsync = promisify(execFile)
 
-export interface SubjectBbox {
-  x: number
-  y: number
-  w: number
-  h: number
-  frame_w: number
-  frame_h: number
-  area_pct: number
-  method?: "cc" | "cropdetect" | "cropdetect-fallback"
-}
+export type { SubjectBbox }
 
 interface BlobInfo {
   area: number
@@ -111,15 +103,13 @@ function dilateOnce(mask: Uint8Array, width: number, height: number): Uint8Array
   return out
 }
 
-// v0.6: connected-component subject bbox detection. Dumps a small stack of binary
+// Connected-component subject bbox detection. Dumps a small stack of binary
 // motion masks (tblend+lutyuv threshold), accumulates motion energy per pixel,
 // thresholds, labels blobs by BFS, and returns the bbox of the largest blob.
-// When multiple comparable blobs exist (within 2x area of the largest), returns
-// the envelope of all comparable blobs so multi-subject videos still get a useful
-// crop instead of the union-of-all-motion that cropdetect produces.
-//
-// Returns null if no usable blob is found (the caller should fall back to the
-// older cropdetect approach for backward compatibility).
+// When multiple comparable blobs exist (within 2x area of the largest),
+// returns their combined envelope so multi-subject videos still get a useful
+// crop instead of the union-of-all-motion that plain cropdetect produces.
+// Returns null on no usable blob; callers should fall back to the cropdetect path.
 export async function detectSubjectBboxViaCC(
   videoPath: string,
   frameW: number,
@@ -172,11 +162,11 @@ export async function detectSubjectBboxViaCC(
     }
     if (usableFrames < 2) return null
 
-    // v0.6: empirically motion masks are sparse (tblend yields edge-only pixels,
-    // typically 0.5-2% of frame area per mask) and the mascot's pixels shift
-    // between consecutive frames so cross-frame intersection is near-zero. Take
-    // the UNION (any frame with non-zero) and dilate twice to coalesce the
-    // dominant moving region into a single connected blob.
+    // Motion masks are sparse (tblend yields edge-only pixels, typically 0.5-2%
+    // of frame area per mask) and a moving subject's pixels shift between
+    // consecutive frames so cross-frame intersection is near-zero. Take the
+    // UNION (any frame with non-zero) and dilate twice to coalesce the dominant
+    // moving region into a single connected blob.
     const mask = new Uint8Array(actualW * actualH)
     for (let i = 0; i < mask.length; i++) {
       mask[i] = energy[i] > 0 ? 1 : 0

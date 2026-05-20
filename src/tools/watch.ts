@@ -23,32 +23,39 @@ import { extractAudio } from "../extractors/audio.js"
 import { transcribeWithWhisper } from "../backends/local.js"
 import { analyzeWithGeminiApi } from "../backends/gemini.js"
 import { parseHMS, shiftAudioResult, formatHMSPrecise } from "../utils/timestamps.js"
-
-// Local alias so the truncation-hint code reads cleanly inline.
-const formatHMSPreciseHelper = (s: number) => formatHMSPrecise(s, 3)
 import {
   buildCaptionAudioResult,
   getCaptionFallbackReason,
   resolveVideoInputDetailed,
 } from "../utils/video-source.js"
-import { getSessionDir, loadManifest, saveManifest, computeVideoHash } from "../session/manager.js"
+import { loadManifest, saveManifest, computeVideoHash } from "../session/manager.js"
 import {
   createManifest,
   frameCacheKey,
   mergeFrames,
   sampleFrameIndices,
 } from "../session/manifest.js"
+import {
+  buildAdaptiveSegments,
+  formatAdaptiveSummary,
+  type AdaptiveSegment,
+} from "../utils/adaptive-segments.js"
+import { resolveRoi } from "../utils/roi.js"
+import {
+  decideAdaptive,
+  decideNarrative,
+  describeAdaptiveSource,
+  describeNarrative,
+  shouldAutoSuggestNarrative,
+} from "../utils/decisions.js"
 import type { AudioResult, Frame, Segment, SessionManifest, SegmentFrame } from "../types.js"
 
 const HMS_REGEX = /^\d{2}:\d{2}:\d{2}$/
 
-// Generic narrative-pass guidance v3 (v0.5). Injected when narrative_mode is
-// requested OR auto-suggested. v0.5 vs v0.4 changes:
-//   - Anatomy-aware verb hints (eyes->lasers, mouth->breath, hands->projectiles)
-//   - Branded-character prior carve-out: equipment changes are NOT identity swaps
-//   - Headgear/equipment as named feature channel (in addition to eyes/hands/mouth/body)
-//   - Trajectory/source-attribution rule (verify-then-attribute, not attribute-then-verify)
-//   - "List 2-3 candidate sources before committing" rubric for novel-color events
+// Narrative-pass guidance prompt. Injected when narrative_mode is requested or
+// auto-suggested. Asks the model to treat frames as a temporal sequence and
+// gives anatomy/source-attribution priors so novel colors map to emission
+// events, not body parts.
 const NARRATIVE_GUIDANCE = `## Interpretation guidance (narrative_mode)
 
 These frames are CONSECUTIVE MOMENTS IN TIME from one video. Treat them as a temporal sequence, not as independent images:
@@ -86,7 +93,7 @@ These frames are CONSECUTIVE MOMENTS IN TIME from one video. Treat them as a tem
   - **EYES**: constant (black squares) vs glowing/emitting/changing color. If novel pixels appear collinear with or adjacent to the eye region, this channel is active.
   - **HANDS / ARMS**: idle vs holding/firing/raised
   - **MOUTH**: closed vs open/emitting
-  - **HEADGEAR / EQUIPMENT (v0.5)**: NONE vs hat/wig/rope/helmet/crown/mask/accessory equipped. If any structure persists ABOVE the eye-line for ≥3 consecutive frames, mark this channel as ACTIVE and narrate the equip + remove events with timestamps. Do NOT collapse this into a "pose"; it is a discrete state.
+  - **HEADGEAR / EQUIPMENT**: NONE vs hat/wig/rope/helmet/crown/mask/accessory equipped. If any structure persists ABOVE the eye-line for ≥3 consecutive frames, mark this channel as ACTIVE and narrate the equip + remove events with timestamps. Do NOT collapse this into a "pose"; it is a discrete state.
   - **BODY BASELINE**: at rest position relative to wordmark/ground anchor vs lifted above it (= hovering/jumping/flying)
 
 - **Position relative to fixed anchors.** If the subject's vertical offset from a fixed anchor (wordmark, ground line, frame edge) is different from baseline AND that offset persists for ≥2 consecutive frames, the subject is HOVERING / LEVITATING / FLYING, not just in an "extended stance."
@@ -188,214 +195,36 @@ export function deriveFps(p: {
   return p.fps
 }
 
-// v0.5: decide whether to auto-suggest narrative_mode. Considers five signals
-// now (added small-subject bbox signal to v0.4's four):
-//   1. content_profile string contains action/dynamic/high motion
-//   2. scene cuts density > 0.3/sec
-//   3. has_motion verdict (combines global + subject-region siti)
-//   4. palette_outliers non-empty (one-off color events / emissions)
-//   5. subject_bbox area_pct < 15% (small subject in static composition,
-//      common failure mode where global motion looks low but the subject is
-//      animating rapidly)
-function shouldAutoSuggestNarrative(manifest: SessionManifest | null, durationSec: number): boolean {
-  if (!manifest?.analysis) return false
-  const a = manifest.analysis
-  if (a.content_profile && /high\s*motion|action|dynamic/i.test(a.content_profile)) return true
-  const cutsPerSec = (a.scenes?.length ?? 0) / Math.max(1, durationSec)
-  if (cutsPerSec > 0.3) return true
-  if (a.has_motion === true) return true
-  if (a.palette_outliers && a.palette_outliers.length > 0) return true
-  // v0.5.1: bumped threshold 15% → 30% based on V1 calibration. V1's mascot+text
-  // motion bbox is 18% area; previous 15% threshold missed it. 30% catches more
-  // small-subject videos without over-triggering on full-frame action content.
-  if (a.subject_bbox && a.subject_bbox.area_pct < 30) return true
-  return false
-}
-
-// v0.5: resolve the roi param against the cached subject bbox or explicit
-// "x,y,w,h" string. Returns { x, y, w, h } or null if no usable crop.
-function resolveRoi(
-  roi: string | undefined,
-  manifest: SessionManifest | null,
-): { x: number; y: number; w: number; h: number } | null {
-  if (!roi) return null
-  if (roi === "auto") {
-    const bbox = manifest?.analysis?.subject_bbox
-    if (!bbox) return null
-    return { x: bbox.x, y: bbox.y, w: bbox.w, h: bbox.h }
-  }
-  const m = /^(\d+),(\d+),(\d+),(\d+)$/.exec(roi)
-  if (!m) return null
-  return { x: parseInt(m[1], 10), y: parseInt(m[2], 10), w: parseInt(m[3], 10), h: parseInt(m[4], 10) }
-}
-
-// v0.6: HH:MM:SS formatter rounded to whole seconds, matching the HMS_REGEX
-// schema accepted by extractFramesBySegments. Sub-second granularity inside a
-// segment is handled by the fps choice and ffmpeg -ss / -t internally.
-function formatSegmentBound(s: number): string {
-  const total = Math.max(0, Math.round(s))
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const sec = total % 60
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
-}
-
-interface AdaptiveSegment {
-  start: string
-  end: string
-  startSec: number
-  endSec: number
-  fps: number
-  budgetFrames: number
-  kind: "motion" | "static"
-  intensity?: number
-}
-
-// v0.6: motion-adaptive frame allocation. Given the motion_windows surfaced by
-// analyze() and a total per-call frame budget, build a Segment[] that spends
-// more frames inside motion windows (70% of budget, weighted by duration *
-// intensity) and fewer in static spans (30% of budget, uniform). The result
-// keeps the same total frame count as a uniform call but biases temporal
-// resolution toward where action is happening. General-purpose: works on any
-// video; the algorithm is agnostic to subject or genre.
-function buildAdaptiveSegments(opts: {
-  motionWindows: Array<{ start: string; end: string; intensity: number }>
-  startSec: number
-  endSec: number
-  totalBudget: number
-}): AdaptiveSegment[] {
-  const { motionWindows, startSec, endSec, totalBudget } = opts
-  const totalDur = Math.max(0.5, endSec - startSec)
-
-  const clamped = motionWindows
-    .map(w => ({
-      startSec: Math.max(startSec, parseHMS(w.start)),
-      endSec: Math.min(endSec, parseHMS(w.end)),
-      intensity: w.intensity,
-    }))
-    .filter(w => w.endSec > w.startSec + 0.2)
-    .sort((a, b) => a.startSec - b.startSec)
-
-  // Merge any motion windows that overlap or touch after clamping
-  const merged: typeof clamped = []
-  for (const w of clamped) {
-    const last = merged[merged.length - 1]
-    if (last && w.startSec <= last.endSec) {
-      last.endSec = Math.max(last.endSec, w.endSec)
-      last.intensity = Math.max(last.intensity, w.intensity)
-    } else {
-      merged.push({ ...w })
-    }
-  }
-
-  // Static spans between motion windows
-  const staticSpans: Array<{ startSec: number; endSec: number }> = []
-  let cursor = startSec
-  for (const w of merged) {
-    if (w.startSec > cursor + 0.05) staticSpans.push({ startSec: cursor, endSec: w.startSec })
-    cursor = w.endSec
-  }
-  if (cursor < endSec - 0.05) staticSpans.push({ startSec: cursor, endSec })
-
-  const motionTotalDur = merged.reduce((a, w) => a + (w.endSec - w.startSec), 0)
-  const staticTotalDur = staticSpans.reduce((a, s) => a + (s.endSec - s.startSec), 0)
-
-  let motionBudget: number, staticBudget: number
-  if (motionTotalDur === 0) { motionBudget = 0; staticBudget = totalBudget }
-  else if (staticTotalDur === 0) { motionBudget = totalBudget; staticBudget = 0 }
-  else { motionBudget = Math.floor(totalBudget * 0.7); staticBudget = totalBudget - motionBudget }
-  void totalDur
-
-  const segs: AdaptiveSegment[] = []
-
-  if (motionBudget > 0 && merged.length > 0) {
-    const weights = merged.map(w => (w.endSec - w.startSec) * Math.max(1, w.intensity))
-    const totalWeight = weights.reduce((a, b) => a + b, 0)
-    let allocated = 0
-    for (let i = 0; i < merged.length; i++) {
-      const share = totalWeight > 0 ? weights[i] / totalWeight : 1 / merged.length
-      let frames = Math.max(2, Math.round(motionBudget * share))
-      if (i === merged.length - 1) frames = Math.max(2, motionBudget - allocated)
-      allocated += frames
-      const dur = merged[i].endSec - merged[i].startSec
-      const fps = Math.max(0.5, frames / dur)
-      segs.push({
-        start: formatSegmentBound(merged[i].startSec),
-        end: formatSegmentBound(merged[i].endSec),
-        startSec: merged[i].startSec,
-        endSec: merged[i].endSec,
-        fps,
-        budgetFrames: frames,
-        kind: "motion",
-        intensity: merged[i].intensity,
-      })
-    }
-  }
-
-  if (staticBudget > 0 && staticSpans.length > 0) {
-    let allocated = 0
-    for (let i = 0; i < staticSpans.length; i++) {
-      const s = staticSpans[i]
-      const dur = s.endSec - s.startSec
-      const share = staticTotalDur > 0 ? dur / staticTotalDur : 1 / staticSpans.length
-      let frames = Math.max(1, Math.round(staticBudget * share))
-      if (i === staticSpans.length - 1) frames = Math.max(1, staticBudget - allocated)
-      allocated += frames
-      const fps = Math.max(0.2, frames / dur)
-      segs.push({
-        start: formatSegmentBound(s.startSec),
-        end: formatSegmentBound(s.endSec),
-        startSec: s.startSec,
-        endSec: s.endSec,
-        fps,
-        budgetFrames: frames,
-        kind: "static",
-      })
-    }
-  }
-
-  segs.sort((a, b) => a.startSec - b.startSec)
-  return segs
-}
-
-function formatAdaptiveSummary(segs: AdaptiveSegment[]): string {
-  const lines = segs.map(s => {
-    const tag = s.kind === "motion" ? `motion (intensity=${s.intensity ?? "?"})` : "static"
-    return `  ${s.start}-${s.end} ${tag}: ${s.budgetFrames} frames @ ${s.fps.toFixed(2)}fps`
-  })
-  const total = segs.reduce((a, s) => a + s.budgetFrames, 0)
-  return [`segments=${segs.length} total_frames=${total}`, ...lines].join("\n")
-}
-
-// v0.5: collapse manifest summary when it has many cached timestamps. Before,
-// a manifest with 374 sub-second entries dumped all of them as a JSON array,
-// eating into the 100K MCP cap. Now we show count + first/last per resolution.
+// Collapse manifest summary when many cached timestamps exist. A manifest with
+// hundreds of sub-second entries dumps the full array which can eat 30K+ tokens;
+// over 50 entries we emit count + first/last instead.
 function summarizeManifest(manifest: SessionManifest) {
   const resolutions: Record<string, unknown> = {}
   for (const [r, d] of Object.entries(manifest.resolutions)) {
-    const ts = d.frames.map(f => f.timestamp)
-    if (ts.length > 50) {
+    const count = d.frames.length
+    if (count > 50) {
+      // Avoid allocating the full timestamp array just to drop it; only the
+      // first and last entries get used in the collapsed summary.
       resolutions[r] = {
-        frame_count: ts.length,
-        first_timestamp: ts[0],
-        last_timestamp: ts[ts.length - 1],
-        timestamps_summary: `${ts.length} cached frames (omitted to save tokens; use view= to fetch specific ones)`,
+        frame_count: count,
+        first_timestamp: d.frames[0]?.timestamp,
+        last_timestamp: d.frames[count - 1]?.timestamp,
+        timestamps_summary: `${count} cached frames (omitted to save tokens; use view= to fetch specific ones)`,
       }
     } else {
-      resolutions[r] = { frame_count: ts.length, timestamps: ts }
+      resolutions[r] = { frame_count: count, timestamps: d.frames.map(f => f.timestamp) }
     }
   }
   return { video_hash: manifest.video_hash, resolutions }
 }
 
-// v0.4: build the palette-outlier hint string. When narrative_mode is active and
-// the cached analyze() reported outliers, surface them so the model knows to look
-// for emission events rather than treating novel colors as body parts.
+// When narrative_mode is active and analyze() flagged palette outliers, surface
+// them so the model treats novel colors as emission events instead of body parts.
 function paletteOutlierHint(manifest: SessionManifest | null): string | null {
   if (!manifest?.analysis?.palette_outliers || manifest.analysis.palette_outliers.length === 0) return null
   const outs = manifest.analysis.palette_outliers
   const list = outs.slice(0, 8).map(o => `${o.timestamp} (dist=${o.chroma_distance})`).join(", ")
-  return `### Palette-novelty alert (v0.4)
+  return `### Palette-novelty alert
 
 Prior \`analyze()\` flagged ${outs.length} frame(s) with color/brightness statistically far from the median: ${list}. These frames likely contain EMISSION events (laser, projectile, flash, particle effect) emanating FROM the subject rather than body parts OF the subject. When narrating these timestamps, prefer emission verbs (fires, emits, beams, casts) over physical/anatomy descriptors (legs, dust, particles).`
 }
@@ -435,8 +264,8 @@ export function registerWatch(server: McpServer): void {
       view_sample: z.number().min(1).optional().describe("Return N evenly spaced frames (omit to use auto-budget default by resolution)"),
       view: z.array(z.string().regex(HMS_REGEX)).optional().describe("Look up specific timestamps from session cache (requires enable_index=true and at least one prior watch/analyze call). Bypasses extraction."),
       narrative_mode: z.boolean().optional().describe("Inject temporal-narrative guidance into the response so Claude reads frames as a continuous action sequence (anchors/changes/actions) rather than as independent images. Recommended for action/motion-heavy segments. Auto-suggested when analyze() reports high motion or dense scene cuts."),
-      roi: z.union([z.literal("auto"), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional().describe("v0.5: crop frames to a region of interest before scaling. 'auto' uses analyze().subject_bbox (must have run analyze with motion=true first). 'x,y,w,h' is an explicit pixel bbox. ROI crop gives the subject the full target resolution instead of being averaged out by background pixels - critical for small-subject videos (mascot < 15% of frame)."),
-      adaptive_sampling: z.boolean().optional().describe("v0.6: motion-adaptive frame allocation. When true (or auto-enabled because narrative_mode is on AND analyze().motion_windows is cached AND duration > 4s), the per-call frame budget is split non-uniformly: 70% to motion-dense windows (weighted by duration * intensity), 30% to static spans. Same total frame count, but temporal resolution biased toward where action is happening. Pass false to force uniform sampling. Ignored if `segments` is given."),
+      roi: z.union([z.literal("auto"), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional().describe("Crop frames to a region of interest before scaling. 'auto' uses analyze().subject_bbox (must have run analyze with motion=true first). 'x,y,w,h' is an explicit pixel bbox. ROI crop gives the subject the full target resolution instead of being averaged out by background pixels - critical for small-subject videos (mascot < 15% of frame)."),
+      adaptive_sampling: z.boolean().optional().describe("Motion-adaptive frame allocation. When true (or auto-enabled because narrative_mode is on AND analyze().motion_windows is cached AND duration > 4s), the per-call frame budget is split non-uniformly: 70% to motion-dense windows (weighted by duration * intensity), 30% to static spans. Same total frame count, but temporal resolution biased toward where action is happening. Pass false to force uniform sampling. Ignored if `segments` is given."),
     },
     async (params) => {
       const config = loadConfig()
@@ -457,8 +286,13 @@ export function registerWatch(server: McpServer): void {
       let sessionDir: string | null = null
       let manifest: SessionManifest | null = null
       if (useSession) {
-        sessionDir = getSessionDir(SESSIONS_DIR, safePath)
-        manifest = loadManifest(sessionDir) ?? createManifest(computeVideoHash(safePath), safePath)
+        // Hash the video ONCE and derive sessionDir from it; the previous form
+        // computed the hash twice (once inside getSessionDir, once for the
+        // fallback createManifest path), re-reading the head of the file twice
+        // on every cache miss.
+        const videoHash = computeVideoHash(safePath)
+        sessionDir = join(SESSIONS_DIR, videoHash)
+        manifest = loadManifest(sessionDir) ?? createManifest(videoHash, safePath)
       }
 
       // Cache lookup short-circuit (the absorbed video_detail `view` path)
@@ -503,40 +337,31 @@ export function registerWatch(server: McpServer): void {
       const workDir = join(tmpdir(), `lumiere-${Date.now()}`)
       mkdirSync(workDir, { recursive: true })
 
-      // v0.5: resolve ROI crop. "auto" reads cached subject_bbox; "x,y,w,h" is explicit.
       const roiCrop = resolveRoi(params.roi, manifest)
 
-      // v0.7.1: decide narrative + adaptive UP FRONT (was scattered/late before).
-      // Precedence (both fields):
-      //   1. explicit per-call param (true/false) wins
-      //   2. auto-suggest fires (returns true based on analyze data)
-      //   3. server default (config.default_narrative_mode / config.default_adaptive_sampling)
-      //   4. off
-      const autoSuggested = shouldAutoSuggestNarrative(manifest, metadata.duration_seconds)
-      let useNarrative: boolean
-      if (params.narrative_mode === true) useNarrative = true
-      else if (params.narrative_mode === false) useNarrative = false
-      else if (autoSuggested) useNarrative = true
-      else if (config.default_narrative_mode === true) useNarrative = true
-      else useNarrative = false
+      // Decide narrative + adaptive once, up front. Both watch and measure call
+      // into utils/decisions.ts so the same precedence applies to predictions
+      // and execution.
+      const narrativeReason = decideNarrative({
+        param: params.narrative_mode,
+        autoSuggest: shouldAutoSuggestNarrative(manifest, metadata.duration_seconds),
+        configDefault: config.default_narrative_mode,
+      })
+      const useNarrative = narrativeReason.on
 
       const motionWindows = manifest?.analysis?.motion_windows ?? []
-      const adaptiveExplicit = params.adaptive_sampling
-      const adaptiveAuto =
-        !params.segments &&
-        useNarrative &&
-        motionWindows.length >= 1 &&
-        metadata.duration_seconds > 4
-      let useAdaptiveSampling: boolean
-      if (adaptiveExplicit === true) useAdaptiveSampling = true
-      else if (adaptiveExplicit === false) useAdaptiveSampling = false
-      else if (adaptiveAuto) useAdaptiveSampling = true
-      else if (config.default_adaptive_sampling === true && !params.segments && motionWindows.length >= 1 && metadata.duration_seconds > 4) useAdaptiveSampling = true
-      else useAdaptiveSampling = false
+      const adaptiveReason = decideAdaptive({
+        param: params.adaptive_sampling,
+        narrativeOn: useNarrative,
+        motionWindowCount: motionWindows.length,
+        durationSec: metadata.duration_seconds,
+        hasSegments: !!params.segments,
+        configDefault: config.default_adaptive_sampling,
+      })
+      const useAdaptiveSampling = adaptiveReason.on
 
-      // Build adaptive segments when active. Empty when adaptive is off or windows missing.
       let adaptiveSegs: AdaptiveSegment[] = []
-      if (useAdaptiveSampling && !params.segments && motionWindows.length > 0) {
+      if (useAdaptiveSampling && motionWindows.length > 0) {
         const startSec = params.start_time ? parseHMS(params.start_time) : 0
         const endSec = params.end_time ? parseHMS(params.end_time) : metadata.duration_seconds
         const totalBudget = effectiveViewSample ?? Math.max(20, Math.round(fps * (endSec - startSec)))
@@ -563,7 +388,7 @@ export function registerWatch(server: McpServer): void {
             return sf
           })
       } else if (adaptiveSegs.length > 0) {
-        // v0.6: route adaptive segments through the existing segments path.
+        // Route adaptive segments through the existing segments extraction path.
         const extractDir = useSession ? join(sessionDir!, "frames", frameFormat) : join(workDir, "frames")
         const segs: Segment[] = adaptiveSegs.map(s => ({
           start: s.start,
@@ -645,13 +470,12 @@ export function registerWatch(server: McpServer): void {
         frames = idx.map(i => frames[i])
       }
 
-      // v0.6 runtime trim safety net. Per-frame token cost is content-dependent
+      // Runtime trim safety net. Per-frame token cost is content-dependent
       // (action frames at 1024 ROI can be 5-7x the cost of static UI frames at
       // the same resolution). The cost estimator uses pessimistic-typical TPF
-      // but a long burst of dense action frames can still overshoot. This trim
-      // computes the actual base64 size of every frame, estimates total tokens,
-      // and drops evenly-spaced frames if the projection exceeds ~88K (leaves
-      // 12K headroom under the 100K MCP cap).
+      // but a long burst of dense action frames can still overshoot. Measure
+      // actual base64 size, estimate total tokens, and drop evenly-spaced
+      // frames if the projection exceeds ~88K (12K headroom under the 100K cap).
       let runtimeTrimmed = 0
       let runtimeTokensEst = 0
       if (frames.length > 2) {
@@ -688,48 +512,34 @@ export function registerWatch(server: McpServer): void {
       if (useSession && manifest && sessionDir) saveManifest(sessionDir, manifest)
       if (!useSession) rmSync(workDir, { recursive: true, force: true })
 
-      // useNarrative is computed up front (v0.7.1) — see top of the handler.
       const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = []
 
-      // v0.5: default skip_metadata=true when narrative_mode is on. The
-      // narrative pass benefits much more from clean frame data than from
-      // the manifest dump, which can eat 30K+ tokens at high fps. Caller
-      // can still pass explicit skip_metadata=false to override.
+      // Skip the metadata block by default when narrative_mode is on; the
+      // narrative pass benefits from clean frame data more than from the
+      // manifest dump (which can eat 30K+ tokens at high fps). Caller can pass
+      // skip_metadata=false explicitly to keep it.
       const effectiveSkipMetadata = params.skip_metadata === true
         || (useNarrative && params.skip_metadata === false ? false : useNarrative)
 
       if (!effectiveSkipMetadata) {
         if (resolved.source) content.push({ type: "text", text: `## Source\n${JSON.stringify(resolved.source, null, 2)}` })
         if (manifest) {
-          // v0.5: collapse large manifests instead of dumping every timestamp.
           const summary = summarizeManifest(manifest)
           content.push({ type: "text", text: `## Session Manifest\n${JSON.stringify(summary, null, 2)}` })
         }
-        // Cost forecast for this call so callers see what was actually burned
-        // and can plan subsequent chunks.
         const cost = estimateWatchCost({
           resolution,
           fps,
           view_sample: effectiveViewSample,
           duration_seconds: metadata.duration_seconds,
         })
-        const narrativeReason = useNarrative
-          ? params.narrative_mode === true
-            ? "explicit (narrative_mode=true)"
-            : autoSuggested
-              ? "auto-suggested (analyze data indicates high motion or dense scene cuts)"
-              : "server default (configure.default_narrative_mode=true)"
-          : params.narrative_mode === false
-            ? "off (explicit narrative_mode=false)"
-            : "off"
+        const narrativeDesc = describeNarrative(narrativeReason)
         const roiDesc = roiCrop
           ? `${roiCrop.x},${roiCrop.y},${roiCrop.w}x${roiCrop.h} (${params.roi === "auto" ? "auto from analyze.subject_bbox" : "explicit"})`
           : "none (full frame)"
         const adaptiveDesc = adaptiveSegs.length > 0
-          ? `on (${adaptiveExplicit === true ? "explicit" : adaptiveAuto ? "auto-enabled (narrative_mode + motion_windows cached)" : "server default (configure.default_adaptive_sampling=true)"})\n${formatAdaptiveSummary(adaptiveSegs)}`
-          : adaptiveExplicit === false
-            ? "off (explicitly disabled)"
-            : "off (no motion_windows or duration <= 4s)"
+          ? `on (${describeAdaptiveSource(adaptiveReason)})\n${formatAdaptiveSummary(adaptiveSegs)}`
+          : describeAdaptiveSource(adaptiveReason)
         const fpsDesc = adaptiveSegs.length > 0
           ? `varies per segment (${Math.min(...adaptiveSegs.map(s => s.fps)).toFixed(2)}-${Math.max(...adaptiveSegs.map(s => s.fps)).toFixed(2)}fps)`
           : String(fps)
@@ -738,19 +548,18 @@ export function registerWatch(server: McpServer): void {
           : `\nruntime_trim=no actual_est_tokens=${runtimeTokensEst}`
         content.push({
           type: "text",
-          text: `## Video Metadata\n${JSON.stringify(metadata, null, 2)}\n\n## Audio Analysis\n${JSON.stringify(audio, null, 2)}\n\n## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} fps=${fpsDesc} resolution=${resolution} frame_format=${frameFormat}\nest_tokens_this_call=${cost.est_tokens_per_call} (~${cost.pct_of_1m_window}% of 1M)\nfull_coverage_chunks_needed=${cost.chunks_for_full_coverage} (~${(cost.est_total_tokens_full_coverage / 1000).toFixed(0)}K total tokens)\nautocompact_warning=${cost.will_trigger_autocompact ? "YES - full coverage would exceed " + AUTOCOMPACT_THRESHOLD + " tokens" : "no"}\nnarrative_mode=${narrativeReason}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${runtimeTrimDesc}`,
+          text: `## Video Metadata\n${JSON.stringify(metadata, null, 2)}\n\n## Audio Analysis\n${JSON.stringify(audio, null, 2)}\n\n## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} fps=${fpsDesc} resolution=${resolution} frame_format=${frameFormat}\nest_tokens_this_call=${cost.est_tokens_per_call} (~${cost.pct_of_1m_window}% of 1M)\nfull_coverage_chunks_needed=${cost.chunks_for_full_coverage} (~${(cost.est_total_tokens_full_coverage / 1000).toFixed(0)}K total tokens)\nautocompact_warning=${cost.will_trigger_autocompact ? "YES - full coverage would exceed " + AUTOCOMPACT_THRESHOLD + " tokens" : "no"}\nnarrative_mode=${narrativeDesc}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${runtimeTrimDesc}`,
         })
       }
 
-      // v0.5: truncation auto-suggest. If we got fewer frames than requested
-      // (MCP cap killed mid-stream), tell the caller exactly which window to
-      // retry with at the same fps.
+      // Truncation auto-suggest: when fewer frames came back than requested,
+      // the MCP cap killed the response mid-stream. Tell the caller exactly
+      // where to resume at the same fps.
       if (effectiveViewSample && frames.length < effectiveViewSample && frames.length > 0) {
         const lastTs = frames[frames.length - 1].timestamp
         const coveredSec = parseHMS(lastTs)
-        const startSec = params.start_time ? parseHMS(params.start_time) : 0
         const requestedEndSec = params.end_time ? parseHMS(params.end_time) : metadata.duration_seconds
-        const nextStartHms = formatHMSPreciseHelper(coveredSec)
+        const nextStartHms = formatHMSPrecise(coveredSec, 3)
         const remainingSec = requestedEndSec - coveredSec
         content.push({
           type: "text",
@@ -761,7 +570,6 @@ export function registerWatch(server: McpServer): void {
       if (useNarrative) {
         content.push({ type: "text", text: NARRATIVE_GUIDANCE })
         if (resolution <= 512) content.push({ type: "text", text: LOW_TIER_HEDGE_HINT })
-        // v0.4: also inject the palette-outlier hint if analyze() flagged any
         const paletteHint = paletteOutlierHint(manifest)
         if (paletteHint) content.push({ type: "text", text: paletteHint })
       }

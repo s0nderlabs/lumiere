@@ -1,5 +1,5 @@
 import { join } from "path"
-import type { AnalysisFilters, SceneChange, Interval } from "../types.js"
+import type { AnalysisFilters, SceneChange, Interval, SubjectBbox } from "../types.js"
 import { formatHMSPrecise } from "../utils/timestamps.js"
 
 export interface AnalysisCommandResult {
@@ -151,10 +151,11 @@ export function parseSitiOutput(stderr: string): { siAvg?: number; tiAvg?: numbe
 
 export function parseBlurOutput(content: string): Array<{ timestamp: string; blur: number }> {
   const out: Array<{ timestamp: string; blur: number }> = []
-  // v0.6: ffmpeg metadata=mode=print emits per-frame blocks starting with either
-  // "# frame:" or "frame:". v0.4 parser only matched "# frame:" and silently
-  // dropped all output on builds that emit the bare form. Same root cause as
-  // parseSignalstatsOutput / parseMotionWindowsFromMetaFile.
+  // ffmpeg metadata=mode=print emits per-frame blocks starting with either
+  // "# frame:" or bare "frame:" depending on the build. Match both: earlier
+  // versions of this parser only matched the "#" form and silently dropped
+  // all output on builds (incl. the bun-bundled macOS ffmpeg) that emit the
+  // bare form. Same root cause as parseSignalstatsOutput / parseMotionWindowsFromMetaFile.
   const blocks = content.split(/(?:^|\n)#?\s*frame:/).slice(1)
   for (const block of blocks) {
     const t = /pts_time:([\d.]+)/.exec(block)
@@ -164,16 +165,10 @@ export function parseBlurOutput(content: string): Array<{ timestamp: string; blu
   return out
 }
 
-// v0.5: also exposes u_chroma, v_chroma (raw U-128, V-128) so palette outlier
-// detection can use hue (atan2) novelty in addition to saturation magnitude.
-// Catches the V1 failure where pale-pink (#F2C9B5) had similar saturation to
-// the orange dominant palette but a very different hue angle.
-//
-// v0.6 fix: the parser previously required "# frame:" prefix which some ffmpeg
-// builds emit but others (including the bun-bundled ffmpeg on macOS) emit as
-// bare "frame:". The bug silently dropped all frame_stats since v0.4, which in
-// turn silently broke palette_outliers detection (the laser/projectile signal
-// path lumiere's narrative_mode v0.5 priors depend on).
+// Exposes u_chroma, v_chroma (raw U-128, V-128) so palette outlier detection
+// can use hue (atan2) novelty in addition to saturation magnitude. Hue-only
+// novelty catches cases where a brand color has similar saturation to the
+// dominant palette but a different hue (e.g. pale-pink vs orange).
 export function parseSignalstatsOutput(content: string): Array<{ timestamp: string; brightness?: number; saturation?: number; u_chroma?: number; v_chroma?: number }> {
   const out: Array<{ timestamp: string; brightness?: number; saturation?: number; u_chroma?: number; v_chroma?: number }> = []
   const yRe = /lavfi\.signalstats\.YAVG=([\d.]+)/
@@ -209,25 +204,22 @@ export function parseEbur128Output(stderr: string): { mean_lufs: number; range_l
   return { mean_lufs: parseFloat(i[1]), range_lu: parseFloat(r[1]) }
 }
 
-// v0.4: subject-region motion. The default siti filter measures whole-frame motion
-// and underweights small-subject high-motion (e.g. a 90px mascot animating inside a
-// 1400px static card). The subject-region pass crops the center 50% and runs siti
-// on that crop, so subject-only motion is no longer averaged-out by the static
-// surround. Returns the raw siAvg/tiAvg for the central region.
+// Subject-region motion. The default siti filter measures whole-frame motion
+// and underweights small-subject high-motion (e.g. a 90px mascot inside a
+// 1400px static card). This crops to the center 50% before running siti so
+// subject-only motion is no longer averaged-out by the static surround.
 export function buildCentralMotionCommand(videoPath: string): { args: string[] } {
   return {
     args: ["-i", videoPath, "-y", "-vf", "crop=iw/2:ih/2,siti=print_summary=1", "-f", "null", "-"],
   }
 }
 
-// v0.4: motion verdict. Combines whole-frame and subject-region scores into a
-// single "is this video motion-y enough to warrant narrative_mode auto-suggest"
-// boolean. Used by watch.ts shouldAutoSuggestNarrative.
-//
-// siti's ti (temporal information) is the load-bearing metric: high ti means
-// large frame-to-frame pixel deltas. Empirical thresholds (May 19 2026): the V1
-// ClaudeDevs /goal video (which is action-heavy in the center 90px sprite) shows
-// global ti < 10 (looks static) but central-crop ti > 25 (subject is moving fast).
+// Motion verdict: combines whole-frame and subject-region ti into a single
+// "is this video motion-y enough to warrant narrative_mode auto-suggest"
+// boolean. siti's ti (temporal information) is the load-bearing metric;
+// high ti means large frame-to-frame pixel deltas. Thresholds calibrated
+// against the 2026-05-19 test set where global ti < 10 (looks static) but
+// central-crop ti > 25 (subject is moving fast).
 export function hasMotion(
   globalSiti: { siAvg?: number; tiAvg?: number },
   subjectSiti: { siAvg?: number; tiAvg?: number },
@@ -237,14 +229,16 @@ export function hasMotion(
   return false
 }
 
-// v0.4: palette novelty. From per-frame signalstats (UAVG/VAVG chroma), identify
-// frames whose chroma vector is statistically far from the median. Catches one-off
-// color events (laser beams, projectile flashes, brand-color highlights) that
-// otherwise pattern-match to body parts or dust.
+// Palette novelty detection. From per-frame signalstats (UAVG/VAVG chroma),
+// identify frames whose chroma vector is statistically far from the median.
+// Catches one-off color events (laser beams, projectile flashes, brand-color
+// highlights) that lower tiers can pattern-match to body parts or dust.
 //
-// Algorithm: compute median (UAVG, VAVG). For each frame, compute Euclidean
-// distance from the median in chroma space. Flag frames with distance > 2.5x the
-// median absolute deviation. Return up to 20 outliers ordered by timestamp.
+// Algorithm: measure both (a) hue angle (atan2(V-128, U-128)) and (b)
+// saturation magnitude, separately. A frame is flagged if EITHER axis is far
+// from the median (1.8 MAD threshold). Pure magnitude novelty misses brand
+// colors that have similar saturation to the dominant palette but a different
+// hue (e.g. pale-pink vs orange).
 export interface PaletteOutlier {
   timestamp: string
   chroma_distance: number
@@ -252,13 +246,6 @@ export interface PaletteOutlier {
   saturation?: number
 }
 
-// v0.5: hue-based palette novelty. v0.4 used saturation+brightness magnitudes,
-// which missed the V1 laser case because pale-pink and dominant-orange have
-// similar saturation magnitudes despite very different hues. v0.5 measures both
-// (a) the hue angle (atan2(V-128, U-128)) and (b) the saturation magnitude
-// separately. A frame counts as a palette outlier if EITHER its hue angle or
-// its saturation magnitude is statistically far from the median, using a more
-// sensitive threshold (1.8 MAD vs v0.4's 2.5).
 export function detectPaletteOutliers(
   frameStats: Array<{ timestamp: string; brightness?: number; saturation?: number; u_chroma?: number; v_chroma?: number }>,
 ): PaletteOutlier[] {
@@ -313,7 +300,8 @@ export function detectPaletteOutliers(
       distHue = arc / madHue
     }
 
-    // v0.5: more sensitive threshold (1.8 vs v0.4 2.5) AND outlier on either axis
+    // Outlier on either axis; 1.8 MAD threshold tuned to surface lasers
+    // without over-firing on routine palette shifts.
     if (distMag > 1.8 || distHue > 2.0) {
       outliers.push({
         timestamp: f.timestamp,
@@ -323,38 +311,23 @@ export function detectPaletteOutliers(
       })
     }
   }
-  // v0.6: pick the STRONGEST outliers (was: first 30 chronologically). On V1
-  // signalstats runs at 30fps yielding ~720 frames in 24s; 30 chronological
-  // frames is all the first ~1s. The laser event (0:02.4-0:02.9) was missed
-  // even though it scored distHue=4.9 (well above the 2.0 threshold), because
-  // earlier rope-on frames had distHue >= 5.5 and saturated the slice. v0.6:
-  // sort by chroma_distance desc, take top 50, then re-sort by timestamp for
-  // display. Catches every meaningful color event, deduplicated by the model
-  // when it scans the list for clusters.
+  // Keep the STRONGEST outliers, not the first N chronologically: a 24s clip
+  // at 30fps yields ~720 frames and a chronological slice of N covers only the
+  // opening seconds, so a laser event late in the clip can be saturated out by
+  // earlier (unrelated) high-distance frames. Sort by chroma_distance desc,
+  // take top 50, then re-sort by timestamp for display.
   outliers.sort((a, b) => b.chroma_distance - a.chroma_distance)
   const top = outliers.slice(0, 50)
   top.sort((a, b) => a.timestamp.localeCompare(b.timestamp))
   return top
 }
 
-// v0.5: subject bbox detection. Runs ffmpeg with tblend=all_mode=difference to
-// produce a motion-diff stream, then cropdetect on that to find the bbox of
-// motion. Static background pixels diff to ~0 (black); moving subject pixels
-// diff to >0 (bright). cropdetect then auto-finds the smallest bbox containing
-// non-black content, which is the moving subject's region.
-//
-// Returns null if detection fails (e.g., no motion, ffmpeg error, or bbox covers
-// the entire frame which means everything moved).
-export interface SubjectBbox {
-  x: number
-  y: number
-  w: number
-  h: number
-  frame_w: number
-  frame_h: number
-  area_pct: number  // fraction of frame area, 0-100
-}
-
+// Subject bbox detection (cropdetect fallback path). The matching ffmpeg run
+// uses tblend=all_mode=difference to produce a motion-diff stream where static
+// background pixels diff to ~0 (black) and moving subject pixels diff > 0
+// (bright); cropdetect finds the smallest bbox containing non-black content.
+// Returns null if no motion, ffmpeg error, or the bbox covers the entire frame.
+// SubjectBbox is defined in types.ts (shared with extractors/bbox.ts).
 export function parseCropdetectOutput(stderr: string, frameW: number, frameH: number): SubjectBbox | null {
   // cropdetect emits lines like: [Parsed_cropdetect_1 @ 0x...] x1:Y1 x2:Y2 y1:Y1 y2:Y2 w:W h:H x:X y:Y pts:... crop=W:H:X:Y
   // Take the LAST emission (most stable; cropdetect tightens over time).
@@ -386,9 +359,9 @@ export function parseCropdetectOutput(stderr: string, frameW: number, frameH: nu
   return { x: medX, y: medY, w: medW, h: medH, frame_w: frameW, frame_h: frameH, area_pct: Math.round(area_pct * 10) / 10 }
 }
 
-// v0.6: motion windows. Detect contiguous time intervals where temporal motion
-// (siti ti) is statistically above the video's median. Used by watch's adaptive
-// sampling to allocate more frames to action moments and fewer to static ones.
+// Motion windows: contiguous time intervals where temporal motion (siti ti)
+// is statistically above the video's median. Drives watch's adaptive sampling
+// (more frames to action moments, fewer to static spans).
 // Algorithm:
 //   1. ffmpeg samples siti at fps=10 with per-frame metadata
 //   2. parse per-frame ti, compute median + MAD globally
@@ -488,16 +461,13 @@ export function parseMotionWindowsFromMetaFile(content: string, durationSec: num
 }
 
 export function buildSubjectBboxCommand(videoPath: string): { args: string[] } {
-  // v0.5 fix: the original tblend → cropdetect approach failed on the V1 video
-  // because the diff frames had subtle near-zero values everywhere and cropdetect
-  // returned negative widths. v0.5.1 fix:
+  // Why a hard binary mask: a plain tblend then cropdetect emits soft diff
+  // frames with near-zero values everywhere on subtle motion, so cropdetect
+  // returns negative widths. Steps:
   // 1. tblend computes frame-to-frame difference (motion = bright, static = black)
   // 2. lutyuv thresholds: pixels with luma > 10 become FULL bright (255), else black
-  //    This turns the soft diff into a hard binary motion mask
+  //    (this turns the soft diff into a hard binary motion mask)
   // 3. cropdetect finds the bbox of bright (motion) regions
-  //
-  // Empirically (May 19 2026, V1 ClaudeDevs /goal video): returns crop=382:924:438:246
-  // (18% area), tightly encompassing mascot + terminal text (the moving regions).
   return {
     args: [
       "-i", videoPath, "-y",

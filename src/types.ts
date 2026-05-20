@@ -7,13 +7,10 @@ export interface Config {
   backend: Backend
   whisper_model: WhisperModel
   default_mode: WatchMode
-  // v0.7.1: per-server defaults for narrative_mode and adaptive_sampling.
-  // Undefined = use heuristics (auto-suggest from analyze data); true/false =
-  // force on/off when the per-call param is unset. Precedence:
-  //   1. explicit per-call param wins (true or false)
-  //   2. auto-suggest fires (returns true based on motion/cuts/palette)
-  //   3. server default_* setting (true/false)
-  //   4. off
+  // Per-server defaults for narrative_mode / adaptive_sampling. Undefined means
+  // use heuristics; true/false forces on/off when the per-call param is unset.
+  // Precedence: explicit per-call param > auto-suggest > server default > off.
+  // See utils/decisions.ts for the canonical implementation.
   default_narrative_mode?: boolean
   default_adaptive_sampling?: boolean
 }
@@ -91,8 +88,22 @@ export interface FrameStats {
   blur?: number
   brightness?: number
   saturation?: number
-  u_chroma?: number  // v0.5: raw UAVG-128 chroma for hue-based novelty
-  v_chroma?: number  // v0.5: raw VAVG-128 chroma
+  u_chroma?: number  // raw UAVG-128 chroma; powers hue-based palette novelty
+  v_chroma?: number  // raw VAVG-128 chroma
+}
+
+// Single source of truth for the detected subject bbox. Produced by either the
+// connected-component detector (extractors/bbox.ts) or the cropdetect-fallback
+// parser (extractors/analyzers.ts); stored under analysis.subject_bbox.
+export interface SubjectBbox {
+  x: number
+  y: number
+  w: number
+  h: number
+  frame_w: number
+  frame_h: number
+  area_pct: number
+  method?: "cc" | "cropdetect" | "cropdetect-fallback"
 }
 
 export interface AnalysisFilters {
@@ -120,27 +131,24 @@ export interface VideoAnalysis {
   transcription_low_confidence_reasons?: string[]
   audio_warnings?: ChunkWarning[]
   content_profile: string
-  // v0.4: raw motion scores from siti so callers can see the numbers behind the label.
+  // Raw siti scores so callers can see the numbers behind the content_profile label.
   motion_summary?: { siAvg?: number; tiAvg?: number }
-  // v0.4: center-crop motion measurement that catches small-subject high-motion
-  // (e.g. animated mascot inside a static card). Drives narrative_mode auto-suggest
-  // when global motion is misleadingly low.
+  // Center-crop motion that catches small-subject high-motion (e.g. animated
+  // mascot inside a static card) which the global siti underweights.
   subject_motion?: { siAvg?: number; tiAvg?: number }
-  // v0.4: any-motion verdict combining global + subject-region siti. Used by
-  // shouldAutoSuggestNarrative.
+  // Combined global+subject motion verdict. Drives narrative_mode auto-suggest.
   has_motion?: boolean
-  // v0.4: frames whose chroma/brightness is statistically far from the median.
+  // Frames whose chroma/brightness is statistically far from the median.
   // Catches one-off color events (laser beams, projectiles, flashes) that lower
-  // tiers can pattern-match to body parts. Empty array means no outliers detected.
-  // v0.5 uses both magnitude (saturation/brightness) and hue (atan2) novelty.
+  // tiers can pattern-match to body parts. Both magnitude (saturation/brightness)
+  // and hue (atan2) novelty are checked; empty array means none detected.
   palette_outliers?: Array<{ timestamp: string; chroma_distance: number; brightness?: number; saturation?: number }>
-  // v0.5: bbox of moving subject detected via tblend+cropdetect. v0.6 prefers
-  // connected-component segmentation on the binary motion mask (returns the
-  // tightest bbox of the dominant moving blob instead of the union-of-all-motion).
-  // The `method` field indicates which detector produced the bbox.
-  subject_bbox?: { x: number; y: number; w: number; h: number; frame_w: number; frame_h: number; area_pct: number; method?: "cc" | "cropdetect" | "cropdetect-fallback" }
-  // v0.6: motion-dense time windows for adaptive frame sampling. Each window is
-  // a contiguous interval where temporal motion (siti ti, 1s rolling mean) exceeds
+  // Bbox of moving subject. Detector preference: connected-component (preferred,
+  // returns tightest bbox of dominant moving blob), falling back to cropdetect on
+  // the binary motion mask. The `method` field on SubjectBbox indicates which ran.
+  subject_bbox?: SubjectBbox
+  // Motion-dense time windows for adaptive frame sampling. Each window is a
+  // contiguous interval where temporal motion (siti ti, 1s rolling mean) exceeds
   // the video's global median + 1.5 MAD. Used by watch's adaptive_sampling=true
   // mode to allocate the per-call frame budget non-uniformly: more frames inside
   // motion windows, fewer in static spans.

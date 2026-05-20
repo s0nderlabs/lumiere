@@ -1,11 +1,63 @@
 import { credGet } from "../auth.js"
-import { readdirSync, readFileSync, existsSync } from "fs"
+import { readdirSync, existsSync, statSync, openSync, readSync, closeSync } from "fs"
 import { join } from "path"
 import { homedir } from "os"
 
 const COUNT_TOKENS_URL = "https://api.anthropic.com/v1/messages/count_tokens"
 const ANTHROPIC_VERSION = "2023-06-01"
 const FALLBACK_MODEL = "claude-opus-4-7"
+
+// Read the JSONL transcript backwards in 256 KiB chunks until we find the most
+// recent line containing `"model":"..."` and return that model id. Avoids
+// loading the entire (potentially multi-MB) transcript when we only need the
+// last few lines. Returns null if nothing found or the file errors out.
+function readModelFromTail(filePath: string): string | null {
+  let fd: number | null = null
+  try {
+    const size = statSync(filePath).size
+    if (size === 0) return null
+    fd = openSync(filePath, "r")
+    const CHUNK = 256 * 1024
+    let tailText = ""
+    let remaining = size
+    // Read backwards up to ~4 MiB; if we still find nothing we give up rather
+    // than scanning a gigantic transcript (the field appears in every assistant
+    // turn, so this would only happen for malformed files).
+    const MAX_READ = 4 * 1024 * 1024
+    let totalRead = 0
+    while (remaining > 0 && totalRead < MAX_READ) {
+      const readLen = Math.min(CHUNK, remaining)
+      const buf = Buffer.alloc(readLen)
+      readSync(fd, buf, 0, readLen, remaining - readLen)
+      tailText = buf.toString("utf-8") + tailText
+      remaining -= readLen
+      totalRead += readLen
+      // Process full lines we have so far. Split into lines and scan from the
+      // last whole line backwards. The first chunk may not start on a line
+      // boundary; skip the partial leading fragment unless we're at offset 0.
+      const lines = tailText.split("\n")
+      const startIdx = remaining > 0 ? 1 : 0  // skip the partial first line if more to read
+      for (let i = lines.length - 1; i >= startIdx; i--) {
+        const line = lines[i]
+        if (!line) continue
+        // Cheap pre-filter: only parse JSON if the field substring is present.
+        if (line.indexOf('"model"') === -1) continue
+        try {
+          const entry = JSON.parse(line)
+          const model = entry?.message?.model
+          if (typeof model === "string" && model.length > 0) return model
+        } catch { /* skip malformed line */ }
+      }
+    }
+    return null
+  } catch {
+    return null
+  } finally {
+    if (fd !== null) {
+      try { closeSync(fd) } catch { /* ignore */ }
+    }
+  }
+}
 
 // Auto-detect the model the user's Claude Code session is currently running.
 // Order of precedence:
@@ -36,17 +88,14 @@ export function detectCurrentModel(): string {
         for (const project of readdirSync(projectsDir)) {
           const jsonl = join(projectsDir, project, `${sessionId}.jsonl`)
           if (!existsSync(jsonl)) continue
-          const content = readFileSync(jsonl, "utf-8")
-          const lines = content.split("\n").filter(Boolean)
-          for (let i = lines.length - 1; i >= 0; i--) {
-            try {
-              const entry = JSON.parse(lines[i])
-              const model = entry?.message?.model
-              if (typeof model === "string" && model.length > 0) {
-                _detectedModel = model
-                return model
-              }
-            } catch { /* skip malformed lines */ }
+          // Read from the END of the file. The model field lives in the most
+          // recent assistant entry. For multi-MB transcripts the old "read
+          // whole file" approach was wasteful. We read the last 256 KiB and
+          // grow if needed.
+          const model = readModelFromTail(jsonl)
+          if (model) {
+            _detectedModel = model
+            return model
           }
         }
       }

@@ -65,7 +65,7 @@ export function detectLowConfidenceTranscript(
     try {
       const lastEnd = parseHMS(segments[segments.length - 1].end)
       if (lastEnd > durationSeconds + 30) {
-        reasons.push(`transcript end ${segments[segments.length - 1].end} exceeds video duration ${Math.round(durationSeconds)}s by ${Math.round(lastEnd - durationSeconds)}s — likely parser/offset bug`)
+        reasons.push(`transcript end ${segments[segments.length - 1].end} exceeds video duration ${Math.round(durationSeconds)}s by ${Math.round(lastEnd - durationSeconds)}s (likely parser/offset bug)`)
       }
     } catch {}
   }

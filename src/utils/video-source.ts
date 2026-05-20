@@ -127,8 +127,8 @@ async function downloadFromUrl(url: string): Promise<string> {
     "--print", "after_move:filepath",
   ]
 
-  // v0.6: SSL fallback chain. Twitter/X CDN intermittently returns SSL handshake
-  // failures via the default extractor; the syndication extractor goes through a
+  // SSL fallback chain. Twitter/X CDN intermittently returns SSL handshake
+  // failures via the default extractor; the syndication extractor uses a
   // different endpoint and works around it.
   const fallbacks: Array<{ label: string; args: string[]; whenAllowed: (url: string, err: any) => boolean }> = [
     {

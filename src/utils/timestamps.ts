@@ -28,9 +28,9 @@ export function formatHMSPrecise(seconds: number, decimals = 3): string {
   const m = Math.floor((clamped % 3600) / 60)
   const totalS = clamped - h * 3600 - m * 60
   // Pad seconds to 2 integer digits, then decimal point + N decimal digits.
-  // For decimals=3 this yields "SS.SSS" (6 chars). Bug pre-v0.6: used 3
-  // integer digits which produced invalid "00:00:005.500" timestamps that
-  // confused downstream LLM parsing of consecutive frames.
+  // For decimals=3 this yields "SS.SSS" (6 chars). Pad to 2 integer digits,
+  // not 3: an earlier bug used 3 and produced invalid "00:00:005.500" that
+  // broke downstream LLM parsing of consecutive frames.
   const padLen = 2 + (decimals > 0 ? decimals + 1 : 0)
   const s = totalS.toFixed(decimals).padStart(padLen, "0")
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${s}`

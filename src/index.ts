@@ -44,7 +44,7 @@ if (effectiveBackend === "local" && !hasWhisperCli) {
     process.stderr.write("lumiere: whisper-cli missing, falling back to gemini-api (GEMINI_API_KEY found)\n")
     effectiveBackend = "gemini-api"
   } else {
-    process.stderr.write("lumiere: WARNING — whisper-cli not found and no GEMINI_API_KEY set. Transcription will return empty.\n")
+    process.stderr.write("lumiere: WARNING: whisper-cli not found and no GEMINI_API_KEY set. Transcription will return empty.\n")
     process.stderr.write("  Install whisper-cli: brew install whisper-cpp\n")
     process.stderr.write("  Or set GEMINI_API_KEY env var (free tier: 1500 req/day)\n")
     effectiveBackend = "none"
@@ -66,7 +66,7 @@ cleanExpiredSessions(SESSIONS_DIR, DEFAULTS.session_max_age_days)
 cleanExpiredDownloads(DEFAULTS.downloads_max_age_days)
 
 // 4. Build server + register tools
-const server = new McpServer({ name: "lumiere", version: "0.7.1" })
+const server = new McpServer({ name: "lumiere", version: "0.7.2" })
 registerInspect(server)
 registerAnalyze(server)
 registerWatch(server)

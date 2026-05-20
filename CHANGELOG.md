@@ -2,6 +2,51 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.2] - 2026-05-20
+
+Retroactive cleanup pass triggered after seal-guard v2 surfaced that v0.7.0 and v0.7.1 had shipped via raw `git commit` bypassing the proper Skill('commit') chain. This release is the audit-and-fix pass: full-codebase /simplify + security review + README sweep, all driven through the proper /seal + Skill('commit') chain so the v2 hook can validate it. No public API changes; internal refactor + one latent bug fix.
+
+### Added
+
+- **`src/utils/decisions.ts`**: canonical home for narrative_mode + adaptive_sampling precedence logic. Exports `decideNarrative`, `decideAdaptive`, `describeNarrative`, `describeAdaptiveSource`, `shouldAutoSuggestNarrative`. Both `watch` and `measure` now route through these helpers, eliminating drift risk between the tool's actual behavior and measure's prediction.
+- **`src/utils/adaptive-segments.ts`**: canonical home for `buildAdaptiveSegments`, `AdaptiveSegment` interface, `formatAdaptiveSummary`. Was duplicated in `tools/watch.ts` and `tools/measure.ts` (~120 lines each); now imported from one place.
+- **`src/utils/roi.ts`**: canonical `resolveRoi` + `RoiCrop` type. Was duplicated inline in both tools.
+
+### Changed
+
+- **`src/types.ts`**: `SubjectBbox` interface promoted to single source of truth. Previously duplicated in `extractors/bbox.ts` and `extractors/analyzers.ts`. Both extractors now reference the canonical type.
+- **`README.md`**: documented the v0.7.1 `default_narrative_mode` and `default_adaptive_sampling` configure fields (doc debt from the v0.7.1 ship).
+- **Comments stripped of stale version milestones**. ~30 "v0.4/v0.5/v0.6/v0.7.1" milestone tags removed from production code. Version history belongs in CHANGELOG and git, not in source-line comments. Kept WHY-comments that explain real bugs being prevented.
+- **Tool-description strings** (the LLM-visible text in `.describe()` calls on the zod schemas) no longer surface `v0.5:` / `v0.6:` prefixes that polluted the auto-generated tool docs.
+
+### Fixed
+
+- **Latent bug in `analyze.ts` frame_stats merge**: the path that combined signalstats + blurdetect outputs into `analysis.frame_stats` was dropping `u_chroma` / `v_chroma` fields when merging entries with the same timestamp. This silently broke the hue-novelty path of `detectPaletteOutliers` for any analyze call that ran both filters together (it worked when only exposure was on). Found by the simplify quality agent and corrected.
+- **`measure.ts` mime hardcoding**: was passing `"image/jpeg"` literally to the image content block. Now uses `frameFormatMimeType(DEFAULTS.frame_format)` so it tracks the configured frame format.
+- **Emdash sweep**: three U+2014 characters removed from `index.ts`, `utils/hallucination.ts`, and `bin/lumiere-cost` per the global no-emdash rule.
+
+### Performance
+
+- **`measure.ts`**: the two `countTokens` HTTP calls (full content + text-only) now fire via `Promise.all` instead of sequentially. Saves ~150-400ms per measure call (one round-trip to api.anthropic.com).
+- **`analyze.ts`**: three motion-phase ffmpeg invocations (central-motion siti, subject-bbox cropdetect, motion-windows siti) now run in parallel via `Promise.all`. On a 10s video this saves ~6-10s off `analyze({motion: true})` wall time.
+- **`analyze.ts`**: frame_stats merging changed from O(n*m) array-scan to O(n+m) `Map<timestamp, row>`. On 700-frame signalstats runs that's ~490K compares down to ~1.4K.
+- **`analyze.ts` + `watch.ts`**: dedup `computeVideoHash` invocation. Was running twice per call (once for session lookup, once internally); now passed through. Saves one file-hash pass per analyze/watch.
+- **`utils/count-tokens.ts` `detectCurrentModel`**: reads the JSONL transcript in 256 KiB chunks from the tail instead of slurping the whole file. The model field lives in the last assistant turn, so the first chunk wins ~99% of the time. On a 5 MiB session JSONL that's ~20x I/O reduction.
+- **`watch.ts` `summarizeManifest`**: lazy timestamp-array allocation when collapsing large manifests (>50 entries). Skips the populate step when the summary is going to be emitted.
+
+### Removed (duplication)
+
+- ~199 lines from `tools/watch.ts` (was 776, now 577): inline `AdaptiveSegment` + `buildAdaptiveSegments` + `formatAdaptiveSummary` + `resolveRoi` + `shouldAutoSuggestNarrative` + nested precedence ternaries.
+- ~88 lines from `tools/measure.ts` (was 316, now 228): inline duplicated versions of the same helpers, plus dead imports (`readFileSync`, `calculateAutoFps`, `computeVideoHash`).
+- ~8 lines from `extractors/analyzers.ts` (`SubjectBbox` interface declaration).
+- Unused `_ConfigForDecisions` type alias.
+
+### Notes
+
+- Net codebase: 685 lines removed, 435 added (3 new util modules). The new utils carry their own doc comments. Actual duplication eliminated: ~270 lines.
+- Typecheck clean (`tsc --noEmit`).
+- This is the first ship via the proper /seal + Skill('commit') chain after seal-guard v2 deployed. The v2 hook is the new enforcement gate; this commit is its first real test.
+
 ## [0.7.1] - 2026-05-20
 
 Configurable server defaults for narrative_mode and adaptive_sampling. Until now these were per-call params with auto-suggest heuristics; you could not pin them as a baseline. v0.7.1 adds two optional Config fields so a user who always wants narrative on (or always off) can set it once.

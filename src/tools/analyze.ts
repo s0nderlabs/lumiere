@@ -37,7 +37,7 @@ import {
   hasMotion,
 } from "../extractors/analyzers.js"
 import { detectSubjectBboxViaCC } from "../extractors/bbox.js"
-import { getSessionDir, loadManifest, saveManifest, computeVideoHash } from "../session/manager.js"
+import { loadManifest, saveManifest, computeVideoHash } from "../session/manager.js"
 import { createManifest } from "../session/manifest.js"
 import { detectLowConfidenceTranscript } from "../utils/hallucination.js"
 import type { AnalysisFilters, VideoAnalysis, AudioResult } from "../types.js"
@@ -47,7 +47,7 @@ const execFileAsync = promisify(execFile)
 export function registerAnalyze(server: McpServer): void {
   server.tool(
     "analyze",
-    "Analyze video structure with ffmpeg filters. Returns scene changes, silence intervals, motion levels, transcript, plus v0.4 fields: subject_motion (center-crop motion that catches small-subject high-motion the global siti misses), palette_outliers (one-off color events that catch lasers/projectiles/flashes). Use before `watch` to plan which segments need detailed frame extraction. Does NOT extract frames. Long videos trigger audio chunking; warnings (if any) appear in analysis.audio_warnings.",
+    "Analyze video structure with ffmpeg filters. Returns scene changes, silence intervals, motion levels, transcript, plus subject_motion (center-crop motion that catches small-subject high-motion the global siti misses), palette_outliers (one-off color events such as lasers/projectiles/flashes), and motion_windows (drives adaptive sampling in watch). Use before `watch` to plan which segments need detailed frame extraction. Does NOT extract frames. Long videos trigger audio chunking; warnings appear in analysis.audio_warnings.",
     {
       path: z.string().describe("Local path or any URL supported by yt-dlp"),
       filters: z.object({
@@ -55,9 +55,9 @@ export function registerAnalyze(server: McpServer): void {
         black_intervals: z.boolean().default(false).describe("Detect black frames/transitions (blackdetect)"),
         silence: z.boolean().default(false).describe("Detect silence intervals (silencedetect)"),
         freeze: z.boolean().default(false).describe("Detect frozen/still segments (freezedetect)"),
-        motion: z.boolean().default(false).describe("Measure visual complexity + motion level (siti). v0.4: also runs a center-crop pass for subject-region motion."),
+        motion: z.boolean().default(false).describe("Measure visual complexity + motion level (siti); also runs a center-crop pass for subject-region motion."),
         blur: z.boolean().default(false).describe("Measure blur/sharpness per frame (blurdetect)"),
-        exposure: z.boolean().default(false).describe("Measure brightness + saturation per frame (signalstats). v0.4: also drives palette_outliers detection."),
+        exposure: z.boolean().default(false).describe("Measure brightness + saturation per frame (signalstats); also drives palette_outliers detection."),
         loudness: z.boolean().default(false).describe("Measure audio loudness (ebur128)"),
         transcription: z.boolean().default(false).describe("Transcribe audio using configured backend"),
       }),
@@ -90,12 +90,20 @@ export function registerAnalyze(server: McpServer): void {
             stderr = err.stderr || ""
           }
 
-          if (filters.scene_changes && existsSync(cmd.videoMetaFile)) {
-            const c = readFileSync(cmd.videoMetaFile, "utf-8")
-            analysis.scenes = parseScdetFromMetaFile(c)
-            if (analysis.scenes.length === 0) analysis.scenes = parseScdetOutput(stderr)
-          } else if (filters.scene_changes) {
-            analysis.scenes = parseScdetOutput(stderr)
+          // scene_changes, blur, exposure all parse the SAME videoMetaFile;
+          // read it at most once across the three branches.
+          let metaContent: string | null = null
+          const needsMeta = filters.scene_changes || filters.blur || filters.exposure
+          if (needsMeta && existsSync(cmd.videoMetaFile)) {
+            metaContent = readFileSync(cmd.videoMetaFile, "utf-8")
+          }
+          if (filters.scene_changes) {
+            if (metaContent !== null) {
+              analysis.scenes = parseScdetFromMetaFile(metaContent)
+              if (analysis.scenes.length === 0) analysis.scenes = parseScdetOutput(stderr)
+            } else {
+              analysis.scenes = parseScdetOutput(stderr)
+            }
           }
           if (filters.black_intervals) analysis.black_intervals = parseBlackdetectOutput(stderr)
           if (filters.silence) analysis.silence_intervals = parseSilenceOutput(stderr)
@@ -109,101 +117,109 @@ export function registerAnalyze(server: McpServer): void {
             analysis.content_profile = deriveContentProfile(s.siAvg, s.tiAvg)
             analysis.motion_summary = { siAvg: s.siAvg, tiAvg: s.tiAvg }
           }
-          if (filters.blur && existsSync(cmd.videoMetaFile)) {
-            const c = readFileSync(cmd.videoMetaFile, "utf-8")
-            const data = parseBlurOutput(c)
+          if (filters.blur && metaContent !== null) {
+            const data = parseBlurOutput(metaContent)
+            // Index frame_stats by timestamp once for O(1) merging instead of O(n*m) find.
+            const byTs = new Map<string, typeof analysis.frame_stats[number]>()
+            for (const fs of analysis.frame_stats) byTs.set(fs.timestamp, fs)
             for (const e of data) {
-              const ex = analysis.frame_stats.find(f => f.timestamp === e.timestamp)
+              const ex = byTs.get(e.timestamp)
               if (ex) ex.blur = e.blur
-              else analysis.frame_stats.push({ timestamp: e.timestamp, blur: e.blur })
+              else {
+                const row = { timestamp: e.timestamp, blur: e.blur }
+                analysis.frame_stats.push(row)
+                byTs.set(e.timestamp, row)
+              }
             }
           }
-          if (filters.exposure && existsSync(cmd.videoMetaFile)) {
-            const c = readFileSync(cmd.videoMetaFile, "utf-8")
-            const data = parseSignalstatsOutput(c)
+          if (filters.exposure && metaContent !== null) {
+            const data = parseSignalstatsOutput(metaContent)
+            const byTs = new Map<string, typeof analysis.frame_stats[number]>()
+            for (const fs of analysis.frame_stats) byTs.set(fs.timestamp, fs)
             for (const e of data) {
-              const ex = analysis.frame_stats.find(f => f.timestamp === e.timestamp)
-              if (ex) { ex.brightness = e.brightness; ex.saturation = e.saturation }
-              else analysis.frame_stats.push(e as any)
+              const ex = byTs.get(e.timestamp)
+              if (ex) {
+                ex.brightness = e.brightness
+                ex.saturation = e.saturation
+                ex.u_chroma = e.u_chroma
+                ex.v_chroma = e.v_chroma
+              } else {
+                analysis.frame_stats.push(e)
+                byTs.set(e.timestamp, e)
+              }
             }
           }
           analysis.frame_stats.sort((a, b) => a.timestamp.localeCompare(b.timestamp))
         }
 
-        // v0.4: subject-region motion pass. Always runs if filters.motion is true,
-        // so we catch the "global motion looks low but the mascot is moving rapidly"
-        // case that bit the V1 test. Cheap second ffmpeg invocation; can skip if motion
-        // filter wasn't requested.
-        if (filters.motion) {
-          const cm = buildCentralMotionCommand(safePath)
-          try {
-            const r = await execFileAsync("ffmpeg", cm.args, { timeout: 600_000, maxBuffer: 100 * 1024 * 1024 })
-            const sub = parseSitiOutput(r.stderr)
-            analysis.subject_motion = { siAvg: sub.siAvg, tiAvg: sub.tiAvg }
-          } catch (err: any) {
-            // Fall through; subject_motion stays undefined. Don't fail the whole analyze.
-            const sub = parseSitiOutput(err.stderr || "")
-            if (sub.siAvg !== undefined || sub.tiAvg !== undefined) {
-              analysis.subject_motion = { siAvg: sub.siAvg, tiAvg: sub.tiAvg }
-            }
-          }
-          analysis.has_motion = hasMotion(
-            analysis.motion_summary ?? {},
-            analysis.subject_motion ?? {},
-          )
-        }
-
-        // v0.4: palette novelty pass. v0.5: now uses hue-based novelty in
-        // addition to magnitude novelty, catching the V1 laser case (similar
-        // saturation, different hue) that v0.4 missed.
+        // Palette novelty pass. Runs off the already-parsed signalstats data
+        // (no extra ffmpeg invocation), so it does not need to be parallel
+        // with the motion ffmpeg passes below.
         if (filters.exposure && analysis.frame_stats.length >= 8) {
           analysis.palette_outliers = detectPaletteOutliers(analysis.frame_stats)
         }
 
-        // v0.6: subject bbox detection prefers connected-component segmentation
-        // (returns the tightest bbox of the dominant moving blob), falling back
-        // to the v0.5 cropdetect approach if CC yields nothing usable. The CC
-        // method handles multi-subject videos gracefully (envelope of comparable
-        // blobs) and avoids the v0.5 failure mode where mascot+terminal motion
-        // unioned into one huge bbox.
+        // The three motion-only ffmpeg passes (central motion, cc-bbox, motion
+        // windows) are independent invocations against the same video. Run them
+        // concurrently to cut the motion-phase wall time roughly to a third.
         if (filters.motion) {
-          const ccBbox = await detectSubjectBboxViaCC(safePath, metadata.width, metadata.height, workDir)
-          if (ccBbox) {
-            analysis.subject_bbox = ccBbox
-          } else {
+          const subjectMotionPromise = (async () => {
+            const cm = buildCentralMotionCommand(safePath)
+            try {
+              const r = await execFileAsync("ffmpeg", cm.args, { timeout: 600_000, maxBuffer: 100 * 1024 * 1024 })
+              return parseSitiOutput(r.stderr)
+            } catch (err: any) {
+              const sub = parseSitiOutput(err.stderr || "")
+              return (sub.siAvg !== undefined || sub.tiAvg !== undefined) ? sub : null
+            }
+          })()
+
+          const bboxPromise = (async () => {
+            const ccBbox = await detectSubjectBboxViaCC(safePath, metadata.width, metadata.height, workDir)
+            if (ccBbox) return ccBbox
             const bboxCmd = buildSubjectBboxCommand(safePath)
             try {
               const r = await execFileAsync("ffmpeg", bboxCmd.args, { timeout: 600_000, maxBuffer: 100 * 1024 * 1024 })
               const bbox = parseCropdetectOutput(r.stderr, metadata.width, metadata.height)
-              if (bbox) analysis.subject_bbox = { ...bbox, method: "cropdetect-fallback" }
+              return bbox ? { ...bbox, method: "cropdetect-fallback" as const } : null
             } catch (err: any) {
               const bbox = parseCropdetectOutput(err.stderr || "", metadata.width, metadata.height)
-              if (bbox) analysis.subject_bbox = { ...bbox, method: "cropdetect-fallback" }
+              return bbox ? { ...bbox, method: "cropdetect-fallback" as const } : null
             }
-          }
-        }
+          })()
 
-        // v0.6: motion windows for adaptive sampling. Detects time intervals
-        // where temporal motion (siti ti) is above the video's global median,
-        // so watch can allocate more frames to action moments and fewer to
-        // static spans without changing the total frame budget.
-        if (filters.motion && metadata.duration_seconds > 2) {
-          const motionMeta = join(workDir, "motion_windows.txt")
-          const mwCmd = buildMotionWindowsCommand(safePath, motionMeta)
-          try {
-            await execFileAsync("ffmpeg", mwCmd.args, { timeout: 600_000, maxBuffer: 100 * 1024 * 1024 })
-          } catch {
-            // tolerate; ffmpeg may exit non-zero on some inputs but still emit metadata
-          }
-          if (existsSync(motionMeta)) {
+          const motionWindowsPromise = (async () => {
+            if (metadata.duration_seconds <= 2) return null
+            const motionMeta = join(workDir, "motion_windows.txt")
+            const mwCmd = buildMotionWindowsCommand(safePath, motionMeta)
+            try {
+              await execFileAsync("ffmpeg", mwCmd.args, { timeout: 600_000, maxBuffer: 100 * 1024 * 1024 })
+            } catch {
+              // tolerate; ffmpeg may exit non-zero but still emit metadata
+            }
+            if (!existsSync(motionMeta)) return null
             try {
               const content = readFileSync(motionMeta, "utf-8")
               const windows = parseMotionWindowsFromMetaFile(content, metadata.duration_seconds)
-              if (windows.length > 0) analysis.motion_windows = windows
+              return windows.length > 0 ? windows : null
             } catch {
-              // ignore parse errors; motion_windows stays unset
+              return null
             }
-          }
+          })()
+
+          const [subjectMotion, bbox, motionWindows] = await Promise.all([
+            subjectMotionPromise,
+            bboxPromise,
+            motionWindowsPromise,
+          ])
+
+          if (subjectMotion) analysis.subject_motion = { siAvg: subjectMotion.siAvg, tiAvg: subjectMotion.tiAvg }
+          analysis.has_motion = hasMotion(
+            analysis.motion_summary ?? {},
+            analysis.subject_motion ?? {},
+          )
+          if (bbox) analysis.subject_bbox = bbox
+          if (motionWindows) analysis.motion_windows = motionWindows
         }
 
         if (filters.transcription && metadata.has_audio) {
@@ -237,10 +253,10 @@ export function registerAnalyze(server: McpServer): void {
           if (check.flagged) {
             analysis.transcription_low_confidence = true
             analysis.transcription_low_confidence_reasons = check.reasons
-            // v0.4: suppress the hallucinated text entirely. Before, the bogus
-            // "ご視聴ありがとうございました" string leaked through even though
-            // low_confidence was set. Now it's replaced with a placeholder so the
-            // caller can't accidentally treat it as real audio content.
+            // Suppress the hallucinated text entirely. Otherwise whisper's
+            // music-on-silence credits ("ご視聴ありがとうございました" and
+            // friends) leak through even with low_confidence set, and a caller
+            // could mistake them for real audio.
             const span = ar.transcription.length > 0 ? {
               start: ar.transcription[0].start,
               end: ar.transcription[ar.transcription.length - 1].end,
@@ -258,9 +274,14 @@ export function registerAnalyze(server: McpServer): void {
         if (!filters.motion) analysis.content_profile = "unknown (motion filter not enabled)"
 
         if (DEFAULTS.enable_index) {
-          const sessionDir = getSessionDir(SESSIONS_DIR, safePath)
+          // Compute the video hash once and reuse it for both sessionDir
+          // resolution and manifest creation. getSessionDir + createManifest
+          // previously each re-opened and re-hashed the file (one disk read +
+          // 64 KiB scan apiece).
+          const videoHash = computeVideoHash(safePath)
+          const sessionDir = join(SESSIONS_DIR, videoHash)
           let manifest = loadManifest(sessionDir)
-          if (!manifest) manifest = createManifest(computeVideoHash(safePath), safePath)
+          if (!manifest) manifest = createManifest(videoHash, safePath)
           manifest.analysis = analysis
           saveManifest(sessionDir, manifest)
         }

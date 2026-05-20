@@ -66,7 +66,15 @@ Auto-budget respects `MAX_MCP_OUTPUT_TOKENS`. Runtime trim drops frames if the r
 Exact token forecast via Anthropic's `/v1/messages/count_tokens` (free endpoint, requires `LUMIERE_ANTHROPIC_API_KEY`). Extracts frames, builds the would-be response payload, counts tokens for the current Claude model, returns exact `conversation_tokens` + heuristic `mcp_cap_tokens`. Discards the payload. Use BEFORE a high-stakes watch call. Auto-detects the running CC model from session transcripts.
 
 ### `configure`
-Set `default_mode`, audio `backend`, `whisper_model`, or `clear_sessions`.
+Set persistent server defaults:
+- `default_mode` (`low` / `mid` / `high` / `max`): tier used when watch/measure omit `mode`.
+- `default_narrative_mode` (`true` / `false` / `"auto"`): when true, narrative_mode defaults on for every watch/measure call that omits the param. When false, defaults off. When `"auto"` or unset, the heuristic decides per call (auto-suggest from motion / cuts / palette signals). Per-call param always wins.
+- `default_adaptive_sampling` (`true` / `false` / `"auto"`): same semantics for adaptive sampling. `true` activates whenever motion_windows are cached and duration > 4s. `false` forces uniform sampling. `"auto"` or unset = heuristic (auto-enable only when narrative is also on).
+- `backend` (`local` / `gemini-api` / `none`): audio transcription backend.
+- `whisper_model` (`tiny` / `base` / `small` / `medium` / `large-v3-turbo` / `large-v3` / `auto`): whisper size when backend=local.
+- `clear_sessions: true`: wipe cached sessions + downloads.
+
+Precedence for narrative_mode and adaptive_sampling: explicit per-call param > auto-suggest heuristic > server default > off.
 
 ## Tier guide
 

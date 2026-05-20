@@ -71,10 +71,9 @@ export interface ExtractFramesOptions {
   startTime?: string
   endTime?: string         // INTERPRETED AS DURATION FROM start_time (FIXED end_time semantics)
   maxFrames?: number
-  // v0.5: optional crop to a bbox (x,y,w,h) applied before scaling.
-  // Used by watch's `roi: "auto"` to crop to the detected subject bbox so the
-  // mascot's pixels get the full target resolution instead of being averaged
-  // out by background pixels.
+  // Optional crop applied before scaling. When set (watch's `roi: "auto"`
+  // path), the subject region gets the full target resolution instead of
+  // being averaged out by background pixels.
   crop?: { x: number; y: number; w: number; h: number }
 }
 
@@ -100,8 +99,8 @@ export async function extractFrames(videoPath: string, options: ExtractFramesOpt
     const duration = parseHMS(endTime) - (startTime ? parseHMS(startTime) : 0)
     if (duration > 0) args.push("-t", String(duration))
   }
-  // v0.5: optional crop applied BEFORE scale so the crop region uses the full
-  // target resolution. Filter chain: fps -> crop (if present) -> scale.
+  // Filter chain: fps -> crop (if present) -> scale. Crop runs before scale so
+  // the crop region uses the full target resolution.
   const filterChain: string[] = [`fps=${fps}`]
   if (crop) {
     filterChain.push(`crop=${crop.w}:${crop.h}:${crop.x}:${crop.y}`)
@@ -129,9 +128,9 @@ export async function extractFrames(videoPath: string, options: ExtractFramesOpt
   const files = readdirSync(outputDir).filter(f => f.startsWith("frame_") && f.endsWith(`.${ext}`)).sort()
   const offset = startTime ? parseHMS(startTime) : 0
 
-  // v0.4: emit sub-second timestamps when fps>=2 so consecutive frames are
-  // distinguishable to the LLM. Before, fps=25 produced 25 frames all labeled
-  // "00:00:02" which collapsed dense motion into apparent duplicates.
+  // Sub-second timestamps when fps>=2 so consecutive frames are distinguishable
+  // to the LLM. With fps=25 and integer seconds, all 25 frames would share the
+  // label "00:00:02" and collapse dense motion into apparent duplicates.
   const usePrecise = fps >= 2
   return files.map((file, i) => {
     const p = join(outputDir, file)

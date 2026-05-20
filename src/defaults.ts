@@ -48,14 +48,14 @@ const SAFE_AT_50K: Record<number, number> = {
   1536: 20,
 }
 
-// v0.6 calibration against empirical 4-tier MCP test (2026-05-19). Budget is
-// view_sample such that (view_sample * TPF + 8000) * 1.25 stays under 100K
-// (so cost_estimate predicts under cap before runtime trim activates).
-//   384: 38 * 1900 + 8000 = 80.2K, * 1.25 = 100K (at the wire)
-//   512: 28 * 2600 + 8000 = 80.8K, * 1.25 = 101K (close, dropped to 27)
-//   768: 17 * 4200 + 8000 = 79.4K, * 1.25 = 99.25K
-//   1024: 12 * 6200 + 8000 = 82.4K, * 1.25 = 103K (dropped to 11)
-//   1536: 7 * 11000 + 8000 = 85K, * 1.25 = 106K (dropped to 6)
+// Calibration target: (view_sample * TPF + STATIC_TOKENS_PER_CALL) * SAFETY_MARGIN
+// stays under 100K so cost_estimate predicts under-cap before the runtime trim
+// activates. Numbers below are from the 2026-05-19 4-tier MCP test.
+//   384:  38 * 1900  + 8000 = 80.2K, * 1.25 = 100K (at the wire)
+//   512:  28 * 2600  + 8000 = 80.8K, * 1.25 = 101K (close, dropped to 27)
+//   768:  17 * 4200  + 8000 = 79.4K, * 1.25 = 99.25K
+//   1024: 12 * 6200  + 8000 = 82.4K, * 1.25 = 103K (dropped to 11)
+//   1536: 7  * 11000 + 8000 = 85K,   * 1.25 = 106K (dropped to 6)
 const SAFE_AT_100K: Record<number, number> = {
   384: 38,
   512: 27,
@@ -79,13 +79,12 @@ export const TOKENS_PER_FRAME: Record<number, number> = {
 }
 
 // Static per-call overhead (tool invocation, metadata blocks, audio analysis).
-// v0.6 bump: when adaptive_sampling + narrative_mode + roi=auto stack, the
-// response carries: budget block with per-segment summary (~2K), NARRATIVE_GUIDANCE
+// When adaptive_sampling + narrative_mode + roi=auto stack, the response
+// carries: budget block with per-segment summary (~2K), NARRATIVE_GUIDANCE
 // (~4K), palette outlier hint (~1K), continuity audit block (~1K), per-frame
-// timestamp headers (~50 bytes/frame), audio block (~3K), manifest summary (~1K).
-// v0.5 set this to 4000 which still undercounted by 25-30% in 4-tier blind retest
-// (low/mid/high/max ALL truncated mid-stream). v0.6 bumps to 8000 + safety margin
-// to 1.25 (was 1.15) so the estimator's "fits" verdict actually fits.
+// timestamp headers (~50 bytes/frame), audio block (~3K), manifest summary
+// (~1K). Empirically calibrated against the 2026-05-19 4-tier blind retest
+// where a 4000-byte estimate undercounted by 25-30% and truncated every tier.
 export const STATIC_TOKENS_PER_CALL = 8000
 export const COST_ESTIMATE_SAFETY_MARGIN = 1.25  // 25% above raw token count
 
@@ -134,16 +133,16 @@ export function calculateAutoFps(durationSeconds: number): number {
   return 0.1
 }
 
-// SHARED fps derivation logic. Both watch.ts (at runtime) and estimateWatchCost (at
-// preview time) call this. Before v0.4 these diverged: inspect's cost preview used
-// calculateAutoFps in isolation (fps=2 for short videos) while watch used the
-// view_sample-driven path (fps = view_sample / duration). For a 24s clip at low,
-// that's a 12.5x undercount. v0.4 unifies them.
+// Shared fps derivation: watch.ts uses this at runtime and estimateWatchCost
+// uses it at preview time so the two never diverge. Earlier versions diverged:
+// inspect's preview called calculateAutoFps in isolation (fps=2 for short
+// videos) while watch used the view_sample-driven path (fps = view_sample /
+// duration). For a 24s clip at the `low` tier that was a 12.5x undercount.
 //
 // Rule (matches deriveFps in watch.ts):
-//   - If view_sample is set AND fps is "auto"/undefined → fps = view_sample / duration
-//   - If fps is explicit → fps stays
-//   - Else → calculateAutoFps(duration)
+//   - view_sample set AND fps is "auto"/undefined  -> fps = view_sample / duration
+//   - fps is explicit                              -> fps stays
+//   - else                                         -> calculateAutoFps(duration)
 export function deriveFpsForBudget(opts: {
   fps?: number
   view_sample: number | undefined
@@ -177,10 +176,10 @@ export interface CostEstimate {
   will_trigger_autocompact: boolean
 }
 
-// Pure cost estimator. v0.4 parity fix: uses the SAME fps derivation as watch.ts so
-// inspect's preview matches what the watch tool actually does at runtime. Also
-// reports exceeds_mcp_cap_per_call so callers can see when a single chunk would
-// truncate, even if duration-based chunk math says "1 chunk."
+// Pure cost estimator. Uses the SAME fps derivation as watch.ts (via
+// deriveFpsForBudget) so inspect's preview matches what watch will actually
+// do at runtime. Also reports exceeds_mcp_cap_per_call so callers see when a
+// single chunk would truncate, even if duration-based chunk math says "1 chunk".
 export function estimateWatchCost(opts: {
   mode?: WatchMode
   resolution?: number
@@ -198,7 +197,7 @@ export function estimateWatchCost(opts: {
   const ffmpeg_frames = Math.max(1, Math.round(fps * opts.duration_seconds))
   const frames_returned = Math.min(ffmpeg_frames, view_sample_cap)
   const tpf = tokensPerFrame(resolution)
-  // v0.5: apply safety margin to account for unpredictable overhead variance.
+  // Safety margin accounts for unpredictable overhead variance per call.
   const est_per_call = Math.round((frames_returned * tpf + STATIC_TOKENS_PER_CALL) * COST_ESTIMATE_SAFETY_MARGIN)
 
   // If a single chunk exceeds the MCP per-call cap, we need to split by TIME so each

@@ -119,7 +119,7 @@ async function mcpSession(envOverrides: Record<string, string>) {
       } catch { /* skip */ }
     }
   })
-  // surface stderr in --json runs? no — only on errors. silence by default.
+  // surface stderr in --json runs? no, only on errors. silence by default.
   let errBuf = ""
   proc.stderr.on("data", (d) => { errBuf += d.toString() })
 
