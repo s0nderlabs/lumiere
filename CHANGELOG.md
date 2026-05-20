@@ -2,6 +2,29 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.1] - 2026-05-20
+
+Five watch-tool fixes surfaced by testing the Claude conference promo video: a v0.8 perception gap where `adaptive_sampling=true` clustered all frames on a 0.6s pin-label motion_window and missed two headphone equip/unequip events outside it. elpabl0 caught the miss by direct question. The patch makes the gap visible in the response and gives the caller the right recovery hint when runtime_trim drops middle frames.
+
+### Added
+
+- **`## Sampling gap warning` block in `watch` responses**: emitted when adaptive_sampling concentrates >60% of frame budget into <30% of active duration. Names the missed channels (equip/unequip, costume on/off, prop in-hand, headgear changes) and tells the caller to run a uniform mid-tier scan to verify "feature X is constant" claims before locking interpretation.
+- **`## Trim hint (runtime_trim middle-drop)` as a distinct hint branch**: when `runtime_trim` deliberately dropped evenly-spaced middle frames (denser content than the cost estimator predicted), the response identifies the largest temporal gap between delivered frames and recommends narrowing the window to that gap. Replaces the misleading "retry from last delivered" tail-truncation advice that was wrong for middle-drop cases.
+- **`kept_timestamps` and `dropped_timestamps` in the budget block**: when runtime_trim activates, the budget block now lists exactly which frames survived and which were dropped, so the caller can walk the drop list segment-by-segment to recover them without inspecting the manifest separately.
+- **Sampling-gap audit subsection in the narrative_mode continuity audit**: the prior now explicitly tells the model that anchor + cluster + anchor sampling has NOT verified the equip/unequip channel and that "feature X is constant" claims under those conditions must be flagged PROVISIONAL until a uniform scan confirms.
+
+### Fixed
+
+- **`view=` zod regex now accepts sub-second timestamps**. The session manifest emits sub-second timestamps (e.g. `00:00:09.343` from adaptive_sampling motion windows) but `view=` rejected anything that didn't match `^\d{2}:\d{2}:\d{2}$`, forcing a wasted re-extract instead of a cache hit. New regex: `^\d{2}:\d{2}:\d{2}(\.\d+)?$`.
+- **`lookupTimestampsInManifest` gained a nearest-by-seconds fallback within 50ms**. When exact string match fails (e.g. caller passes `00:00:09` and cache has `00:00:09.000` or vice versa), the lookup now matches the nearest cached frame within `MATCH_EPSILON=0.05s` and returns the cached timestamp string so the response is internally consistent.
+- **Truncation hint mislabeled middle-drops as MCP-cap truncations**. The old hint always said "output hit the MCP per-call cap mid-stream at timestamp X" even when `runtime_trim` had deliberately dropped middle frames (frames 0 and 14 delivered, 1..13 dropped). Callers chased the wrong window. Now differentiated.
+
+### Internal
+
+- Three new module-scope template helpers (`samplingGapWarning`, `trimHintRuntimeMiddleDrop`, `truncationHintMcpCap`) so the multi-paragraph prose lives at top of file alongside `NARRATIVE_GUIDANCE` and `LOW_TIER_HEDGE_HINT`, matching the existing convention.
+- Two new module-scope constants (`GAP_WARN_BUDGET_RATIO`, `GAP_WARN_DURATION_RATIO`) so the empirically-tuned 0.6 / 0.3 thresholds are greppable.
+- Gap-warning aggregation collapsed from four `.filter().reduce()` passes to a single loop.
+
 ## [0.8.0] - 2026-05-20
 
 Per-window zoom: each motion window can carry its own subject bbox so a traveling subject (e.g. a mascot dashing from top-left to bottom-right) stays tight in every cropped frame instead of being averaged out by a video-wide union bbox. Plus a roi-aware cache so `view=` lookups never silently return frames from the wrong crop bucket, and a defense-in-depth pass on the keychain shell-out path. Tested end-to-end via a tmux MCP session against the V1 ClaudeDevs source.

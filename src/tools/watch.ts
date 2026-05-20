@@ -59,6 +59,19 @@ import {
 import type { AudioResult, Frame, Segment, SessionManifest, SegmentFrame } from "../types.js"
 
 const HMS_REGEX = /^\d{2}:\d{2}:\d{2}$/
+// view= accepts the sub-second timestamps that the session manifest emits
+// (e.g. 00:00:09.343 from adaptive_sampling motion windows). lookupTimestamps
+// normalizes numerically so format mismatches with cached ints still match
+// within MATCH_EPSILON (tighter than 100ms so two adjacent frames in a dense
+// adaptive segment don't collide; loose enough to bridge HH:MM:SS vs .000).
+const HMS_VIEW_REGEX = /^\d{2}:\d{2}:\d{2}(\.\d+)?$/
+const MATCH_EPSILON = 0.05
+
+// Sampling-gap-warning thresholds (empirically tuned 2026-05-20 on the Claude
+// conference promo: adaptive_sampling put 64% of budget into 3% of timeline
+// and missed two headphone equip/unequip events outside the motion window).
+const GAP_WARN_BUDGET_RATIO = 0.6
+const GAP_WARN_DURATION_RATIO = 0.3
 
 // Narrative-pass guidance prompt. Injected when narrative_mode is requested or
 // auto-suggested. Asks the model to treat frames as a temporal sequence and
@@ -124,6 +137,7 @@ After you write the narrative, re-read your draft once more. For each verb where
 1. Did I have >1 plausible candidate source at the time? If yes, list the alternatives I rejected and the trajectory evidence that ruled them out. If I cannot, that attribution is provisional, flag it.
 2. Did I commit to a sequence (A then B then C) where the time spacing was tight (< 0.5s between events)? If yes, ensure my anchor frames support the ordering, not just the existence of each event.
 3. Are there any frames I described as "duplicate" or "same as previous"? Re-check them; sub-pixel changes (eye color shift, hand pose change, beam path) can hide in apparent duplicates. If unsure, hedge instead of asserting "no change."
+4. **Sampling-gap audit.** Are your frames clustered (e.g. adaptive_sampling concentrated on a motion_window) with only bookend anchors elsewhere? If yes, you have ONLY verified the channels visible in those clusters. Equip/unequip, costume on/off, headgear changes, prop in-hand, and any silhouette-area-changing event that does NOT cross the motion_window intensity threshold WILL NOT pop a motion_window and WILL NOT get budget from adaptive_sampling. Before locking "feature X is constant", request a uniform mid-tier scan across the full active duration (e.g. watch with adaptive_sampling=false, mode=mid, fps=2). If you see only ANCHOR + CLUSTER + ANCHOR in your sampled timestamps and your interpretation is "X never changed", explicitly flag it as PROVISIONAL pending the uniform scan.
 
 Revise any verb where the audit surfaces doubt. A flagged hedge is more useful than a confident wrong attribution.
 
@@ -137,6 +151,47 @@ The subject can be anything: a person, animation, UI element, product, animal, s
 const LOW_TIER_HEDGE_HINT = `### Confidence note (resolution <= 512)
 
 At this resolution, silhouettes may be AMBIGUOUS between actions. When you are inferring a verb from a silhouette rather than reading it directly, FLAG it: write "looks like X" or "could be X or Y" instead of asserting X. Prefer honest uncertainty over confident misreading. If a frame's content is unclear at this tier, say so and recommend a higher tier (mode=high or mode=max) for that segment.`
+
+function samplingGapWarning(concentrationPct: number, windowPct: number): string {
+  return `## Sampling gap warning
+adaptive_sampling concentrated ${concentrationPct}% of frames into ${windowPct}% of the active duration (motion_windows). The remaining ${100 - windowPct}% of the timeline was sampled sparsely, typically just bookend anchors.
+
+What this misses: silhouette-area-changing events (equip/unequip, costume on/off, prop in-hand, headgear changes) that don't cross the motion_window intensity threshold. If your interpretation rests on "feature X is constant across the video", you have NOT verified that channel in the unsampled gaps.
+
+To verify before locking interpretation, run a follow-up uniform scan:
+  watch(path, mode=mid, adaptive_sampling=false, fps=2, narrative_mode=true)
+The mid-tier uniform pass catches discrete on/off events the motion_window-weighted pass missed.`
+}
+
+function trimHintRuntimeMiddleDrop(args: {
+  delivered: number
+  requested: number
+  firstTs: string
+  lastTs: string
+  gapStart: string
+  gapEnd: string
+  gapSec: number
+}): string {
+  return `## Trim hint (runtime_trim middle-drop)
+Delivered ${args.delivered}/${args.requested} frames as an even-spaced subsample across [${args.firstTs}, ${args.lastTs}]. Frame content was denser than the cost estimator predicted, so middle frames were dropped to keep the response under the MCP cap. THIS IS NOT a trailing MCP truncation, narrowing the tail will NOT recover dropped frames.
+
+Largest temporal gap: ${args.gapStart} -> ${args.gapEnd} (${args.gapSec.toFixed(2)}s). To recover frames in that gap, narrow the window directly:
+  watch(path, start_time=${args.gapStart}, end_time=${args.gapEnd}, mode=<your mode>, fps=<original>)
+
+DO NOT widen to a coarser fps; that loses the dense moments runtime_trim already paid for. To recover ALL dropped frames, walk the dropped_timestamps list in the budget block segment-by-segment.`
+}
+
+function truncationHintMcpCap(args: {
+  delivered: number
+  requested: number
+  lastTs: string
+  remainingSec: number
+  nextStartHms: string
+  endLabel: string
+}): string {
+  return `## Truncation hint (MCP cap mid-stream)
+Received ${args.delivered}/${args.requested} frames; output hit the MCP per-call cap mid-stream at timestamp ${args.lastTs}. To cover the remaining ${args.remainingSec.toFixed(2)}s at the SAME fps (preserving temporal resolution), retry with start_time=${args.nextStartHms} end_time=${args.endLabel}. DO NOT drop to a coarser fps; narrow the window instead.`
+}
 
 function tsFilename(ts: string, ext: string): string {
   return `${ts.replace(/:/g, "-")}.${ext}`
@@ -159,25 +214,38 @@ function lookupTimestampsInManifest(
 ): ViewableFrame[] {
   const out: ViewableFrame[] = []
   for (const ts of timestamps) {
+    const tsSec = parseHMS(ts)
     let bestRes = -1
     let bestFile: string | null = null
+    let bestCachedTs = ts
     for (const [key, data] of Object.entries(manifest.resolutions)) {
       const parsed = parseFrameCacheKey(key)
       if (!parsed) continue
       if (parsed.format !== format) continue
       if (parsed.roiBucket !== roiBucket) continue
-      const entry = data.frames.find(f => f.timestamp === ts)
+      let entry = data.frames.find(f => f.timestamp === ts)
+      if (!entry) {
+        let bestDelta = Infinity
+        for (const f of data.frames) {
+          const d = Math.abs(parseHMS(f.timestamp) - tsSec)
+          if (d < bestDelta && d <= MATCH_EPSILON) {
+            bestDelta = d
+            entry = f
+          }
+        }
+      }
       if (entry && parsed.resolution > bestRes) {
         bestRes = parsed.resolution
         bestFile = entry.file
+        bestCachedTs = entry.timestamp
       }
     }
     if (bestFile !== null) {
       try {
         const data = readFileSync(bestFile)
-        out.push({ timestamp: ts, image: data.toString("base64"), mimeType: mimeFromFile(bestFile) })
+        out.push({ timestamp: bestCachedTs, image: data.toString("base64"), mimeType: mimeFromFile(bestFile) })
       } catch {
-        out.push({ timestamp: ts })
+        out.push({ timestamp: bestCachedTs })
       }
     }
   }
@@ -272,7 +340,7 @@ export function registerWatch(server: McpServer): void {
         resolution: z.number().min(128).max(2048).optional(),
       })).optional().describe("Variable FPS/resolution segments (overrides global fps/start_time/end_time)"),
       view_sample: z.number().min(1).optional().describe("Return N evenly spaced frames (omit to use auto-budget default by resolution)"),
-      view: z.array(z.string().regex(HMS_REGEX)).optional().describe("Look up specific timestamps from session cache (requires enable_index=true and at least one prior watch/analyze call). Bypasses extraction."),
+      view: z.array(z.string().regex(HMS_VIEW_REGEX)).optional().describe("Look up specific timestamps from session cache (requires enable_index=true and at least one prior watch/analyze call). Accepts HH:MM:SS or HH:MM:SS.fff (matches the sub-second precision the manifest emits). Bypasses extraction."),
       narrative_mode: z.boolean().optional().describe("Inject temporal-narrative guidance into the response so Claude reads frames as a continuous action sequence (anchors/changes/actions) rather than as independent images. Recommended for action/motion-heavy segments. Auto-suggested when analyze() reports high motion or dense scene cuts."),
       roi: z.union([z.literal(ROI_AUTO), z.literal(ROI_PER_WINDOW), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional().describe("Crop frames to a region of interest before scaling. 'auto' uses a single global analyze().subject_bbox. 'per-window' assigns each motion-window's frames its OWN bbox from analyze().window_bboxes - tracks a traveling subject so each window's pixels land tight on the subject even when the subject moves across the frame (requires adaptive_sampling and prior analyze with motion=true). 'x,y,w,h' is an explicit pixel bbox. ROI crop gives the subject the full target resolution instead of being averaged out by background pixels."),
       adaptive_sampling: z.boolean().optional().describe("Motion-adaptive frame allocation. When true (or auto-enabled because narrative_mode is on AND analyze().motion_windows is cached AND duration > 4s), the per-call frame budget is split non-uniformly: 70% to motion-dense windows (weighted by duration * intensity), 30% to static spans. Same total frame count, but temporal resolution biased toward where action is happening. Pass false to force uniform sampling. Ignored if `segments` is given."),
@@ -512,6 +580,7 @@ export function registerWatch(server: McpServer): void {
       // frames if the projection exceeds ~88K (12K headroom under the 100K cap).
       let runtimeTrimmed = 0
       let runtimeTokensEst = 0
+      let runtimeTrimDropped: string[] = []
       if (frames.length > 2) {
         const RUNTIME_CAP = 88000
         const PER_FRAME_OVERHEAD = 50  // text headers per frame
@@ -524,18 +593,18 @@ export function registerWatch(server: McpServer): void {
           Math.ceil(charsBase64 / 3.5) + frameCount * PER_FRAME_OVERHEAD + TEXT_OVERHEAD_BUDGET
         runtimeTokensEst = estimateTokens(totalImageChars, frames.length)
         if (runtimeTokensEst > RUNTIME_CAP) {
-          // Find how many frames we can keep. Average char count per frame so we
-          // can solve for keep_count where avg_chars * keep_count / 3.5 + keep_count * 50 + 12000 < 88000
           const avgChars = totalImageChars / frames.length
           const charsPerToken = 3.5
           const denom = (avgChars / charsPerToken) + PER_FRAME_OVERHEAD
           const keepCount = Math.max(2, Math.floor((RUNTIME_CAP - TEXT_OVERHEAD_BUDGET) / denom))
           if (keepCount < frames.length) {
+            const preTrimTimestamps = frames.map(f => f.timestamp)
             const idx = sampleFrameIndices(frames.length, keepCount)
             const kept = idx.map(i => frames[i])
+            const keptSet = new Set(kept.map(f => f.timestamp))
+            runtimeTrimDropped = preTrimTimestamps.filter(t => !keptSet.has(t))
             runtimeTrimmed = frames.length - kept.length
             frames = kept
-            // recompute estimate post-trim
             let postChars = 0
             for (const f of frames) if (f.image) postChars += f.image.length
             runtimeTokensEst = estimateTokens(postChars, frames.length)
@@ -588,8 +657,11 @@ export function registerWatch(server: McpServer): void {
         const fpsDesc = adaptiveSegs.length > 0
           ? `varies per segment (${Math.min(...adaptiveSegs.map(s => s.fps)).toFixed(2)}-${Math.max(...adaptiveSegs.map(s => s.fps)).toFixed(2)}fps)`
           : String(fps)
+        const keptListing = runtimeTrimmed > 0
+          ? `\n  kept_timestamps=${JSON.stringify(frames.map(f => f.timestamp))}\n  dropped_timestamps=${JSON.stringify(runtimeTrimDropped)}`
+          : ""
         const runtimeTrimDesc = runtimeTrimmed > 0
-          ? `\nruntime_trim=YES dropped ${runtimeTrimmed} frame(s) to keep response under ~88K (content was denser than estimator expected). actual_est_tokens=${runtimeTokensEst}`
+          ? `\nruntime_trim=YES dropped ${runtimeTrimmed} frame(s) (even-spaced subsample, NOT a trailing MCP-cap drop) to keep response under ~88K. actual_est_tokens=${runtimeTokensEst}${keptListing}`
           : `\nruntime_trim=no actual_est_tokens=${runtimeTokensEst}`
         content.push({
           type: "text",
@@ -597,19 +669,86 @@ export function registerWatch(server: McpServer): void {
         })
       }
 
-      // Truncation auto-suggest: when fewer frames came back than requested,
-      // the MCP cap killed the response mid-stream. Tell the caller exactly
-      // where to resume at the same fps.
+      // Adaptive-cluster gap warning. When motion-window sampling clusters most
+      // of the budget into a tiny slice of the active duration, the LLM gets
+      // dense coverage of one moment and bookend anchors elsewhere. Equip/
+      // unequip events that don't pop the motion threshold fall into the gap.
+      // Empirically observed 2026-05-20: Claude conference promo put 64% of
+      // frames into 3% of the timeline and missed two headphone equip/unequip
+      // events because the only motion_window was a 0.6s pin-label transit.
+      if (adaptiveSegs.length > 0) {
+        let totalBudget = 0
+        let motionBudget = 0
+        let activeDur = 0
+        let motionDur = 0
+        for (const s of adaptiveSegs) {
+          const dur = s.endSec - s.startSec
+          totalBudget += s.budgetFrames
+          activeDur += dur
+          if (s.kind === "motion") {
+            motionBudget += s.budgetFrames
+            motionDur += dur
+          }
+        }
+        const budgetRatio = totalBudget > 0 ? motionBudget / totalBudget : 0
+        const durRatio = activeDur > 0 ? motionDur / activeDur : 0
+        if (budgetRatio > GAP_WARN_BUDGET_RATIO && durRatio < GAP_WARN_DURATION_RATIO && motionDur > 0) {
+          content.push({
+            type: "text",
+            text: samplingGapWarning(Math.round(budgetRatio * 100), Math.round(durRatio * 100)),
+          })
+        }
+      }
+
+      // Truncation / trim hint. Two distinct causes produce frames.length <
+      // effectiveViewSample: (A) MCP per-call cap killed the response after
+      // some prefix delivered, leaving a trailing tail uncovered; (B) runtime
+      // trim deliberately dropped evenly-spaced middle frames because content
+      // was denser than the cost estimator predicted. Case A wants
+      // "retry from last delivered to the end at same fps"; case B wants
+      // "retry the widest internal gap directly". Emitting the same hint for
+      // both used to send callers chasing the wrong window.
       if (effectiveViewSample && frames.length < effectiveViewSample && frames.length > 0) {
-        const lastTs = frames[frames.length - 1].timestamp
-        const coveredSec = parseHMS(lastTs)
-        const requestedEndSec = params.end_time ? parseHMS(params.end_time) : metadata.duration_seconds
-        const nextStartHms = formatHMSPrecise(coveredSec, 3)
-        const remainingSec = requestedEndSec - coveredSec
-        content.push({
-          type: "text",
-          text: `## Truncation hint\nReceived ${frames.length}/${effectiveViewSample} frames; output hit the MCP per-call cap mid-stream at timestamp ${lastTs}. To cover the remaining ${remainingSec.toFixed(2)}s at the SAME fps (preserving temporal resolution), retry with start_time=${nextStartHms} end_time=${params.end_time ?? "[original end]"}. DO NOT drop to a coarser fps; narrow the window instead.`,
-        })
+        if (runtimeTrimmed > 0) {
+          let largestGap = -1
+          let gapStart = frames[0].timestamp
+          let gapEnd = frames[0].timestamp
+          for (let i = 1; i < frames.length; i++) {
+            const gap = parseHMS(frames[i].timestamp) - parseHMS(frames[i - 1].timestamp)
+            if (gap > largestGap) {
+              largestGap = gap
+              gapStart = frames[i - 1].timestamp
+              gapEnd = frames[i].timestamp
+            }
+          }
+          content.push({
+            type: "text",
+            text: trimHintRuntimeMiddleDrop({
+              delivered: frames.length,
+              requested: effectiveViewSample,
+              firstTs: frames[0].timestamp,
+              lastTs: frames[frames.length - 1].timestamp,
+              gapStart,
+              gapEnd,
+              gapSec: Math.max(0, largestGap),
+            }),
+          })
+        } else {
+          const lastTs = frames[frames.length - 1].timestamp
+          const coveredSec = parseHMS(lastTs)
+          const requestedEndSec = params.end_time ? parseHMS(params.end_time) : metadata.duration_seconds
+          content.push({
+            type: "text",
+            text: truncationHintMcpCap({
+              delivered: frames.length,
+              requested: effectiveViewSample,
+              lastTs,
+              remainingSec: requestedEndSec - coveredSec,
+              nextStartHms: formatHMSPrecise(coveredSec, 3),
+              endLabel: params.end_time ?? "[original end]",
+            }),
+          })
+        }
       }
 
       if (useNarrative) {
