@@ -5,7 +5,7 @@ user-invocable: true
 argument-hint: "[mode <low|mid|high|max>] | [video URL] | (none for interactive)"
 ---
 
-# /lumiere — video perception (creation deferred)
+# /lumiere: video perception (creation deferred)
 
 You are now in lumiere video work mode. The user wants to do something with a video reference: analyze it, watch it, copy beats from it, or study what effects it uses.
 
@@ -19,11 +19,11 @@ The user may have invoked this skill with an argument (`$ARGUMENTS`). Parse it F
 
 ## Tools available
 
-- **inspect** — cheap metadata pass (duration, resolution, codec, fps, audio) PLUS per-tier context-cost estimate. Use FIRST when handed a new video. The cost block tells you how much context each tier will burn so you can pick (or warn the user) before calling watch.
-- **analyze** — structural pass via ffmpeg filters. Returns scene cuts, silence intervals, loudness, transcription, motion profile, motion_windows, subject_bbox (cc-segmentation), window_bboxes (per-motion-window bboxes, v0.8), palette_outliers. Use BEFORE `watch` on any video > 30s to plan segments. The motion profile also drives auto-suggestion of narrative_mode in watch.
-- **watch** — frame extraction + audio. The workhorse. Returns base64 images plus interpretation guidance so you can SEE the video. Has an AUTO-BUDGET that prevents MCP cap truncation; just call without view_sample and a safe default is applied per resolution. Pass `narrative_mode=true` for action-heavy segments to recover temporal action sequences instead of frame-by-frame state catalogs. v0.6 added `adaptive_sampling` (motion-window-weighted frame allocation) and `roi=auto` (ROI auto-crop from analyze.subject_bbox). v0.8 added `roi=per-window` (each motion window gets its OWN bbox so a traveling subject stays tight in every crop, requires adaptive_sampling + prior analyze with motion=true) and roi-aware `view=` cache lookups (separate bucket per crop so cached frames are never mis-served across roi modes).
-- **measure** (v0.7) — exact token forecast for a planned watch call via Anthropic's free count_tokens endpoint. Use BEFORE high-stakes watch calls when you need to know exact conversation tokens (image visual tokens for the current model). Returns conversation_tokens (exact for the model) + mcp_cap_tokens (heuristic estimate). Requires `LUMIERE_ANTHROPIC_API_KEY` (keychain or env). Model auto-detected from the current CC session.
-- **configure** — set default_mode (low/mid/high/max), backend, whisper_model, or clear_sessions. Most other defaults are hardcoded from empirical testing.
+- **inspect**: cheap metadata pass (duration, resolution, codec, fps, audio) PLUS per-tier context-cost estimate. Use FIRST when handed a new video. The cost block tells you how much context each tier will burn so you can pick (or warn the user) before calling watch.
+- **analyze**: structural pass via ffmpeg filters. Returns scene cuts, silence intervals, loudness, transcription, motion profile, motion_windows, subject_bbox (cc-segmentation), window_bboxes (per-motion-window bboxes, v0.8), palette_outliers. Use BEFORE `watch` on any video > 30s to plan segments. The motion profile also drives auto-suggestion of narrative_mode in watch.
+- **watch**: frame extraction + audio. The workhorse. Returns base64 images plus interpretation guidance so you can SEE the video. Has an AUTO-BUDGET that prevents MCP cap truncation; just call without view_sample and a safe default is applied per resolution. Pass `narrative_mode=true` for action-heavy segments to recover temporal action sequences instead of frame-by-frame state catalogs. v0.6 added `adaptive_sampling` (motion-window-weighted frame allocation) and `roi=auto` (ROI auto-crop from analyze.subject_bbox). v0.8 added `roi=per-window` (each motion window gets its OWN bbox so a traveling subject stays tight in every crop, requires adaptive_sampling + prior analyze with motion=true) and roi-aware `view=` cache lookups (separate bucket per crop so cached frames are never mis-served across roi modes).
+- **measure** (v0.7): exact token forecast for a planned watch call via Anthropic's free count_tokens endpoint. Use BEFORE high-stakes watch calls when you need to know exact conversation tokens (image visual tokens for the current model). Returns conversation_tokens (exact for the model) + mcp_cap_tokens (heuristic estimate). Requires `LUMIERE_ANTHROPIC_API_KEY` (keychain or env). Model auto-detected from the current CC session.
+- **configure**: set default_mode (low/mid/high/max), backend, whisper_model, or clear_sessions. Most other defaults are hardcoded from empirical testing.
 
 ## Workflows
 
@@ -40,7 +40,9 @@ The user may have invoked this skill with an argument (`$ARGUMENTS`). Parse it F
 1. Pre-flight (above).
 2. Call `analyze(path, filters={scene_changes: true, silence: true, loudness: true, motion: true, transcription: true})` for a structural map.
 3. Read scene cuts + silence intervals to plan segments.
-4. Call `watch(path, segments=[...])` with one segment per beat. Pass `narrative_mode=true` if the video is action-heavy (animation, sports, cooking, agentic UI, anything with continuous motion). For static UI walkthroughs or talking-head shots, leave it off.
+4. Call `watch(path, narrative_mode=true)` for global coverage at the configured tier. Auto-budget and adaptive_sampling handle the frame allocation.
+5. **Motion-window drill-down (HARD RULE for high and max tiers).** After step 4, if `analyze.motion_windows` is non-empty AND the configured tier is `high` or `max`, issue a follow-up `watch(path, start_time=<window.start>, end_time=<window.end>, mode=<configured>, fps=<dense>, narrative_mode=true)` for the densest motion_window. Reason: at high (11 frames over 24s) and max (6 frames over 24s) the global call sees < 2fps inside short motion windows, which is insufficient for fast animation events (cape equip, hover, eye-laser, landing). The drill captures the animation at high temporal density. Choose `fps` so view_sample fills the call: e.g. high tier with view_sample=11 over a 3s window = ~3.7fps; max with view_sample=6 over a 3s window = ~2fps. If multiple motion windows exist, drill the longest one first; drill additional windows only if their content materially differs (the user wants extreme detail). Skip the drill if the configured tier is `low` or `mid` (their global call already has 27-38 frames so motion-window density is fine).
+6. Synthesize the narrative from BOTH calls (global structural pass + motion-window pixel-density pass). Cite timestamps from both. Specifically apply the cape/wings/hover/eye-laser-down priors from `Interpretation guidance (narrative_mode)` to the drill frames.
 
 ### When the user wants to copy 1:1 from a reference
 
@@ -72,7 +74,7 @@ Ask: "Do you want to (a) analyze it for structure, (b) watch specific moments, o
 ## Operational rules
 
 - **PRE-FLIGHT ALWAYS:** call inspect first. The cost preview is what stops a session from wandering into autocompact territory. v0.4: the estimator now matches the watch tool's actual fps logic, so the prediction is accurate.
-- **DEFAULT TIER IS `high` (1024px).** Change with `configure(default_mode=...)` if the user prefers a different baseline.
+- **RESPECT THE CONFIGURED DEFAULT TIER (HARD RULE).** Read `cost_estimate.current_default_mode` from the `inspect` response and use that as the `mode` for `watch` and `measure`. Do NOT escalate to a higher tier on your own judgment even if you think the content "needs" more detail (e.g. "text legibility requires high", "mascots need 1024"). The operator picked their tier for a reason: cost budget, parallel-test rigor, scanning workflow. If the configured tier is insufficient for the user's question, REPORT the limitation in your narrative (e.g. "at the configured mid tier the wordmark glyphs are below legibility threshold; recommend re-running with mode=max if you need exact letterforms") and let the user decide. The only exception is when the user explicitly asks for a different tier in their prompt ("zoom into this at max", "give me a cheap overview").
 - **FOR FULL-VIDEO COVERAGE AT HIGH TIER**, chunk into multiple sequential calls. Use scene cuts from `analyze` to pick chunk boundaries.
 - **FOR CHEAP OVERVIEW**, use `mode=low` (cheapest) or `mid`. Use this for scanning a long video to find interesting beats, then re-chunk those beats at `high` or `max`.
 - **NARRATIVE_MODE for any moving subject.** If the video has continuous action (animation, sports, cooking, UI demos with autonomous loops, agent screen recordings), pass `narrative_mode=true`. Without it, Claude reads consecutive action frames as separate "sprite-sheet" entries and misses the temporal structure.
@@ -82,7 +84,7 @@ Ask: "Do you want to (a) analyze it for structure, (b) watch specific moments, o
 - **DO NOT use fps=60 on a 30fps source** (just duplicates frames; view_sample caps output anyway).
 - **For brand/mascot identification** specifically: high (1024) or max (1536) is needed. At 512 pixel-art mascots compress below the recognizable-species threshold.
 
-## On truncation — narrow the window, do not drop fps (HARD RULE)
+## On truncation: narrow the window, do not drop fps (HARD RULE)
 
 If a `watch()` response returns FEWER frames than your view_sample request (because the MCP 100K per-call cap stopped delivery mid-stream), the correct response is to **narrow the time window at the SAME fps**, not to drop to a coarser fps that throws away the detail in the segment where the action lives.
 

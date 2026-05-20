@@ -96,9 +96,29 @@ These frames are CONSECUTIVE MOMENTS IN TIME from one video. Treat them as a tem
 
 4. **NARRATE** the sequence as continuous prose using temporal connectors (then, while, after) and the verbs you identified. Do NOT list each frame independently.
 
+### Detail bar (apply to every narrative)
+
+Specificity is non-negotiable. The reader should be able to picture each moment without ever seeing the video.
+
+- **Name the SPECIFIC type of every prop, garment, or object.** Not "a hat", but "a wide-brimmed pointed wizard hat in deep purple with a yellow crescent-moon decal". Not "a tool", but "a circular saw blade, raised above the head". When you cannot identify the species/type, say "X-like object" and describe its silhouette so a reader can guess.
+- **Quote ALL visible text verbatim.** Wordmarks, captions, subtitles, UI labels, tooltips, code snippets, numeric values, units. Read it character-for-character. If a number changes across frames, list every value with timestamps.
+- **Note color in named shades when distinguishable.** Not "blue", but "indigo / sky blue / royal blue / navy" as fits. Hex codes if the tier supports them (max=1536px).
+- **Track START state and END state of each feature channel separately.** Begin: "eyes closed, no headgear, hands tucked." End: "eyes glowing red, headgear equipped, hands raised."
+- **Identify LOOPS and REPEATS.** If an action cycle starts again (e.g. the mascot lands, then immediately leaps again at the end of the clip), say so explicitly with both timestamps.
+- **Identify SCENE/EXAMPLE BOUNDARIES** in tutorial / multi-example videos. ("First example uses an airplane icon", "second example uses the text '47m'"). Each example is a discrete demonstration; name them separately.
+- **Resist generic verbs.** Replace "moves", "does something", "appears" with specific actions: "slides 40px to the left", "fades in over 4 frames", "the blur radius increases from 0 to ~12px".
+
 ### Specific priors (apply before committing to a verb)
 
 - **Branded character = fixed identity, BUT costumes/props ARE binary state changes.** If the subject is a branded mascot/product/character, your DEFAULT hypothesis is: this is the SAME character across all frames. Identity-swap is a last-resort interpretation. HOWEVER, costumes / accessories / held-props ARE valid state changes, track them as discrete on/off events with start and end timestamps, not as per-frame pose oscillations. A red mass that appears on top of the head and STAYS for N frames is HEADGEAR EQUIPPED, not a "windswept hair pose."
+
+- **Mascot + wordmark + plain background is the canonical animation setup, NOT a static "title card" by default.** If the layout is mascot-above-wordmark (or wordmark-above-mascot) on a flat background, and you see ANY pose / silhouette / position difference across frames, that is an ANIMATION. The composition does not become static just because the wordmark stays put. Resist the urge to label early frames "title card" and late frames "title card" if the mascot moved between them. Read the SAME WORDMARK as background, the mascot as foreground action. Treat each motion-window frame as an action beat, not a duplicate.
+
+- **Cape / wings / cloak detection.** If a darker / different-shade mass appears symmetrically on BOTH sides of the body silhouette (visible left-of-body AND right-of-body extending outward) and this mass was absent in earlier frames, that is a **CAPE EQUIPPED** or **WINGS DEPLOYED** state, not "wider sprite" or "different character variant." Track equip + remove timestamps. The cape may have its own shading (often darker than the body proper) so don't read the shade difference as a separate object.
+
+- **Hover / flight detection.** If the body baseline moves UP relative to a fixed anchor (wordmark, ground, frame edge) AND a cape/wings state is active, the mascot is FLYING / HOVERING. If a particle stream (small dots, plume, beam) emerges from BELOW the body or behind it while elevated, that is THRUST / PROPULSION / DOWNWARD EMISSION. List candidate verbs in order: hovers, levitates, flies, takes off. Pick "hovers" if the elevation persists across frames; "leaps/takes off" if elevation only appears in one frame.
+
+- **Downward streams from the eye region during hover.** If the mascot is elevated AND a vertical line / column / plume extends downward from the eye-line (or from the body during a hover pose), inspect for color match with novel-palette events. A red/orange/pink column extending DOWN through the body during a hover beat is most likely **EMISSION-FROM-EYES (downward laser/beam)** that passes the body silhouette on its way down. Compare with the silent-baseline frames: if the column color is NOT present in non-hover frames, it is an emission event, not body anatomy.
 
 - **Dramatic outline change ≠ identity swap.** When silhouette OUTLINE changes a lot but silhouette AREA is roughly conserved between consecutive frames, that is a POSE CHANGE or a PROP EQUIPPED/REMOVED. Ask: "does the eye position stay constant?" If yes, it is the same character. Then ask: "does the new mass appear ABOVE the eye-line?" If yes, suspect HEADGEAR EQUIPPED. "Outside the body silhouette?" Suspect PROP IN HAND.
 
@@ -137,7 +157,7 @@ After you write the narrative, re-read your draft once more. For each verb where
 1. Did I have >1 plausible candidate source at the time? If yes, list the alternatives I rejected and the trajectory evidence that ruled them out. If I cannot, that attribution is provisional, flag it.
 2. Did I commit to a sequence (A then B then C) where the time spacing was tight (< 0.5s between events)? If yes, ensure my anchor frames support the ordering, not just the existence of each event.
 3. Are there any frames I described as "duplicate" or "same as previous"? Re-check them; sub-pixel changes (eye color shift, hand pose change, beam path) can hide in apparent duplicates. If unsure, hedge instead of asserting "no change."
-4. **Sampling-gap audit.** Are your frames clustered (e.g. adaptive_sampling concentrated on a motion_window) with only bookend anchors elsewhere? If yes, you have ONLY verified the channels visible in those clusters. Equip/unequip, costume on/off, headgear changes, prop in-hand, and any silhouette-area-changing event that does NOT cross the motion_window intensity threshold WILL NOT pop a motion_window and WILL NOT get budget from adaptive_sampling. Before locking "feature X is constant", request a uniform mid-tier scan across the full active duration (e.g. watch with adaptive_sampling=false, mode=mid, fps=2). If you see only ANCHOR + CLUSTER + ANCHOR in your sampled timestamps and your interpretation is "X never changed", explicitly flag it as PROVISIONAL pending the uniform scan.
+4. **Sampling-gap audit.** Read the budget block to know what coverage you actually have. If "runtime_trim=YES policy=motion-aware", the dense action moments WERE preserved (motion frames are kept first, static bookends even-spaced). In that case your claims about ACTION are well-supported; provisional flags are only needed for SILENT-CHANNEL claims (background detail persistence, peripheral wordmark stability) within static-segment gaps. If "runtime_trim=YES policy=uniform" (no motion segments) OR "runtime_trim=no" with a sampling_gap_warning block, then equip/unequip and other silhouette-area events outside the motion_window may have been missed; flag PROVISIONAL on "feature X stayed constant" claims. Use the dropped_timestamps list in the budget to know exactly which moments are unverified.
 
 Revise any verb where the audit surfaces doubt. A flagged hedge is more useful than a confident wrong attribution.
 
@@ -171,9 +191,15 @@ function trimHintRuntimeMiddleDrop(args: {
   gapStart: string
   gapEnd: string
   gapSec: number
+  policy: "motion-aware" | "uniform"
 }): string {
+  const policyLine = args.policy === "motion-aware"
+    ? "Frames were preserved with motion-aware policy: motion-window frames were kept first, then static bookends even-spaced against the remaining budget. The dense action moments are present; the gaps are between static frames."
+    : "Frames were dropped with even-spaced subsample policy (no motion segments to prioritize). Middle frames may have been dropped."
   return `## Trim hint (runtime_trim middle-drop)
-Delivered ${args.delivered}/${args.requested} frames as an even-spaced subsample across [${args.firstTs}, ${args.lastTs}]. Frame content was denser than the cost estimator predicted, so middle frames were dropped to keep the response under the MCP cap. THIS IS NOT a trailing MCP truncation, narrowing the tail will NOT recover dropped frames.
+Delivered ${args.delivered}/${args.requested} frames across [${args.firstTs}, ${args.lastTs}]. Frame content was denser than the cost estimator predicted, so middle frames were dropped to keep the response under the MCP cap. THIS IS NOT a trailing MCP truncation, narrowing the tail will NOT recover dropped frames.
+
+${policyLine}
 
 Largest temporal gap: ${args.gapStart} -> ${args.gapEnd} (${args.gapSec.toFixed(2)}s). To recover frames in that gap, narrow the window directly:
   watch(path, start_time=${args.gapStart}, end_time=${args.gapEnd}, mode=<your mode>, fps=<original>)
@@ -578,9 +604,16 @@ export function registerWatch(server: McpServer): void {
       // but a long burst of dense action frames can still overshoot. Measure
       // actual base64 size, estimate total tokens, and drop evenly-spaced
       // frames if the projection exceeds ~88K (12K headroom under the 100K cap).
+      //
+      // Motion-aware policy (v0.9+): when adaptive_sampling produced motion-tagged
+      // segments, preserve those frames BEFORE evening out the static bookends.
+      // The 2026-05-20 Claude conference promo failure case proved the old policy
+      // killed exactly the temporal-density frames adaptive_sampling had spent
+      // 70% of its budget acquiring. New policy: motion frames are last to die.
       let runtimeTrimmed = 0
       let runtimeTokensEst = 0
       let runtimeTrimDropped: string[] = []
+      let runtimeTrimPolicy: "motion-aware" | "uniform" | "none" = "none"
       if (frames.length > 2) {
         const RUNTIME_CAP = 88000
         const PER_FRAME_OVERHEAD = 50  // text headers per frame
@@ -599,15 +632,49 @@ export function registerWatch(server: McpServer): void {
           const keepCount = Math.max(2, Math.floor((RUNTIME_CAP - TEXT_OVERHEAD_BUDGET) / denom))
           if (keepCount < frames.length) {
             const preTrimTimestamps = frames.map(f => f.timestamp)
-            const idx = sampleFrameIndices(frames.length, keepCount)
-            const kept = idx.map(i => frames[i])
+            const motionSegs = adaptiveSegs.filter(s => s.kind === "motion")
+            let kept: typeof frames
+            if (motionSegs.length > 0) {
+              runtimeTrimPolicy = "motion-aware"
+              const isMotionFrame = (f: (typeof frames)[number]): boolean => {
+                const ts = parseHMS(f.timestamp)
+                return motionSegs.some(s => ts >= s.startSec && ts <= s.endSec)
+              }
+              const motionFrames = frames.filter(isMotionFrame)
+              const staticFrames = frames.filter(f => !isMotionFrame(f))
+              if (motionFrames.length >= keepCount) {
+                const idx = sampleFrameIndices(motionFrames.length, keepCount)
+                kept = idx.map(i => motionFrames[i])
+              } else {
+                const staticBudget = Math.max(0, keepCount - motionFrames.length)
+                const staticIdx = staticBudget > 0 && staticFrames.length > 0
+                  ? sampleFrameIndices(staticFrames.length, Math.min(staticBudget, staticFrames.length))
+                  : []
+                kept = [...motionFrames, ...staticIdx.map(i => staticFrames[i])]
+                  .sort((a, b) => parseHMS(a.timestamp) - parseHMS(b.timestamp))
+              }
+            } else {
+              runtimeTrimPolicy = "uniform"
+              const idx = sampleFrameIndices(frames.length, keepCount)
+              kept = idx.map(i => frames[i])
+            }
+            // Second-pass safety net: motion frames may average larger than static
+            // bookends, so the keepCount derived from the global average can
+            // overshoot. Re-measure post-pick and drop further if still over.
+            const measure = (fs: typeof frames): number => {
+              let chars = 0
+              for (const f of fs) if (f.image) chars += f.image.length
+              return estimateTokens(chars, fs.length)
+            }
+            while (measure(kept) > RUNTIME_CAP && kept.length > 2) {
+              const idx = sampleFrameIndices(kept.length, kept.length - 1)
+              kept = idx.map(i => kept[i])
+            }
             const keptSet = new Set(kept.map(f => f.timestamp))
             runtimeTrimDropped = preTrimTimestamps.filter(t => !keptSet.has(t))
             runtimeTrimmed = frames.length - kept.length
             frames = kept
-            let postChars = 0
-            for (const f of frames) if (f.image) postChars += f.image.length
-            runtimeTokensEst = estimateTokens(postChars, frames.length)
+            runtimeTokensEst = measure(frames)
           }
         }
       }
@@ -658,10 +725,10 @@ export function registerWatch(server: McpServer): void {
           ? `varies per segment (${Math.min(...adaptiveSegs.map(s => s.fps)).toFixed(2)}-${Math.max(...adaptiveSegs.map(s => s.fps)).toFixed(2)}fps)`
           : String(fps)
         const keptListing = runtimeTrimmed > 0
-          ? `\n  kept_timestamps=${JSON.stringify(frames.map(f => f.timestamp))}\n  dropped_timestamps=${JSON.stringify(runtimeTrimDropped)}`
+          ? `\n  policy=${runtimeTrimPolicy} (${runtimeTrimPolicy === "motion-aware" ? "preserved motion-window frames first, even-spaced static bookends against remaining budget" : "even-spaced over all frames; no motion segments available to prioritize"})\n  kept_timestamps=${JSON.stringify(frames.map(f => f.timestamp))}\n  dropped_timestamps=${JSON.stringify(runtimeTrimDropped)}`
           : ""
         const runtimeTrimDesc = runtimeTrimmed > 0
-          ? `\nruntime_trim=YES dropped ${runtimeTrimmed} frame(s) (even-spaced subsample, NOT a trailing MCP-cap drop) to keep response under ~88K. actual_est_tokens=${runtimeTokensEst}${keptListing}`
+          ? `\nruntime_trim=YES dropped ${runtimeTrimmed} frame(s) (NOT a trailing MCP-cap drop) to keep response under ~88K. actual_est_tokens=${runtimeTokensEst}${keptListing}`
           : `\nruntime_trim=no actual_est_tokens=${runtimeTokensEst}`
         content.push({
           type: "text",
@@ -731,6 +798,7 @@ export function registerWatch(server: McpServer): void {
               gapStart,
               gapEnd,
               gapSec: Math.max(0, largestGap),
+              policy: runtimeTrimPolicy === "motion-aware" ? "motion-aware" : "uniform",
             }),
           })
         } else {

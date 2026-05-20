@@ -2,6 +2,40 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-05-20
+
+Default-behavior overhaul to close the gap between rigorous test methodology and live use. Driven by the 2026-05-20 Claude /goal launch-video case: at the configured high/max tier the global watch call sampled too sparsely (11/6 frames over 24s) and missed the opening + closing mascot animation (cape equip, hover, downward emission, landing). v0.9 makes every tier produce the extreme-detail read this video deserves.
+
+### Added
+
+- **Motion-aware `runtime_trim`**: when the safety net must drop frames, motion-window frames are preserved first; only static bookends get even-spaced subsampling against the remaining budget. Solves the 2026-05-20 Claude conference promo case where the old policy threw away the 7 dense motion frames adaptive_sampling had carefully allocated. Surfaced in the budget block as `policy=motion-aware`.
+- **`LUMIERE_DEFAULT_MODE` env var override**: parallel test sessions can pin distinct tiers without racing each other on the shared config file. Validated against `["low","mid","high","max"]`; invalid values emit a console warning instead of silently falling back so ghost-failed test sessions surface immediately. Per-call `mode=` still wins over env over file over `DEFAULT_CONFIG`.
+- **`analyze.frame_stats` decimation**: at high-fps sources (60fps × 20s+ = 1200+ entries) the per-frame stats overflowed the MCP cap and broke the analyze response. The decimated response now caps at 60 entries with a `frame_stats_decimated` summary block reporting the original count and sampling step. The full per-frame data still lives in the saved session manifest for internal use.
+
+### Changed
+
+- **`/lumiere` skill: configured-tier respect is now a HARD RULE.** The previous skill text said "DEFAULT TIER IS high" which Claude applied as a hint even when the user/env set a different tier. The new rule explicitly tells Claude to read `cost_estimate.current_default_mode` from inspect and use it, never to escalate based on its own content judgment ("text needs high", "mascots need 1024"). If the configured tier is insufficient, report the limitation in the narrative instead of silently changing.
+- **`/lumiere` skill: motion-window drill rule for high/max tiers.** After the global watch call, the skill now issues a follow-up watch zoomed into the densest motion_window at the highest fps that fits one call. Closes the temporal-density gap that makes high/max miss fast animations (cape equip, hover, eye-laser, land) even though their per-frame detail is superior. The mid/low tiers skip the drill because their global call already has enough frames (27/38) to catch fast motion.
+- **Narrative_mode prior, expanded animation-detection block:**
+  - "Detail bar" section pushes specificity: name the SPECIFIC type of every prop, quote ALL visible text verbatim, name colors in specific shades, track start + end state of each feature channel, identify LOOPS and REPEATS, identify SCENE/EXAMPLE BOUNDARIES in tutorial videos, resist generic verbs.
+  - "Mascot + wordmark + plain background is the canonical animation setup, NOT a static title card by default" prior pushes Claude past the title-card interpretation default when poses differ across frames.
+  - "Cape / wings / cloak detection" prior names the symmetric-darker-mass-on-both-sides signal as cape equipped (vs the reading as "wider sprite" or "different variant").
+  - "Hover / flight detection" prior with explicit baseline-displacement + propulsion rules.
+  - "Downward streams from the eye region during hover" prior covers eye-laser emission events that pass through the cape silhouette on their way down.
+- **Trim hint payload reflects `runtime_trim` policy:** when motion-aware, the hint tells the caller the dense action moments WERE preserved (so the gaps are between static frames). When uniform (no motion segments), original wording stands.
+
+### Fixed
+
+- **Skill-text "default tier high" hard-coded the wrong baseline.** Sessions launched with `LUMIERE_DEFAULT_MODE=max` or `=mid` were silently escalated to high by the skill's own text. Behavior now respects the configured tier per the HARD RULE above.
+- **Analyze response no longer overflows on high-fps sources.** Pre-v0.9 the 60fps source case produced a ~180KB analyze response that exceeded the 100K MCP cap and broke downstream tool calls.
+
+### Internal
+
+- `loadConfig` now reads `process.env.LUMIERE_DEFAULT_MODE` as the env-layer override before returning. Per-call `mode=` still has the final word.
+- `runtimeTrimPolicy: "motion-aware" | "uniform" | "none"` tri-state tracks which path the safety net took. Surfaced in the budget block and consumed by the trim hint formatter.
+- `analyze.ts` adds a soft-cap `FRAME_STATS_SOFT_CAP=60` for the MCP response payload only; the full per-frame stats are still computed and saved to the session manifest for internal palette_outliers detection.
+- Pre-existing emdashes in `skills/lumiere/SKILL.md` swept to colons / commas to comply with the global no-emdash rule.
+
 ## [0.8.1] - 2026-05-20
 
 Five watch-tool fixes surfaced by testing the Claude conference promo video: a v0.8 perception gap where `adaptive_sampling=true` clustered all frames on a 0.6s pin-label motion_window and missed two headphone equip/unequip events outside it. elpabl0 caught the miss by direct question. The patch makes the gap visible in the response and gives the caller the right recovery hint when runtime_trim drops middle frames.

@@ -312,10 +312,31 @@ export function registerAnalyze(server: McpServer): void {
         rmSync(workDir, { recursive: true, force: true })
       }
 
+      // Decimate frame_stats for the MCP response. At 60fps source for a 20s+
+      // video the per-frame stats balloon past the 100K MCP cap (1200+ entries
+      // x ~150 bytes each). Callers don't need raw per-frame; they need the
+      // structural fields (motion_windows, palette_outliers, scenes,
+      // silence_intervals) and a sense of the brightness/saturation curve.
+      // Keep the full frame_stats in the saved manifest for internal use.
+      const FRAME_STATS_SOFT_CAP = 60
+      let analysisOut: VideoAnalysis = analysis
+      if (analysis.frame_stats.length > FRAME_STATS_SOFT_CAP) {
+        const step = Math.max(1, Math.floor(analysis.frame_stats.length / FRAME_STATS_SOFT_CAP))
+        const decimated = analysis.frame_stats.filter((_, i) => i % step === 0).slice(0, FRAME_STATS_SOFT_CAP)
+        analysisOut = {
+          ...analysis,
+          frame_stats: decimated,
+          frame_stats_decimated: {
+            original_count: analysis.frame_stats.length,
+            kept_count: decimated.length,
+            note: `frame_stats decimated for MCP response (1-in-${step} sample). Full per-frame data is in the saved session manifest.`,
+          },
+        } as VideoAnalysis & { frame_stats_decimated: unknown }
+      }
       const output = {
         ...(resolved.source ? { source: resolved.source } : {}),
         metadata,
-        analysis,
+        analysis: analysisOut,
       }
       return { content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }] }
     },
