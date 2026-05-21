@@ -3,20 +3,26 @@ import { readFileSync, existsSync, readdirSync, rmSync, statSync, openSync, read
 import { join } from "path"
 import type { SessionManifest } from "../types.js"
 
-export function computeVideoHash(videoPath: string): string {
+// Hash on first 256KB + size + optional duration. The smaller 64KB+size combo
+// collided in practice when re-downloaded streams shared the same MP4 header
+// prefix and file size despite different content; duration disambiguates.
+export function computeVideoHash(videoPath: string, options?: { duration?: number }): string {
   const fd = openSync(videoPath, "r")
-  const buf = Buffer.alloc(64 * 1024)
+  const buf = Buffer.alloc(256 * 1024)
   const n = readSync(fd, buf, 0, buf.length, 0)
   closeSync(fd)
   const size = statSync(videoPath).size
   const h = createHash("sha256")
   h.update(buf.subarray(0, n))
   h.update(String(size))
+  if (options?.duration !== undefined && Number.isFinite(options.duration)) {
+    h.update(String(Math.round(options.duration * 1000)))
+  }
   return h.digest("hex").slice(0, 12)
 }
 
-export function getSessionDir(sessionsRoot: string, videoPath: string): string {
-  return join(sessionsRoot, computeVideoHash(videoPath))
+export function getSessionDir(sessionsRoot: string, videoPath: string, options?: { duration?: number }): string {
+  return join(sessionsRoot, computeVideoHash(videoPath, options))
 }
 
 export function loadManifest(sessionDir: string): SessionManifest | null {

@@ -15,18 +15,29 @@ function pickRecommendation(tiers: Record<WatchMode, CostEstimate>, current: Wat
   recommended_mode: WatchMode
   reason: string
 } {
-  // If the current default fits without triggering autocompact, recommend it.
-  if (!tiers[current].will_trigger_autocompact) {
-    return { recommended_mode: current, reason: `current default \`${current}\` fits without autocompact (${tiers[current].pct_of_1m_window}% of 1M window for full coverage)` }
-  }
-  // Otherwise, walk down tiers until we find one that fits.
-  const order: WatchMode[] = ["max", "high", "mid", "low"]
-  for (const m of order) {
-    if (!tiers[m].will_trigger_autocompact) {
-      return { recommended_mode: m, reason: `current default \`${current}\` would trigger autocompact (${tiers[current].pct_of_1m_window}% of 1M); \`${m}\` fits (${tiers[m].pct_of_1m_window}%)` }
+  // Recommendation considers thorough coverage (the skill's default workflow),
+  // not the legacy single-call view. If thorough-coverage at current tier fits
+  // under autocompact, recommend the current tier.
+  if (!tiers[current].will_trigger_autocompact_thorough) {
+    return {
+      recommended_mode: current,
+      reason: `current default \`${current}\` fits without autocompact at thorough coverage (${tiers[current].chunks_for_full_coverage_thorough} chunks, ${tiers[current].pct_of_1m_window_thorough}% of 1M window)`,
     }
   }
-  return { recommended_mode: "low", reason: "even \`low\` tier exceeds autocompact threshold; consider analyzing only a portion of the video or running /compact before watch" }
+  // Otherwise, walk down tiers until we find one that fits at thorough coverage.
+  const order: WatchMode[] = ["max", "high", "mid", "low"]
+  for (const m of order) {
+    if (!tiers[m].will_trigger_autocompact_thorough) {
+      return {
+        recommended_mode: m,
+        reason: `current default \`${current}\` thorough coverage would trigger autocompact (${tiers[current].chunks_for_full_coverage_thorough} chunks × ${tiers[current].est_tokens_per_call} = ${tiers[current].pct_of_1m_window_thorough}% of 1M); \`${m}\` fits (${tiers[m].chunks_for_full_coverage_thorough} chunks, ${tiers[m].pct_of_1m_window_thorough}%)`,
+      }
+    }
+  }
+  return {
+    recommended_mode: "low",
+    reason: "even `low` tier thorough coverage exceeds autocompact threshold; analyze only a portion of the video (start_time/end_time) or run /compact before watch",
+  }
 }
 
 export function registerInspect(server: McpServer): void {
@@ -41,7 +52,7 @@ export function registerInspect(server: McpServer): void {
       const tiers = estimateAllTiers(metadata.duration_seconds)
       const { recommended_mode, reason } = pickRecommendation(tiers, config.default_mode)
       const cost_estimate = {
-        note: "Estimated context burn for `watch()` per tier, for a full-video coverage pass (multiple chunks at the cap). Per-call cost is `est_tokens_per_call`; multiply by `chunks_for_full_coverage` for the total in `est_total_tokens_full_coverage`. Values are token approximations from 2026-05-19 empirical calibration. `pct_of_1m_window` is what fraction of a fresh 1M-context CC session this pass would consume.",
+        note: "Per-tier context-burn forecast for `watch()`. Reads: (a) `view_sample_cap` = frames per chunk at this tier. (b) `chunks_for_full_coverage_thorough` = sequential chunks needed for full-video coverage at target_fps=1.0. (c) `est_total_tokens_thorough` = total burn across all chunks. (d) `pct_of_1m_window_thorough` = share of the 1M context window. (e) `will_trigger_autocompact_thorough` = whether full thorough coverage exceeds the 813K autocompact threshold. Higher tier = more chunks = more burn = more captured. For exact, model-aware token counts on a specific watch call, use `measure()`. v0.10.2 removed the legacy single-call fields (chunks_for_full_coverage / est_total_tokens_full_coverage / pct_of_1m_window) which were misleading after tier-aware extraction fps shipped.",
         current_default_mode: config.default_mode,
         recommended_mode,
         recommendation_reason: reason,

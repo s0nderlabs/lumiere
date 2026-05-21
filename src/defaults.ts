@@ -48,34 +48,42 @@ const SAFE_AT_50K: Record<number, number> = {
   1536: 20,
 }
 
-// Calibration target: (view_sample * TPF + STATIC_TOKENS_PER_CALL) * SAFETY_MARGIN
-// stays under 100K so cost_estimate predicts under-cap before the runtime trim
-// activates. Numbers below are from the 2026-05-19 4-tier MCP test.
-//   384:  38 * 1900  + 8000 = 80.2K, * 1.25 = 100K (at the wire)
-//   512:  28 * 2600  + 8000 = 80.8K, * 1.25 = 101K (close, dropped to 27)
-//   768:  17 * 4200  + 8000 = 79.4K, * 1.25 = 99.25K
-//   1024: 12 * 6200  + 8000 = 82.4K, * 1.25 = 103K (dropped to 11)
-//   1536: 7  * 11000 + 8000 = 85K,   * 1.25 = 106K (dropped to 6)
+// Per-resolution view_sample cap. Keeps predicted (frames * TPF + overhead) *
+// SAFETY_MARGIN under 100K and actual response under the 88K runtime safety
+// threshold for the worst per-frame content density seen on dense
+// terminal-UI videos.
+//   384:  25 * 2700  + 8000 = 75.5K, * 1.25 = 94.4K
+//   512:  17 * 3800  + 8000 = 72.6K, * 1.25 = 90.8K
+//   768:  8  * 7000  + 8000 = 64K,   * 1.25 = 80K
+//   1024: 4  * 11000 + 8000 = 52K,   * 1.25 = 65K
+//   1536: 2  * 21000 + 8000 = 50K,   * 1.25 = 62.5K
 const SAFE_AT_100K: Record<number, number> = {
-  384: 38,
-  512: 27,
-  768: 16,
-  1024: 11,
-  1536: 6,
+  384: 25,
+  512: 17,
+  768: 8,
+  1024: 4,
+  1536: 2,
 }
 
-// Per-frame token cost. Calibrated 2026-05-19 against actual MCP responses
-// from a 4-tier verification harness against /tmp/lumiere-low/source.mp4
-// (V1 ClaudeDevs /goal, 24s, action-heavy first 5s, static UI 5-20, action
-// 20-24). Numbers below match observed image_chars / 3.5 per delivered frame
-// after the runtime trim. The runtime trim is the actual safety net; this
-// table is the forecast inspect() shows.
+// Per-frame token cost (chars/3.5 metric for MCP transport cap). Recalibrated
+// 2026-05-20 against actual_est_tokens values from the v0.10.1 fps calibration
+// test on V2 (ClaudeDevs /goal, terminal UI + mascot, 24.1s).
+//
+// Measured per-frame chars/3.5 from post-trim watch responses:
+//   low (384px):  ~2345 → 2700 with safety margin
+//   mid (512px):  ~3331 → 3800
+//   high (1024px): ~9775 → 11000
+//   max (1536px): ~18800 → 21000
+//
+// Higher resolutions are more underestimated because dense UI text + sharp
+// edges defeat JPEG compression efficiency. The numbers now exceed what
+// runtime_trim measures, so trim becomes a true safety net (rarely fires).
 export const TOKENS_PER_FRAME: Record<number, number> = {
-  384: 1900,
-  512: 2600,
-  768: 4200,
-  1024: 6200,
-  1536: 11000,
+  384: 2700,
+  512: 3800,
+  768: 7000,
+  1024: 11000,
+  1536: 21000,
 }
 
 // Static per-call overhead (tool invocation, metadata blocks, audio analysis).
@@ -91,6 +99,37 @@ export const COST_ESTIMATE_SAFETY_MARGIN = 1.25  // 25% above raw token count
 // Reference: Claude Code 1M context auto-compacts around ~813K (~81%).
 // Callers should warn the user before submitting a watch plan that exceeds this.
 export const AUTOCOMPACT_THRESHOLD = 813000
+
+// Target temporal density (frames per second of video) for thorough coverage.
+// Anchored to the temporal density `low` tier naturally achieves on a 24s clip
+// (38 frames / 24s ≈ 1.58fps). For thorough coverage at higher tiers, more
+// chunks are needed because their view_sample cap is smaller. This is the
+// "higher tier = more chunks = more burn = more captured" rule, validated
+// 2026-05-19 against the 4-way ClaudeDevs /goal blind test:
+//   low (cap=38) on 24s: 1 chunk × 100K = 100K total
+//   mid (cap=27) on 24s: 1 chunk × 110K = 110K total
+//   high (cap=11) on 24s: ~2-3 chunks × 95K = ~200K total
+//   max (cap=6) on 24s: ~4-5 chunks × 92K = ~460K total
+export const TARGET_FPS_THOROUGH = 1.0
+
+// Tier-aware EXTRACTION fps (controls ffmpeg sampling density, distinct from
+// delivered fps which is gated by view_sample). Higher tiers extract denser
+// pools so adaptive_sampling has rich material to weight by motion windows.
+// Anchored against the 2026-05-19 max-tier test: fps=12.5 extraction produced
+// the 7-mascot-state + 13-hex-code recovery on V2 (ClaudeDevs /goal). Lower
+// tiers scale geometrically (half the fps per step down) since they trade
+// temporal density for cheaper per-frame cost.
+//
+// Note: extraction fps != delivered fps. With view_sample=6 at max on 24s,
+// ffmpeg pulls 12.5 * 24 = 300 frames, view_sample subsamples to 6 evenly OR
+// adaptive_sampling picks 6 weighted by motion windows. The dense pool is
+// what makes adaptive_sampling's selection meaningful.
+export function targetExtractionFps(resolution: number): number {
+  if (resolution <= 384) return 1.5
+  if (resolution <= 512) return 3.0
+  if (resolution <= 1024) return 6.0
+  return 12.5
+}
 
 function envCap(): number {
   const raw = process.env.MAX_MCP_OUTPUT_TOKENS
@@ -140,15 +179,22 @@ export function calculateAutoFps(durationSeconds: number): number {
 // duration). For a 24s clip at the `low` tier that was a 12.5x undercount.
 //
 // Rule (matches deriveFps in watch.ts):
-//   - view_sample set AND fps is "auto"/undefined  -> fps = view_sample / duration
 //   - fps is explicit                              -> fps stays
+//   - resolution known                             -> targetExtractionFps(resolution)
+//   - view_sample set                              -> view_sample / duration (legacy)
 //   - else                                         -> calculateAutoFps(duration)
+// v0.10.1+: tier-aware extraction fps is the primary path so higher tiers get
+// a rich extraction pool for adaptive_sampling selection.
 export function deriveFpsForBudget(opts: {
   fps?: number
   view_sample: number | undefined
   duration_seconds: number
+  resolution?: number
 }): number {
   if (opts.fps !== undefined) return opts.fps
+  if (opts.resolution !== undefined) {
+    return targetExtractionFps(opts.resolution)
+  }
   if (opts.view_sample && opts.duration_seconds > 0) {
     return opts.view_sample / opts.duration_seconds
   }
@@ -162,6 +208,9 @@ function tokensPerFrame(resolution: number): number {
 export interface CostEstimate {
   mode: WatchMode | "custom"
   resolution: number
+  // Extraction fps (ffmpeg sampling rate). For non-segments calls this is the
+  // tier-aware default from targetExtractionFps. The delivered fps after
+  // view_sample subsampling is target_fps_thorough.
   fps: number
   view_sample_cap: number
   duration_seconds: number
@@ -170,10 +219,18 @@ export interface CostEstimate {
   est_tokens_per_frame: number
   est_tokens_per_call: number
   exceeds_mcp_cap_per_call: boolean
-  chunks_for_full_coverage: number
-  est_total_tokens_full_coverage: number
-  pct_of_1m_window: number
-  will_trigger_autocompact: boolean
+  // Thorough coverage: full-video coverage at TARGET_FPS_THOROUGH so each tier
+  // delivers its tier-specific spatial density × temporal density. Higher tier
+  // = more chunks because view_sample_cap shrinks with resolution. This is the
+  // canonical cost view; the v0.10.0-era "legacy single-call" fields were
+  // removed in v0.10.2 because they were misleading after the tier-aware
+  // extraction fps change.
+  target_fps_thorough: number
+  chunk_duration_thorough_seconds: number
+  chunks_for_full_coverage_thorough: number
+  est_total_tokens_thorough: number
+  pct_of_1m_window_thorough: number
+  will_trigger_autocompact_thorough: boolean
 }
 
 // Pure cost estimator. Uses the SAME fps derivation as watch.ts (via
@@ -193,6 +250,7 @@ export function estimateWatchCost(opts: {
     fps: opts.fps,
     view_sample: view_sample_cap,
     duration_seconds: opts.duration_seconds,
+    resolution,
   })
   const ffmpeg_frames = Math.max(1, Math.round(fps * opts.duration_seconds))
   const frames_returned = Math.min(ffmpeg_frames, view_sample_cap)
@@ -200,19 +258,15 @@ export function estimateWatchCost(opts: {
   // Safety margin accounts for unpredictable overhead variance per call.
   const est_per_call = Math.round((frames_returned * tpf + STATIC_TOKENS_PER_CALL) * COST_ESTIMATE_SAFETY_MARGIN)
 
-  // If a single chunk exceeds the MCP per-call cap, we need to split by TIME so each
-  // chunk's response stays under the cap. Otherwise the time-based chunking is:
-  // chunk_duration = view_sample_cap / fps, then ceil(duration / chunk_duration).
   const exceeds_cap = est_per_call > CAP
-  let chunks_needed: number
-  if (exceeds_cap) {
-    chunks_needed = Math.max(1, Math.ceil(est_per_call / CAP))
-  } else {
-    const chunk_seconds = view_sample_cap / fps
-    chunks_needed = Math.max(1, Math.ceil(opts.duration_seconds / chunk_seconds))
-  }
-  const total_tokens = est_per_call * chunks_needed
-  const pct = (total_tokens / 1_000_000) * 100
+
+  // Thorough coverage: anchored at TARGET_FPS_THOROUGH so each tier's chunks
+  // cover view_sample_cap / TARGET_FPS_THOROUGH seconds of video at the tier's
+  // spatial resolution. Higher tier = smaller chunks = more total burn.
+  const chunk_duration_thorough = view_sample_cap / TARGET_FPS_THOROUGH
+  const chunks_thorough = Math.max(1, Math.ceil(opts.duration_seconds / chunk_duration_thorough))
+  const total_tokens_thorough = est_per_call * chunks_thorough
+  const pct_thorough = (total_tokens_thorough / 1_000_000) * 100
 
   return {
     mode: opts.mode ?? "custom",
@@ -225,10 +279,12 @@ export function estimateWatchCost(opts: {
     est_tokens_per_frame: tpf,
     est_tokens_per_call: est_per_call,
     exceeds_mcp_cap_per_call: exceeds_cap,
-    chunks_for_full_coverage: chunks_needed,
-    est_total_tokens_full_coverage: total_tokens,
-    pct_of_1m_window: Math.round(pct * 10) / 10,
-    will_trigger_autocompact: total_tokens >= AUTOCOMPACT_THRESHOLD,
+    target_fps_thorough: TARGET_FPS_THOROUGH,
+    chunk_duration_thorough_seconds: Math.round(chunk_duration_thorough * 10) / 10,
+    chunks_for_full_coverage_thorough: chunks_thorough,
+    est_total_tokens_thorough: total_tokens_thorough,
+    pct_of_1m_window_thorough: Math.round(pct_thorough * 10) / 10,
+    will_trigger_autocompact_thorough: total_tokens_thorough >= AUTOCOMPACT_THRESHOLD,
   }
 }
 

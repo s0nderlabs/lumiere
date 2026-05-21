@@ -2,6 +2,87 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.2] - 2026-05-21
+
+Comprehensive cost-model overhaul plus four observability/consistency fixes. Subsumes the in-development v0.10.1 (never published) so this is the first public release after v0.10.0 with the full set of perception-pipeline corrections.
+
+### Added (cost-model + extraction)
+
+- **Tier-aware extraction fps** (`targetExtractionFps` in `defaults.ts`): low=1.5, mid=3.0, high=6.0, max=12.5. When `fps='auto'` and a resolution is known, `deriveFps` returns these values so higher tiers get a rich extraction pool for adaptive_sampling selection. Anchored to the 2026-05-19 max@12.5 test that produced the 7-mascot-state + 13-hex-code recovery on V2. Both `watch` and `measure` use it so predictions match runtime.
+- **Proactive dynamic view_sample sizing** in `watch.ts`: before applying view_sample subsample, measures actual chars/frame from the extracted pool and lowers `effectiveViewSample` if content is denser than the static `TOKENS_PER_FRAME` table predicted. Prevents the post-extraction `runtime_trim` from firing on dense terminal-UI content. Surfaced as `proactive_sizing=YES|no (...)` in the budget block.
+- **`out_of_range_dropped` always surfaced** in budget block (was hidden when count=0). Includes the dropped timestamps when non-empty; prints `out_of_range_dropped=0 (filter active)` otherwise. Lets callers confirm the filter ran.
+- **`extraction_fps`, `effective_fps`, `proactive_sizing`** new fields in budget block alongside the existing `view_sample_applied`, `runtime_trim`, `out_of_range_dropped`. Full observability of every sizing decision.
+- **AudioResult.transcription_skipped_reason + mean_dbfs + mean_lufs** fields on `AudioResult`. `mean_dbfs` is the volumedetect VAD measurement (fallback). `mean_lufs` is the ebur128 measurement reused from analyze when present. `transcription_skipped_reason` carries the gate's decision text.
+- **VideoAnalysis.transcription_skipped_reason** propagated from AudioResult so analyze callers see the gate decision without re-checking AudioResult separately.
+- **`HMS_REGEX` accepts sub-second times** on `watch` and `measure` start_time / end_time / segments fields (`^\d{2}:\d{2}:\d{2}(\.\d+)?$`). Lets callers target the sub-second tail of a video (e.g. `00:00:24.1` on a 24.107s clip) without ffmpeg aborting on a degenerate zero-length window.
+
+### Fixed (cost-model calibration)
+
+- **`TOKENS_PER_FRAME` recalibrated** against measured V2 content density: low 1900→2700, mid 2600→3800, high 6200→11000, max 11000→21000. The v0.9 values were calibrated on sparse-content videos; dense UI text + sharp edges in V2 produced systematic per-frame undercounting (max was 71% off). New values match observed `actual_est_tokens` across the v0.10.1 round-2 fps calibration test.
+- **`SAFE_AT_100K` tightened** so view_sample_cap fits the new TPF with enough headroom that proactive_sizing stays silent on V2-class content: 384 38→25, 512 27→17, 768 16→8, 1024 11→4, 1536 6→2. Round-3 verification: 21 chunks executed across 4 tiers on V2, zero runtime_trim AND zero proactive_sizing activations, every chunk delivers exactly `view_sample_applied` frames.
+- **Cache hash discrimination** (`computeVideoHash` in `session/manager.ts`): reads first 256KB (was 64KB) and includes video duration (rounded to ms). Eliminates the cross-video collision class where re-downloaded streams shared the same MP4 header prefix and file size despite different content (observed across V1 max, V2 mx-def/hi-def/mx-max/hi-max test cycles on 2026-05-20). Existing session caches invalidate on upgrade.
+- **Whisper hallucination on silent/music-only audio**: VAD pre-gate via ffmpeg `volumedetect` (dBFS) or cached ebur128 (LUFS) measurement. Below threshold (-33 dBFS / -30 LUFS), whisper is skipped entirely with `transcription_skipped_reason='audio_too_quiet (...)'`. Catches the "Teksting av Nicolai Winther" / "ご視聴ありがとうございました" / applause-music-credits hallucination class observed across V2 V3 V4 test runs. Validated on 11 watch calls across 3 rounds without a single hallucination.
+- **Out-of-range frame filter** in `watch.ts`: drops frames whose timestamp exceeds `metadata.duration_seconds + 0.1s`. Catches yt-dlp buffer overflow boundaries (e.g. V2 low-tier session manifest showing `last_timestamp=00:00:36` for a 24.1s video) and stale cache entries from the cross-video collision class. Dropped timestamps appear in the budget block.
+- **Watch's `mean_lufs` → `mean_dbfs` rename**: watch measures dBFS via volumedetect, not LUFS via ebur128. Field name now matches the actual measurement scale (analyze keeps `mean_lufs` for its ebur128 measurement). Both can coexist on AudioResult when the cached-LUFS path is used.
+- **Unified whisper hallucination detector** across `watch` and `analyze`: both call `detectLowConfidenceTranscript` (`utils/hallucination.ts`) and suppress flagged transcripts with `[low confidence: likely silent / music-only audio; whisper output suppressed]`. Previously only analyze ran the detector; watch could leak hallucinated text past the VAD gate on borderline-loud music.
+- **LUFS caching from analyze** in `transcribeWithWhisper`: when analyze has already computed `loudness_summary.mean_lufs` for the full video, watch passes it as `cachedMeanLufs` to skip the per-chunk volumedetect call and unify the VAD scale. Saves ~150ms per chunk on chunked max-tier runs.
+
+### Changed (cost_estimate shape — minor breaking)
+
+- **Removed legacy fields** from `CostEstimate`: `chunks_for_full_coverage`, `est_total_tokens_full_coverage`, `pct_of_1m_window`, `will_trigger_autocompact`. These predated tier-aware extraction fps and produced misleading values (e.g. 51 chunks for max because the math assumed deliver-every-extracted-frame at 12.5fps). The `_thorough` variants remain as the canonical view. inspect's recommendation logic and watch's budget block already used the `_thorough` fields exclusively.
+- **`inspect.cost_estimate.note`** rewritten to document the simplified field shape and direct callers to `measure()` for exact, model-aware token counts.
+
+### Internal
+
+- `deriveFps` (watch.ts) and `deriveFpsForBudget` (defaults.ts) take an optional `resolution` parameter; when set, consult `targetExtractionFps` first. Legacy `view_sample / duration` path retained as fallback.
+- `computeVideoHash(videoPath, { duration })` is the canonical signature; callers in `watch.ts`, `analyze.ts`, `measure.ts` pass `metadata.duration_seconds` from the ffprobe step.
+- `watch.ts` reorders so `getVideoMetadata` runs before session-dir derivation. The `view=` cache-lookup path also picks up the duration-aware hash.
+- `transcribeWithWhisper(wavPath, model, { cachedMeanLufs? })` — new opts param; backward compatible when omitted.
+
+## [0.10.1] - 2026-05-20
+
+Four defensive fixes surfaced by the v0.10.0 retest cycle. Together they close the cache contamination, whisper hallucination, and tier-flat extraction gaps that polluted multiple test runs across V1 / V2 / V3 / V4 on 2026-05-20.
+
+### Added
+
+- **Tier-aware extraction fps** (`targetExtractionFps` in `defaults.ts`): when `fps='auto'` and a resolution is known, deriveFps now returns 1.5 fps (low), 3.0 fps (mid), 6.0 fps (high), 12.5 fps (max). Anchored to the 2026-05-19 max@12.5 test that produced the 7-mascot-state + 13-hex-code recovery on V2. Lower tiers scale geometrically (half the fps per step down). Both `watch` and `measure` use it so predictions match runtime; segments still override (per-segment fps wins).
+- **`AudioResult.transcription_skipped_reason` + `mean_lufs` fields**: surface VAD pre-gate decisions and measured loudness so callers know when whisper was suppressed vs ran-and-returned-empty.
+- **`Budget.out_of_range_dropped` block**: when ffmpeg / yt-dlp boundary cases emit frames past the video duration, the budget block lists the dropped timestamps so callers see the cleanup happened.
+
+### Fixed
+
+- **Cache contamination (`session/manager.ts`)**: `computeVideoHash` now reads first 256KB (4x more discriminating than 64KB) and includes the video duration (rounded to ms) in the hash. Closes the recurring "598 cached frames spanning 4:38 hash-bucketed into the new 24s V2 video" class of pollution observed across V1 max, V2 mx-def/hi-def/mx-max/hi-max test cycles on 2026-05-20. Existing session caches invalidate on upgrade (acceptable; the bug warrants fresh state).
+- **Whisper hallucination on silent/music-only audio (`backends/local.ts`)**: VAD pre-gate via ffmpeg `volumedetect` runs before whisper-cli invocation. When mean loudness < -33 dBFS the audio is treated as silent and whisper is skipped entirely with `transcription_skipped_reason='audio_too_quiet (...)'`. Catches the "Teksting av Nicolai Winther" (Norwegian) / "ご視聴ありがとうございました" (Japanese) / "Tanya Cushman" / applause-music-credits class observed in V2 V3 V4 test runs.
+- **Out-of-range frame filter (`tools/watch.ts`)**: after extraction, frames whose timestamp exceeds `metadata.duration_seconds + 0.1s` are dropped. Catches yt-dlp buffer overflow boundaries (e.g. V2 low-tier session manifest showing `last_timestamp=00:00:36` for a 24.1s video) and stale cache entries from the cross-video collision class. Dropped timestamps appear in the budget block.
+
+### Internal
+
+- `deriveFpsForBudget` (defaults.ts) and `deriveFps` (watch.ts) take an optional `resolution` parameter and consult `targetExtractionFps` first. Legacy `view_sample/duration` path retained as fallback when resolution is not known.
+- `computeVideoHash(videoPath, { duration })` is now the canonical signature; callers in `watch.ts`, `analyze.ts`, `measure.ts` pass `metadata.duration_seconds` from the ffprobe step. `getSessionDir` gained the same options shape.
+- `watch.ts` reorders: `getVideoMetadata` runs before session-dir derivation so the duration is available for the hash. The `view=` cache-lookup path now also picks up the new hash.
+- `transcribeWithWhisper` calls `measureMeanDbfs` (volumedetect filter, ~150ms) before invoking whisper-cli. The threshold (-33 dBFS) sits between the V2 V3 V4 silent-audio floor (-36 to -42) and the loudest music-only segments observed in the test corpus.
+
+## [0.10.0] - 2026-05-20
+
+Codifies thorough-coverage multi-chunk default at every tier. Closes the v0.9 regression where only max tier (via memory file) was doing the multi-chunk pass while low/mid/high were stuck on single-call discipline. The tier-flattening behavior the 2026-05-19 4-way test exposed (all tiers ~92K) is now corrected in the skill workflow itself, not via memory hedge.
+
+### Added
+
+- **`cost_estimate.per_tier.*` thorough-coverage fields**: every per-tier entry now reports `target_fps_thorough` (1.0), `chunk_duration_thorough_seconds`, `chunks_for_full_coverage_thorough`, `est_total_tokens_thorough`, `pct_of_1m_window_thorough`, `will_trigger_autocompact_thorough`. The legacy single-call fields stay for backwards compatibility but the skill workflow consumes the thorough ones.
+- **`TARGET_FPS_THOROUGH = 1.0`** constant in `defaults.ts` anchored to the temporal density the `low` tier naturally achieves (38 frames / 24s ≈ 1.58fps). The formula `chunks_needed = ceil(duration / (view_sample_cap / TARGET_FPS_THOROUGH))` produces tier-monotonic chunk counts: low 1 chunk per 38s, mid 1 per 27s, high 1 per 11s, max 1 per 6s.
+
+### Changed
+
+- **`/lumiere` skill workflow: thorough-coverage chunking is now a HARD RULE for ALL tiers.** Replaced v0.9's "motion-window drill HARD RULE for high/max" + low/mid skip with a uniform "N sequential watch() calls per `chunks_for_full_coverage_thorough`". Every tier covers the full video at its tier's spatial × temporal density. The motion-window drill becomes additive (only when a chunk's density was insufficient for an animation event), not a substitute for full coverage.
+- **`inspect` recommendation logic** now considers the thorough-coverage total, not the legacy single-call total. If `will_trigger_autocompact_thorough` is true at the current tier, the recommendation walks down tiers until thorough coverage fits. Pre-flight gate phrasing in the skill aligned to this.
+- **Pre-flight gate phrasing** in the skill: surfaces chunk count + projected pct of 1M context for the full thorough pass, offers (a) accept (b) drop tier (c) /compact (d) sub-segment. Default is (a) because the operator picked the tier.
+
+### Internal
+
+- `CostEstimate` interface extended with the six thorough fields without breaking the legacy fields.
+- `estimateWatchCost` computes thorough chunk count = `ceil(duration / (view_sample_cap / TARGET_FPS_THOROUGH))` and total tokens = chunks × est_tokens_per_call.
+- `inspect`'s `cost_estimate.note` rewritten to document both views (legacy single-call vs thorough) so consumers know which fields to read.
+
 ## [0.9.0] - 2026-05-20
 
 Default-behavior overhaul to close the gap between rigorous test methodology and live use. Driven by the 2026-05-20 Claude /goal launch-video case: at the configured high/max tier the global watch call sampled too sparsely (11/6 frames over 24s) and missed the opening + closing mascot animation (cape equip, hover, downward emission, landing). v0.9 makes every tier produce the extreme-detail read this video deserves.

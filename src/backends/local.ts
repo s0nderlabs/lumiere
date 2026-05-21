@@ -8,8 +8,35 @@ import { detectPlatform, recommendWhisperModel } from "../utils/platform.js"
 import { formatHMS } from "../utils/timestamps.js"
 import type { AudioResult, TranscriptionSegment, WhisperModel } from "../types.js"
 import { MODELS_DIR } from "../config.js"
+import { DEFAULTS } from "../defaults.js"
 
 const execFileAsync = promisify(execFile)
+
+// VAD pre-gate thresholds. Below these levels audio is too quiet to contain
+// real speech and whisper hallucinates. LUFS (K-weighted) typically reads
+// ~3 dB louder than dBFS for the same source, so the thresholds differ.
+const WHISPER_VAD_MIN_DBFS = -33
+const WHISPER_VAD_MIN_LUFS = DEFAULTS.low_confidence_lufs_threshold  // -30
+
+// Fast loudness probe via ffmpeg's volumedetect filter. ~150ms on 24s WAV; way
+// cheaper than a full loudnorm two-pass. Returns NaN if parse fails so caller
+// falls back to running whisper.
+async function measureMeanDbfs(wavPath: string): Promise<number> {
+  try {
+    const { stderr } = await execFileAsync("ffmpeg", [
+      "-hide_banner",
+      "-nostats",
+      "-i", wavPath,
+      "-af", "volumedetect",
+      "-f", "null",
+      "-",
+    ], { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 })
+    const m = stderr.match(/mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB/)
+    return m ? parseFloat(m[1]) : NaN
+  } catch {
+    return NaN
+  }
+}
 
 const KNOWN_CHECKSUMS: Record<string, string> = {
   "tiny":            "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
@@ -31,7 +58,54 @@ function resolveModel(m: WhisperModel): string {
   return m
 }
 
-export async function transcribeWithWhisper(wavPath: string, model: WhisperModel): Promise<AudioResult> {
+export interface TranscribeOpts {
+  // Pass analyze's cached ebur128 LUFS to skip the per-chunk volumedetect
+  // probe and unify the VAD scale across analyze + watch.
+  cachedMeanLufs?: number
+}
+
+export async function transcribeWithWhisper(
+  wavPath: string,
+  model: WhisperModel,
+  opts: TranscribeOpts = {},
+): Promise<AudioResult> {
+  // Path A: cached LUFS from analyze. No volumedetect needed.
+  if (opts.cachedMeanLufs !== undefined && Number.isFinite(opts.cachedMeanLufs)) {
+    if (opts.cachedMeanLufs < WHISPER_VAD_MIN_LUFS) {
+      return {
+        backend: "local",
+        transcription: [],
+        audio_tags: [],
+        full_analysis: null,
+        transcription_skipped_reason: `audio_too_quiet (cached mean=${opts.cachedMeanLufs.toFixed(1)} LUFS from analyze, threshold=${WHISPER_VAD_MIN_LUFS} LUFS); whisper suppressed to avoid silent-audio hallucination`,
+        mean_lufs: opts.cachedMeanLufs,
+      }
+    }
+    return runWhisperOnLoudAudio(wavPath, model, undefined, opts.cachedMeanLufs)
+  }
+
+  // Path B: no cached LUFS, fall back to volumedetect dBFS.
+  const meanDbfs = await measureMeanDbfs(wavPath)
+  if (Number.isFinite(meanDbfs) && meanDbfs < WHISPER_VAD_MIN_DBFS) {
+    return {
+      backend: "local",
+      transcription: [],
+      audio_tags: [],
+      full_analysis: null,
+      transcription_skipped_reason: `audio_too_quiet (mean=${meanDbfs.toFixed(1)} dBFS, threshold=${WHISPER_VAD_MIN_DBFS} dBFS); whisper suppressed to avoid silent-audio hallucination`,
+      mean_dbfs: meanDbfs,
+    }
+  }
+  return runWhisperOnLoudAudio(wavPath, model, meanDbfs, undefined)
+}
+
+async function runWhisperOnLoudAudio(
+  wavPath: string,
+  model: WhisperModel,
+  meanDbfs: number | undefined,
+  cachedMeanLufs: number | undefined,
+): Promise<AudioResult> {
+
   const resolved = resolveModel(model)
   const modelPath = `${MODELS_DIR}/ggml-${resolved}.bin`
 
@@ -60,7 +134,10 @@ export async function transcribeWithWhisper(wavPath: string, model: WhisperModel
     "--language", "auto",
   ], { timeout: 600_000, maxBuffer: 50 * 1024 * 1024 })
 
-  return parseWhisperOutput(stdout)
+  const result = parseWhisperOutput(stdout)
+  if (meanDbfs !== undefined) result.mean_dbfs = meanDbfs
+  if (cachedMeanLufs !== undefined) result.mean_lufs = cachedMeanLufs
+  return result
 }
 
 function parseWhisperOutput(output: string): AudioResult {

@@ -1,5 +1,9 @@
 import type { AudioResult, AudioTag, TranscriptionSegment } from "../types.js"
 
+// Accepts HH:MM:SS or HH:MM:SS.fff so callers can target the sub-second tail
+// of a video. Shared between watch + measure + analyze param validation.
+export const HMS_REGEX = /^\d{2}:\d{2}:\d{2}(\.\d+)?$/
+
 export function parseHMS(timestamp: string): number {
   const parts = timestamp.split(":").map(Number)
   if (parts.length !== 3 || parts.some(n => Number.isNaN(n))) {

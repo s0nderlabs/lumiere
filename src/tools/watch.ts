@@ -11,6 +11,7 @@ import {
   MODE_RESOLUTION,
   estimateWatchCost,
   AUTOCOMPACT_THRESHOLD,
+  targetExtractionFps,
 } from "../defaults.js"
 import {
   getVideoMetadata,
@@ -22,7 +23,7 @@ import {
 import { extractAudio } from "../extractors/audio.js"
 import { transcribeWithWhisper } from "../backends/local.js"
 import { analyzeWithGeminiApi } from "../backends/gemini.js"
-import { parseHMS, shiftAudioResult, formatHMSPrecise } from "../utils/timestamps.js"
+import { parseHMS, shiftAudioResult, formatHMSPrecise, HMS_REGEX as TIMESTAMP_HMS_REGEX } from "../utils/timestamps.js"
 import {
   buildCaptionAudioResult,
   getCaptionFallbackReason,
@@ -56,15 +57,14 @@ import {
   describeNarrative,
   shouldAutoSuggestNarrative,
 } from "../utils/decisions.js"
+import { applyHallucinationGate } from "../utils/hallucination.js"
 import type { AudioResult, Frame, Segment, SessionManifest, SegmentFrame } from "../types.js"
 
-const HMS_REGEX = /^\d{2}:\d{2}:\d{2}$/
-// view= accepts the sub-second timestamps that the session manifest emits
-// (e.g. 00:00:09.343 from adaptive_sampling motion windows). lookupTimestamps
-// normalizes numerically so format mismatches with cached ints still match
-// within MATCH_EPSILON (tighter than 100ms so two adjacent frames in a dense
-// adaptive segment don't collide; loose enough to bridge HH:MM:SS vs .000).
-const HMS_VIEW_REGEX = /^\d{2}:\d{2}:\d{2}(\.\d+)?$/
+const HMS_REGEX = TIMESTAMP_HMS_REGEX
+// lookupTimestamps normalizes numerically so format mismatches with cached
+// ints still match within MATCH_EPSILON (tighter than 100ms so two adjacent
+// frames in a dense adaptive segment don't collide).
+const HMS_VIEW_REGEX = TIMESTAMP_HMS_REGEX
 const MATCH_EPSILON = 0.05
 
 // Sampling-gap-warning thresholds (empirically tuned 2026-05-20 on the Claude
@@ -72,6 +72,30 @@ const MATCH_EPSILON = 0.05
 // and missed two headphone equip/unequip events outside the motion window).
 const GAP_WARN_BUDGET_RATIO = 0.6
 const GAP_WARN_DURATION_RATIO = 0.3
+
+// MCP response sizing constants. RUNTIME_CAP is the per-call budget that
+// keeps the response under the 100K MAX_MCP_OUTPUT_TOKENS truncation point
+// with a 12K cushion. PER_FRAME_OVERHEAD is the per-frame text wrapper
+// ("### Frame at HH:MM:SS\n"). TEXT_OVERHEAD_BUDGET is non-frame text
+// (metadata, manifest summary, narrative guidance, audio block).
+const RUNTIME_CAP = 88000
+const PER_FRAME_OVERHEAD = 50
+const TEXT_OVERHEAD_BUDGET = 12000
+
+function estimateResponseTokens(charsBase64: number, frameCount: number): number {
+  return Math.ceil(charsBase64 / 3.5) + frameCount * PER_FRAME_OVERHEAD + TEXT_OVERHEAD_BUDGET
+}
+
+// How many of these frames fit under RUNTIME_CAP at their measured avg size?
+// Returns null when there's nothing to measure (no images present).
+function fitFramesForRuntimeCap(frames: { image?: string }[]): number | null {
+  let totalChars = 0
+  for (const f of frames) if (f.image) totalChars += f.image.length
+  if (totalChars === 0) return null
+  const avgChars = totalChars / frames.length
+  const perFrameTokens = (avgChars / 3.5) + PER_FRAME_OVERHEAD
+  return Math.max(2, Math.floor((RUNTIME_CAP - TEXT_OVERHEAD_BUDGET) / perFrameTokens))
+}
 
 // Narrative-pass guidance prompt. Injected when narrative_mode is requested or
 // auto-suggested. Asks the model to treat frames as a temporal sequence and
@@ -285,9 +309,16 @@ export function deriveFps(p: {
   end_time?: string
   segments?: { start: string; end: string }[]
   duration_seconds: number
+  resolution?: number
 }): number {
   const usingSegments = p.segments && p.segments.length > 0
   if (p.fps === "auto") {
+    // v0.10.1+: tier-aware extraction fps is the primary path. Higher tiers get
+    // dense pools so view_sample subsampling (or adaptive_sampling) has rich
+    // material. Segments override (per-segment fps wins).
+    if (!usingSegments && p.resolution !== undefined) {
+      return targetExtractionFps(p.resolution)
+    }
     if (p.view_sample && !usingSegments) {
       const s = p.start_time ? parseHMS(p.start_time) : 0
       const e = p.end_time ? parseHMS(p.end_time) : p.duration_seconds
@@ -385,6 +416,11 @@ export function registerWatch(server: McpServer): void {
       const resolved = await resolveVideoInputDetailed(params.path)
       const safePath = resolved.path
 
+      // Probe metadata first so the session hash (v0.10.1) can include
+      // duration; the previous 64KB+size hash collided in practice when stream
+      // re-downloads shared the same MP4 header prefix and file size.
+      const metadata = await getVideoMetadata(safePath)
+
       // Session setup
       const useSession = DEFAULTS.enable_index
       let sessionDir: string | null = null
@@ -394,7 +430,7 @@ export function registerWatch(server: McpServer): void {
         // computed the hash twice (once inside getSessionDir, once for the
         // fallback createManifest path), re-reading the head of the file twice
         // on every cache miss.
-        const videoHash = computeVideoHash(safePath)
+        const videoHash = computeVideoHash(safePath, { duration: metadata.duration_seconds })
         sessionDir = join(SESSIONS_DIR, videoHash)
         manifest = loadManifest(sessionDir) ?? createManifest(videoHash, safePath)
       }
@@ -429,8 +465,6 @@ export function registerWatch(server: McpServer): void {
         return { content: content as any }
       }
 
-      const metadata = await getVideoMetadata(safePath)
-
       // Auto-budget: apply safe view_sample if caller omitted and not using segments
       let effectiveViewSample = params.view_sample
       if (!effectiveViewSample && !params.segments) {
@@ -444,6 +478,7 @@ export function registerWatch(server: McpServer): void {
         end_time: params.end_time,
         segments: params.segments,
         duration_seconds: metadata.duration_seconds,
+        resolution,
       })
 
       const workDir = join(tmpdir(), `lumiere-${Date.now()}`)
@@ -576,23 +611,67 @@ export function registerWatch(server: McpServer): void {
         audioPromise = analyzeWithGeminiApi(safePath, { startTime: params.start_time, endTime: params.end_time })
       } else if (config.backend === "local") {
         const audioDir = join(workDir, "audio")
+        // v0.10.2: pass cached LUFS from prior analyze() so we skip the
+        // per-chunk volumedetect call and unify the VAD scale. Falls back
+        // to per-call dBFS when analyze hasn't run.
+        const cachedLufs = manifest?.analysis?.loudness_summary?.mean_lufs
         audioPromise = extractAudio(safePath, audioDir, {
           startTime: params.start_time, endTime: params.end_time,
-        }).then(wav => transcribeWithWhisper(wav, config.whisper_model))
+        }).then(wav => transcribeWithWhisper(wav, config.whisper_model, { cachedMeanLufs: cachedLufs }))
       } else {
         audioPromise = Promise.resolve({ backend: "none" as const, transcription: [], audio_tags: [], full_analysis: null })
       }
 
       let [frames, rawAudio] = await Promise.all([framesPromise, audioPromise])
 
-      if (fallback !== null && rawAudio.backend !== "youtube-captions" && rawAudio.backend !== "none") {
+      // Drop frames whose timestamp exceeds the video duration. Catches
+      // yt-dlp buffer overflow and stale cache entries from cross-video hash
+      // collisions. ffmpeg emits frames in order so the last-frame check
+      // short-circuits the healthy case (0 out-of-range) with one parseHMS.
+      const durationCap = metadata.duration_seconds + 0.1
+      let outOfRangeDropped: string[] = []
+      if (frames.length > 0 && parseHMS(frames[frames.length - 1].timestamp) > durationCap) {
+        const inRange: typeof frames = []
+        for (const f of frames) {
+          if (parseHMS(f.timestamp) <= durationCap) inRange.push(f)
+          else outOfRangeDropped.push(f.timestamp)
+        }
+        frames = inRange
+      }
+
+      if (fallback !== null && (rawAudio.backend === "local" || rawAudio.backend === "gemini-api")) {
         rawAudio = { ...rawAudio, transcription_fallback_reason: fallback }
       }
+
+      // Borderline-quiet music can pass the VAD gate and still leak credits-
+      // style hallucinations ("Teksting av...", "[Music]"). Run the same
+      // multi-signal heuristic as analyze on the live transcription. Prefer
+      // LUFS (cached from analyze) over dBFS as the loudness signal.
+      rawAudio = applyHallucinationGate(
+        rawAudio,
+        metadata.duration_seconds,
+        rawAudio.mean_lufs ?? rawAudio.mean_dbfs,
+      )
 
       const offset = params.start_time ? parseHMS(params.start_time) : 0
       const audio = shiftAudioResult(rawAudio, offset)
 
-      // Apply view_sample (auto-budget or user-supplied)
+      // Proactive sizing: measure actual chars/frame BEFORE applying
+      // view_sample, lower effectiveViewSample if content is denser than the
+      // static TPF table predicted. Avoids the post-extraction runtime_trim
+      // firing on terminal-UI density. runtime_trim below remains as last-
+      // resort safety for pools too small to estimate.
+      let proactiveSizedFrom: number | null = null
+      if (effectiveViewSample && effectiveViewSample > 2 && frames.length > 0) {
+        const fitCount = fitFramesForRuntimeCap(frames)
+        if (fitCount !== null && effectiveViewSample > fitCount) {
+          proactiveSizedFrom = effectiveViewSample
+          effectiveViewSample = fitCount
+        }
+      }
+
+      // Apply view_sample (auto-budget or user-supplied, possibly tightened
+      // by proactive sizing above)
       if (effectiveViewSample && frames.length > effectiveViewSample) {
         const idx = sampleFrameIndices(frames.length, effectiveViewSample)
         frames = idx.map(i => frames[i])
@@ -614,22 +693,16 @@ export function registerWatch(server: McpServer): void {
       let runtimeTokensEst = 0
       let runtimeTrimDropped: string[] = []
       let runtimeTrimPolicy: "motion-aware" | "uniform" | "none" = "none"
+      const sumChars = (fs: typeof frames): number => {
+        let chars = 0
+        for (const f of fs) if (f.image) chars += f.image.length
+        return chars
+      }
       if (frames.length > 2) {
-        const RUNTIME_CAP = 88000
-        const PER_FRAME_OVERHEAD = 50  // text headers per frame
-        const TEXT_OVERHEAD_BUDGET = 12000  // metadata + manifest + guidance + audio
-        let totalImageChars = 0
-        for (const f of frames) {
-          if (f.image) totalImageChars += f.image.length
-        }
-        const estimateTokens = (charsBase64: number, frameCount: number) =>
-          Math.ceil(charsBase64 / 3.5) + frameCount * PER_FRAME_OVERHEAD + TEXT_OVERHEAD_BUDGET
-        runtimeTokensEst = estimateTokens(totalImageChars, frames.length)
+        const totalImageChars = sumChars(frames)
+        runtimeTokensEst = estimateResponseTokens(totalImageChars, frames.length)
         if (runtimeTokensEst > RUNTIME_CAP) {
-          const avgChars = totalImageChars / frames.length
-          const charsPerToken = 3.5
-          const denom = (avgChars / charsPerToken) + PER_FRAME_OVERHEAD
-          const keepCount = Math.max(2, Math.floor((RUNTIME_CAP - TEXT_OVERHEAD_BUDGET) / denom))
+          const keepCount = fitFramesForRuntimeCap(frames) ?? Math.max(2, frames.length - 1)
           if (keepCount < frames.length) {
             const preTrimTimestamps = frames.map(f => f.timestamp)
             const motionSegs = adaptiveSegs.filter(s => s.kind === "motion")
@@ -658,15 +731,10 @@ export function registerWatch(server: McpServer): void {
               const idx = sampleFrameIndices(frames.length, keepCount)
               kept = idx.map(i => frames[i])
             }
-            // Second-pass safety net: motion frames may average larger than static
-            // bookends, so the keepCount derived from the global average can
-            // overshoot. Re-measure post-pick and drop further if still over.
-            const measure = (fs: typeof frames): number => {
-              let chars = 0
-              for (const f of fs) if (f.image) chars += f.image.length
-              return estimateTokens(chars, fs.length)
-            }
-            while (measure(kept) > RUNTIME_CAP && kept.length > 2) {
+            // Motion frames may average larger than static bookends; re-measure
+            // and drop further if the keepCount derived from the global average
+            // overshoots.
+            while (estimateResponseTokens(sumChars(kept), kept.length) > RUNTIME_CAP && kept.length > 2) {
               const idx = sampleFrameIndices(kept.length, kept.length - 1)
               kept = idx.map(i => kept[i])
             }
@@ -674,7 +742,7 @@ export function registerWatch(server: McpServer): void {
             runtimeTrimDropped = preTrimTimestamps.filter(t => !keptSet.has(t))
             runtimeTrimmed = frames.length - kept.length
             frames = kept
-            runtimeTokensEst = measure(frames)
+            runtimeTokensEst = estimateResponseTokens(sumChars(frames), frames.length)
           }
         }
       }
@@ -721,18 +789,24 @@ export function registerWatch(server: McpServer): void {
         const adaptiveDesc = adaptiveSegs.length > 0
           ? `on (${describeAdaptiveSource(adaptiveReason)})\n${formatAdaptiveSummary(adaptiveSegs)}`
           : describeAdaptiveSource(adaptiveReason)
-        const fpsDesc = adaptiveSegs.length > 0
-          ? `varies per segment (${Math.min(...adaptiveSegs.map(s => s.fps)).toFixed(2)}-${Math.max(...adaptiveSegs.map(s => s.fps)).toFixed(2)}fps)`
-          : String(fps)
+        const effectiveFpsDesc = adaptiveSegs.length > 0
+          ? `varies per segment (${Math.min(...adaptiveSegs.map(s => s.fps)).toFixed(2)}-${Math.max(...adaptiveSegs.map(s => s.fps)).toFixed(2)}fps post-adaptive_sampling)`
+          : `${fps}`
         const keptListing = runtimeTrimmed > 0
           ? `\n  policy=${runtimeTrimPolicy} (${runtimeTrimPolicy === "motion-aware" ? "preserved motion-window frames first, even-spaced static bookends against remaining budget" : "even-spaced over all frames; no motion segments available to prioritize"})\n  kept_timestamps=${JSON.stringify(frames.map(f => f.timestamp))}\n  dropped_timestamps=${JSON.stringify(runtimeTrimDropped)}`
           : ""
         const runtimeTrimDesc = runtimeTrimmed > 0
           ? `\nruntime_trim=YES dropped ${runtimeTrimmed} frame(s) (NOT a trailing MCP-cap drop) to keep response under ~88K. actual_est_tokens=${runtimeTokensEst}${keptListing}`
           : `\nruntime_trim=no actual_est_tokens=${runtimeTokensEst}`
+        const outOfRangeDesc = outOfRangeDropped.length > 0
+          ? `\nout_of_range_dropped=${outOfRangeDropped.length} frame(s) past video duration (${metadata.duration_seconds}s); timestamps=${JSON.stringify(outOfRangeDropped)}`
+          : `\nout_of_range_dropped=0 (filter active)`
+        const proactiveDesc = proactiveSizedFrom !== null
+          ? `\nproactive_sizing=YES view_sample lowered ${proactiveSizedFrom}→${effectiveViewSample} (content denser than TPF predicted; runtime_trim avoided)`
+          : `\nproactive_sizing=no (content matched TPF estimate)`
         content.push({
           type: "text",
-          text: `## Video Metadata\n${JSON.stringify(metadata, null, 2)}\n\n## Audio Analysis\n${JSON.stringify(audio, null, 2)}\n\n## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} fps=${fpsDesc} resolution=${resolution} frame_format=${frameFormat}\nest_tokens_this_call=${cost.est_tokens_per_call} (~${cost.pct_of_1m_window}% of 1M)\nfull_coverage_chunks_needed=${cost.chunks_for_full_coverage} (~${(cost.est_total_tokens_full_coverage / 1000).toFixed(0)}K total tokens)\nautocompact_warning=${cost.will_trigger_autocompact ? "YES - full coverage would exceed " + AUTOCOMPACT_THRESHOLD + " tokens" : "no"}\nnarrative_mode=${narrativeDesc}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${runtimeTrimDesc}`,
+          text: `## Video Metadata\n${JSON.stringify(metadata, null, 2)}\n\n## Audio Analysis\n${JSON.stringify(audio, null, 2)}\n\n## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} extraction_fps=${fps} effective_fps=${effectiveFpsDesc} resolution=${resolution} frame_format=${frameFormat}\nest_tokens_this_call=${cost.est_tokens_per_call} (~${cost.pct_of_1m_window_thorough}% of 1M when fully covered)\nthorough_coverage_chunks_needed=${cost.chunks_for_full_coverage_thorough} (~${(cost.est_total_tokens_thorough / 1000).toFixed(0)}K total tokens at target_fps=${cost.target_fps_thorough})\nautocompact_warning=${cost.will_trigger_autocompact_thorough ? "YES - thorough coverage would exceed " + AUTOCOMPACT_THRESHOLD + " tokens" : "no"}\nnarrative_mode=${narrativeDesc}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${proactiveDesc}${runtimeTrimDesc}${outOfRangeDesc}`,
         })
       }
 

@@ -30,19 +30,31 @@ The user may have invoked this skill with an argument (`$ARGUMENTS`). Parse it F
 ### Pre-flight (mandatory for every new video)
 
 1. Call `inspect(path=URL)`. Read the returned `cost_estimate` block.
-2. Look at `cost_estimate.per_tier[<current_default_mode>]`:
-   - If `will_trigger_autocompact === false`, proceed.
-   - If `will_trigger_autocompact === true`, warn the user: "Full coverage at `<mode>` tier would burn ~X% of your context window and trigger autocompact. Options: (a) drop to `<recommended_mode>` tier, (b) run /compact first, (c) analyze a sub-segment only with start_time/end_time."
-3. If the user confirms or chose a smaller tier, continue.
+2. Look at `cost_estimate.per_tier[<current_default_mode>]`. The thorough-coverage fields are what the watch workflow uses below:
+   - `chunks_for_full_coverage_thorough` — how many sequential watch calls to issue
+   - `chunk_duration_thorough_seconds` — how many seconds each chunk covers
+   - `est_total_tokens_thorough` / `pct_of_1m_window_thorough` — projected burn for the full pass
+   - `will_trigger_autocompact_thorough` — pre-flight gate
+3. Pre-flight gate:
+   - If `will_trigger_autocompact_thorough === false`, proceed to chunked watch.
+   - If `will_trigger_autocompact_thorough === true`, warn the user: "Thorough coverage at `<mode>` tier on this `<duration>s` video would burn ~`<pct_thorough>`% of 1M context (~`<N>` chunks). This will trigger autocompact. Options: (a) accept and proceed (you picked the tier for a reason), (b) drop to `<recommended_mode>` tier, (c) run /compact first, (d) analyze a sub-segment only with start_time/end_time."
+4. If the user accepts or chose a smaller tier, continue with chunked watch.
 
 ### When the user shares a reference video URL
 
-1. Pre-flight (above).
+1. Pre-flight (above). Capture the thorough-coverage plan from inspect.
 2. Call `analyze(path, filters={scene_changes: true, silence: true, loudness: true, motion: true, transcription: true})` for a structural map.
-3. Read scene cuts + silence intervals to plan segments.
-4. Call `watch(path, narrative_mode=true)` for global coverage at the configured tier. Auto-budget and adaptive_sampling handle the frame allocation.
-5. **Motion-window drill-down (HARD RULE for high and max tiers).** After step 4, if `analyze.motion_windows` is non-empty AND the configured tier is `high` or `max`, issue a follow-up `watch(path, start_time=<window.start>, end_time=<window.end>, mode=<configured>, fps=<dense>, narrative_mode=true)` for the densest motion_window. Reason: at high (11 frames over 24s) and max (6 frames over 24s) the global call sees < 2fps inside short motion windows, which is insufficient for fast animation events (cape equip, hover, eye-laser, landing). The drill captures the animation at high temporal density. Choose `fps` so view_sample fills the call: e.g. high tier with view_sample=11 over a 3s window = ~3.7fps; max with view_sample=6 over a 3s window = ~2fps. If multiple motion windows exist, drill the longest one first; drill additional windows only if their content materially differs (the user wants extreme detail). Skip the drill if the configured tier is `low` or `mid` (their global call already has 27-38 frames so motion-window density is fine).
-6. Synthesize the narrative from BOTH calls (global structural pass + motion-window pixel-density pass). Cite timestamps from both. Specifically apply the cape/wings/hover/eye-laser-down priors from `Interpretation guidance (narrative_mode)` to the drill frames.
+3. Read scene cuts + silence intervals + motion_windows.
+4. **Thorough-coverage chunking (HARD RULE for ALL tiers).** Compute the chunk plan from `cost_estimate.per_tier[<configured>]`:
+   - N = `chunks_for_full_coverage_thorough`
+   - chunk_duration = `chunk_duration_thorough_seconds` (seconds per chunk)
+   - The tier IS the chunking knob (v0.10.2 calibration): low covers ~25s per chunk and delivers 25 frames at 384px, mid ~17s × 17 frames at 512px, high ~5s × 4 frames at 1024px, max ~2s × 2 frames at 1536px. Higher tier = more chunks = more burn = more captured. Higher tier produces more quality AND more token spend, NOT the same quality at higher resolution per frame. The operator picked the tier with that contract in mind.
+5. Issue N sequential watch() calls:
+   - For i in 0..N-1: `watch(path, start_time=hms(i * chunk_duration), end_time=hms(min((i+1) * chunk_duration, duration)), mode=<configured>, narrative_mode=true)`
+   - Each call delivers view_sample_cap frames at the tier's resolution, covering its chunk window at target_fps ≈ 1.0
+   - If a chunk reports runtime_trim or sampling_gap, follow the trim hint (narrow window OR raise fps, never drop view_sample at the cost of temporal density)
+6. **Motion-window drill (additive, ONLY for high and max tiers).** AFTER the N chunks land, if `analyze.motion_windows` is non-empty AND the configured tier is `high` or `max`, optionally issue a follow-up `watch(path, start_time=<window.start>, end_time=<window.end>, mode=<configured>, fps=<dense>, narrative_mode=true)` for the densest motion_window if the chunk that contains it had insufficient density for a fast animation event (cape equip, hover, eye-laser, etc.). Skip if the action was captured cleanly inside the relevant chunk.
+7. Synthesize narrative across ALL N chunks (plus drill if added). Cite timestamps from each. Apply narrative priors (cape/wings/hover/eye-laser-down) where applicable.
 
 ### When the user wants to copy 1:1 from a reference
 
@@ -75,7 +87,7 @@ Ask: "Do you want to (a) analyze it for structure, (b) watch specific moments, o
 
 - **PRE-FLIGHT ALWAYS:** call inspect first. The cost preview is what stops a session from wandering into autocompact territory. v0.4: the estimator now matches the watch tool's actual fps logic, so the prediction is accurate.
 - **RESPECT THE CONFIGURED DEFAULT TIER (HARD RULE).** Read `cost_estimate.current_default_mode` from the `inspect` response and use that as the `mode` for `watch` and `measure`. Do NOT escalate to a higher tier on your own judgment even if you think the content "needs" more detail (e.g. "text legibility requires high", "mascots need 1024"). The operator picked their tier for a reason: cost budget, parallel-test rigor, scanning workflow. If the configured tier is insufficient for the user's question, REPORT the limitation in your narrative (e.g. "at the configured mid tier the wordmark glyphs are below legibility threshold; recommend re-running with mode=max if you need exact letterforms") and let the user decide. The only exception is when the user explicitly asks for a different tier in their prompt ("zoom into this at max", "give me a cheap overview").
-- **FOR FULL-VIDEO COVERAGE AT HIGH TIER**, chunk into multiple sequential calls. Use scene cuts from `analyze` to pick chunk boundaries.
+- **FULL-VIDEO COVERAGE IS THE DEFAULT.** Every tier chunks the video per `chunks_for_full_coverage_thorough` from inspect. The number of chunks scales with tier (v0.10.2: low ~25s/chunk, mid ~17s, high ~5s, max ~2s). Scene cuts from `analyze` can override the uniform chunk boundaries if a scene cut falls awkwardly mid-chunk.
 - **FOR CHEAP OVERVIEW**, use `mode=low` (cheapest) or `mid`. Use this for scanning a long video to find interesting beats, then re-chunk those beats at `high` or `max`.
 - **NARRATIVE_MODE for any moving subject.** If the video has continuous action (animation, sports, cooking, UI demos with autonomous loops, agent screen recordings), pass `narrative_mode=true`. Without it, Claude reads consecutive action frames as separate "sprite-sheet" entries and misses the temporal structure.
 - **AUTO-SUGGEST is broader in v0.4.** `narrative_mode` now auto-enables when (a) global motion is high, (b) scene cuts are dense (>0.3/sec), (c) subject-region motion is high (catches animated mascots inside locked compositions), OR (d) `analyze()` flagged palette outliers (one-off colors that may be emissions). The blind-test bug where the V1 mascot animation didn't auto-arm is fixed.
@@ -83,6 +95,19 @@ Ask: "Do you want to (a) analyze it for structure, (b) watch specific moments, o
 - **DO NOT use webp** (many ffmpeg builds lack libwebp). Stick to jpeg.
 - **DO NOT use fps=60 on a 30fps source** (just duplicates frames; view_sample caps output anyway).
 - **For brand/mascot identification** specifically: high (1024) or max (1536) is needed. At 512 pixel-art mascots compress below the recognizable-species threshold.
+
+## Reading the budget block (v0.10.2)
+
+Every `watch()` call returns a `## Budget` block in the metadata pass. Six fields determine whether the call was healthy:
+
+- `view_sample_applied=N` — frames this chunk will deliver. Should match `view_sample_cap` from inspect for the tier (25 / 17 / 4 / 2 for low / mid / high / max).
+- `extraction_fps=X` — ffmpeg sampling rate. Tier defaults: 1.5 / 3.0 / 6.0 / 12.5.
+- `effective_fps=Y` — post-adaptive_sampling per-segment rate. Useful for understanding the actual sampling density per motion vs static segment.
+- `proactive_sizing=YES|no` — `no` is the healthy case (content matched TPF estimate). `YES X→Y` means the proactive safety net measured denser-than-predicted frames and lowered view_sample from X to Y BEFORE delivering. The user still gets `view_sample_applied=Y` frames consistently; there is no post-hoc drop. Treat this as a content-density signal, not a bug.
+- `runtime_trim=no|YES` — `no` is the healthy case. `YES` is the last-resort safety net firing after view_sample subsampling; should be rare on v0.10.2-calibrated content. If it fires, follow the trim hint (narrow window OR raise fps, never drop view_sample).
+- `out_of_range_dropped=0 (filter active)` — `0` is healthy; non-zero means the cache/extraction returned frames past video duration (yt-dlp boundary glitch or stale cache from cross-video collision). The frames were dropped; investigate if seen repeatedly.
+
+If all six gates are green, the chunk delivered exactly what was promised. v0.10.2 production calibration achieves green across all tiers on V2-class content (zero proactive_sizing, zero runtime_trim).
 
 ## On truncation: narrow the window, do not drop fps (HARD RULE)
 

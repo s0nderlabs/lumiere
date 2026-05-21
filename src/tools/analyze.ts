@@ -39,7 +39,7 @@ import {
 import { detectSubjectBboxViaCC } from "../extractors/bbox.js"
 import { loadManifest, saveManifest, computeVideoHash } from "../session/manager.js"
 import { createManifest } from "../session/manifest.js"
-import { detectLowConfidenceTranscript } from "../utils/hallucination.js"
+import { applyHallucinationGateToAnalysis } from "../utils/hallucination.js"
 import { parseHMS } from "../utils/timestamps.js"
 import { mapWithConcurrency } from "../utils/concurrency.js"
 import type { AnalysisFilters, VideoAnalysis, AudioResult } from "../types.js"
@@ -255,7 +255,11 @@ export function registerAnalyze(server: McpServer): void {
             ar = await analyzeWithGeminiApi(safePath)
           } else if (config.backend === "local") {
             const wav = await extractAudio(safePath, join(workDir, "audio"))
-            ar = await transcribeWithWhisper(wav, config.whisper_model)
+            // v0.10.2: analyze has already computed loudness above. Pass it
+            // as cachedMeanLufs so whisper skips the redundant volumedetect.
+            ar = await transcribeWithWhisper(wav, config.whisper_model, {
+              cachedMeanLufs: analysis.loudness_summary?.mean_lufs,
+            })
           } else {
             ar = { backend: "none", transcription: [], audio_tags: [], full_analysis: null }
           }
@@ -266,30 +270,11 @@ export function registerAnalyze(server: McpServer): void {
 
           analysis.transcription = ar.transcription
           analysis.transcription_backend = ar.backend
-
-          // T4/T12 mitigation: flag low-confidence transcripts via multi-signal heuristic.
-          const check = detectLowConfidenceTranscript(
-            ar.transcription,
-            metadata.duration_seconds,
-            analysis.loudness_summary?.mean_lufs,
-          )
-          if (check.flagged) {
-            analysis.transcription_low_confidence = true
-            analysis.transcription_low_confidence_reasons = check.reasons
-            // Suppress the hallucinated text entirely. Otherwise whisper's
-            // music-on-silence credits ("ご視聴ありがとうございました" and
-            // friends) leak through even with low_confidence set, and a caller
-            // could mistake them for real audio.
-            const span = ar.transcription.length > 0 ? {
-              start: ar.transcription[0].start,
-              end: ar.transcription[ar.transcription.length - 1].end,
-            } : { start: "00:00:00", end: "00:00:00" }
-            analysis.transcription = [{
-              start: span.start,
-              end: span.end,
-              text: "[low confidence: likely silent / music-only audio; whisper output suppressed]",
-            }]
+          if (ar.transcription_skipped_reason) {
+            analysis.transcription_skipped_reason = ar.transcription_skipped_reason
           }
+
+          applyHallucinationGateToAnalysis(analysis, metadata.duration_seconds)
 
           if (ar.warnings?.length) analysis.audio_warnings = ar.warnings
         }
@@ -301,7 +286,7 @@ export function registerAnalyze(server: McpServer): void {
           // resolution and manifest creation. getSessionDir + createManifest
           // previously each re-opened and re-hashed the file (one disk read +
           // 64 KiB scan apiece).
-          const videoHash = computeVideoHash(safePath)
+          const videoHash = computeVideoHash(safePath, { duration: metadata.duration_seconds })
           const sessionDir = join(SESSIONS_DIR, videoHash)
           let manifest = loadManifest(sessionDir)
           if (!manifest) manifest = createManifest(videoHash, safePath)

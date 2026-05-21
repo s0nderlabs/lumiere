@@ -1,5 +1,8 @@
-import type { TranscriptionSegment } from "../types.js"
+import type { AudioResult, TranscriptionSegment, VideoAnalysis } from "../types.js"
 import { parseHMS } from "./timestamps.js"
+
+export const SUPPRESSED_TRANSCRIPT_TEXT =
+  "[low confidence: likely silent / music-only audio; whisper output suppressed]"
 
 // Known whisper.cpp credits-style hallucinations on near-silent / music audio.
 // These appear verbatim (or close to verbatim) when the audio has no actual speech.
@@ -71,4 +74,52 @@ export function detectLowConfidenceTranscript(
   }
 
   return { flagged: reasons.length > 0, reasons }
+}
+
+// Shared suppression helper. When detectLowConfidenceTranscript flags, callers
+// collapse the transcription into a single sentinel segment spanning the
+// original range. analyze and watch both used to inline this; centralizing
+// keeps the placeholder text + span derivation in one place.
+export function suppressHallucinatedTranscript(segments: TranscriptionSegment[]): TranscriptionSegment[] {
+  const start = segments[0]?.start ?? "00:00:00"
+  const end = segments[segments.length - 1]?.end ?? "00:00:00"
+  return [{ start, end, text: SUPPRESSED_TRANSCRIPT_TEXT }]
+}
+
+// One-stop apply-if-flagged for the watch path. Mutates the AudioResult in a
+// returned copy when the multi-signal heuristic flags hallucination.
+export function applyHallucinationGate(
+  audio: AudioResult,
+  durationSeconds: number,
+  loudness: number | undefined,
+): AudioResult {
+  if (!audio.transcription || audio.transcription.length === 0) return audio
+  if (audio.transcription_skipped_reason) return audio
+  const check = detectLowConfidenceTranscript(audio.transcription, durationSeconds, loudness)
+  if (!check.flagged) return audio
+  return {
+    ...audio,
+    transcription: suppressHallucinatedTranscript(audio.transcription),
+    low_confidence: true,
+    transcription_low_confidence_reasons: check.reasons,
+  }
+}
+
+// Applies the same gate to an in-progress VideoAnalysis. Keeps the analyze
+// path's branching identical (it also sets low_confidence_reasons; this
+// version preserves that contract).
+export function applyHallucinationGateToAnalysis(
+  analysis: VideoAnalysis,
+  durationSeconds: number,
+): void {
+  if (!analysis.transcription || analysis.transcription.length === 0) return
+  const check = detectLowConfidenceTranscript(
+    analysis.transcription,
+    durationSeconds,
+    analysis.loudness_summary?.mean_lufs,
+  )
+  if (!check.flagged) return
+  analysis.transcription_low_confidence = true
+  analysis.transcription_low_confidence_reasons = check.reasons
+  analysis.transcription = suppressHallucinatedTranscript(analysis.transcription)
 }

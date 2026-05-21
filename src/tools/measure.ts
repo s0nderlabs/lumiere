@@ -7,6 +7,7 @@ import {
   DEFAULTS,
   autoBudgetViewSample,
   MODE_RESOLUTION,
+  targetExtractionFps,
 } from "../defaults.js"
 import { loadConfig, SESSIONS_DIR } from "../config.js"
 import {
@@ -24,7 +25,7 @@ import {
   detectCurrentModel,
   type ContentBlock,
 } from "../utils/count-tokens.js"
-import { parseHMS } from "../utils/timestamps.js"
+import { parseHMS, HMS_REGEX } from "../utils/timestamps.js"
 import {
   buildAdaptiveSegments,
   type AdaptiveSegment,
@@ -42,8 +43,6 @@ import {
   shouldAutoSuggestNarrative,
 } from "../utils/decisions.js"
 import type { SessionManifest, Segment, Frame } from "../types.js"
-
-const HMS_REGEX = /^\d{2}:\d{2}:\d{2}$/
 
 export function registerMeasure(server: McpServer): void {
   server.tool(
@@ -81,7 +80,7 @@ export function registerMeasure(server: McpServer): void {
       const safePath = resolved.path
       const metadata = await getVideoMetadata(safePath)
 
-      const sessionDir = getSessionDir(SESSIONS_DIR, safePath)
+      const sessionDir = getSessionDir(SESSIONS_DIR, safePath, { duration: metadata.duration_seconds })
       const manifest: SessionManifest | null = loadManifest(sessionDir)
 
       const effectiveViewSample = params.view_sample ?? autoBudgetViewSample(resolution)
@@ -135,7 +134,10 @@ export function registerMeasure(server: McpServer): void {
           const segs: Segment[] = adaptiveSegs.map(s => ({ start: s.start, end: s.end, fps: s.fps, resolution, crop: s.crop }))
           extractedFrames = await extractFramesBySegments(safePath, segs, workDir, DEFAULTS.frame_format, roiCrop ?? undefined)
         } else {
-          const fps = effectiveViewSample / activeDur
+          // v0.10.1+: tier-aware extraction fps so measure matches watch.ts.
+          // Dense pool lets adaptive_sampling pick informative frames; here
+          // there's no adaptive path so view_sample subsamples evenly.
+          const fps = targetExtractionFps(resolution)
           extractedFrames = await extractFrames(safePath, {
             fps,
             resolution,
