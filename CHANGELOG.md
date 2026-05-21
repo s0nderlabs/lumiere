@@ -2,6 +2,14 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.2] - 2026-05-21
+
+`palette_outliers` count was meaningless: `detectPaletteOutliers` caps output at top-50 by chroma_distance, so EVERY video with `exposure` enabled gets ~50 outliers regardless of whether the events are real emission/projectile flashes or just brightness ramps from natural footage. v0.11.1 auto-enabled exposure (good for the palette signal), but the classifier was reading the saturated count as "this is animation".
+
+### Fixed
+
+- **palette signal denoising**: `content_class` classifier in `analyze` now counts only "strong" palette outliers (chroma_distance > 25) instead of the raw cap-limited array length. Filters out brightness/saturation noise (cd ~5-15) and keeps genuine color novelty events (cd > 25 for emission flashes, projectile bursts, animation color shifts). Restores correct classification for gymnastics tutorials (now → human-motion), kitchen footage (→ generic acceptable), waterfall timelapses (→ nature), and astronaut POV (→ real-world) — all four had been mis-routed to animation by the saturated palette count post-v0.11.1.
+
 ## [0.11.1] - 2026-05-21
 
 Classifier rigor patches surfaced by a 5-fresh-video live test post-v0.11.0 ship (4/5 false-flags on gymnastics tutorial, cooking onion, waterfall timelapse, Apple Vision Pro teaser, astronaut ISS POV). 57-case test suite (17 real-signal smoke + 40 fuzz cases covering boundaries, adversarial, conflicts, missing-signals, weird-content) now all green.

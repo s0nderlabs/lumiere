@@ -391,12 +391,18 @@ export function registerAnalyze(server: McpServer): void {
         // LC); no extra ffmpeg passes. When motion filter is off we still emit
         // a "generic" class so watch() routes don't break.
         if (filters.motion) {
+          // detectPaletteOutliers caps at top-50 sorted by chroma_distance, so
+          // raw .length isn't meaningful — natural noise saturates the cap. Count
+          // only "strong" outliers (chroma_distance > 25) as real emission events
+          // (lasers, projectiles, flashes). Below 25 = brightness/sat noise.
+          const strongPaletteOutliers = (analysis.palette_outliers ?? [])
+            .filter(o => o.chroma_distance > 25).length
           const cls = classifyContent({
             motion_summary: analysis.motion_summary,
             subject_motion: analysis.subject_motion,
             scenes_count: analysis.scenes.length,
             duration_seconds: metadata.duration_seconds,
-            palette_outliers_count: analysis.palette_outliers?.length ?? 0,
+            palette_outliers_count: strongPaletteOutliers,
             subject_bbox_method: analysis.subject_bbox?.method,
             subject_bbox_area_pct: analysis.subject_bbox?.area_pct,
             subject_bbox_confidence: analysis.subject_bbox?.confidence,
