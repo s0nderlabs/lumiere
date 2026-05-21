@@ -48,6 +48,8 @@ The skill calls `inspect` first (cost preview), `analyze` to plan, then `watch` 
 ### `inspect`
 Cheap metadata pass + per-tier context-cost preview. Always call first on a new video. Returns: duration, resolution, codec, fps, audio presence, recommended tier, autocompact warning.
 
+v0.10.3 splits the per-tier estimate into two metrics: `mcp_tokens_per_*` (chars/3.5 transport metric, predicts per-call MCP truncation) and `conversation_tokens_per_*` (Anthropic image-token formula, predicts whole-transcript autocompact). The previous combined metric over-warned autocompact at high resolution. Pass `exact_tokens=true` (requires `LUMIERE_ANTHROPIC_API_KEY`) to probe one frame per tier and call `count_tokens` for exact conversation-token values; falls back to the heuristic otherwise.
+
 ### `analyze`
 Structural ffmpeg pass. Returns: scene cuts, silence intervals, motion windows, subject bbox (connected-component segmentation), palette outliers (color novelty), transcription. No frames extracted. Plan chunks from this.
 
@@ -59,8 +61,9 @@ Frame extraction + audio. Returns base64 images with narrative guidance. Key par
 - `roi`: `"auto"` reads `analyze.subject_bbox`; `"per-window"` (v0.8) assigns each motion window its own bbox from `analyze.window_bboxes` so a traveling subject stays tight in every crop (requires `adaptive_sampling=true` + prior `analyze` with motion=true); `"x,y,w,h"` explicit. Subject gets full target resolution
 - `start_time` / `end_time`: chunk a sub-segment
 - `view_sample`: override the auto-budget
+- `probe_calibration` (v0.10.3): extract one probe frame at the target resolution + crop BEFORE the main pool, measure actual chars/3.5, derive a per-video `view_sample` from the measurement. Replaces the static `SAFE_AT_100K` table for that call. Useful for outlier content (dense terminal UI, sparse flat colors). Adds ~150-300ms. `LUMIERE_PROBE_CALIBRATION=1` enables globally.
 
-Auto-budget respects `MAX_MCP_OUTPUT_TOKENS`. Runtime trim drops frames if the response would exceed the cap.
+Auto-budget respects `MAX_MCP_OUTPUT_TOKENS`. Runtime trim drops frames if the response would exceed the cap. The Budget block (containing the gate-verification fields: `view_sample_applied`, `extraction_fps`, `proactive_sizing`, `runtime_trim`, `out_of_range_dropped`, etc.) is always emitted, including when `skip_metadata=true` or `narrative_mode=true` would suppress the verbose Source/Manifest/Video/Audio dumps.
 
 ### `measure` (v0.7)
 Exact token forecast via Anthropic's `/v1/messages/count_tokens` (free endpoint, requires `LUMIERE_ANTHROPIC_API_KEY`). Extracts frames, builds the would-be response payload, counts tokens for the current Claude model, returns exact `conversation_tokens` + heuristic `mcp_cap_tokens`. Discards the payload. Use BEFORE a high-stakes watch call. Auto-detects the running CC model from session transcripts.

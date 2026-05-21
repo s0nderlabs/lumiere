@@ -129,10 +129,14 @@ export async function extractFrames(videoPath: string, options: ExtractFramesOpt
   const files = readdirSync(outputDir).filter(f => f.startsWith("frame_") && f.endsWith(`.${ext}`)).sort()
   const offset = startTime ? parseHMS(startTime) : 0
 
-  // Sub-second timestamps when fps>=2 so consecutive frames are distinguishable
-  // to the LLM. With fps=25 and integer seconds, all 25 frames would share the
-  // label "00:00:02" and collapse dense motion into apparent duplicates.
-  const usePrecise = fps >= 2
+  // Sub-second timestamps whenever the inter-frame interval isn't a whole
+  // second. Earlier we keyed off `fps >= 2`, which left fps=1.5 (low tier
+  // extraction) emitting integer-second collisions like "00:00:00, 00:00:00,
+  // 00:00:01, 00:00:02, 00:00:02" because the 0.667s step kept rounding back
+  // to the same integer. Interval-based check covers every non-integer fps
+  // including 1.5/3.0/6.0/12.5.
+  const stepSec = 1 / fps
+  const usePrecise = !Number.isInteger(stepSec)
   return files.map((file, i) => {
     const p = join(outputDir, file)
     const data = readFileSync(p)

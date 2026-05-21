@@ -2,6 +2,41 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.3] - 2026-05-21
+
+Closes the eight v0.10.2 deferred backlog items + fixes one cross-chunk frame-collision bug surfaced during v0.10.3 validation. Round-2 retest across all four tiers green: probe_calibration respects start_time/end_time, no out-of-range frames, no duplicate timestamps, no runtime_trim activations.
+
+### Added
+
+- **`inspect.exact_tokens`**: opt-in flag. When `true` and `LUMIERE_ANTHROPIC_API_KEY` is set, inspect extracts one probe frame per tier and calls Anthropic's `/v1/messages/count_tokens` for exact per-frame conversation-token counts. Replaces the heuristic `min(1568, w*h/750)` image formula. Adds ~1-2s. Fallback heuristic is used when the key is missing or the param is unset. `cost_estimate.conversation_tokens_source` surfaces which path ran.
+- **`watch.probe_calibration`**: opt-in flag (`LUMIERE_PROBE_CALIBRATION=1` env enables globally). Extracts one probe frame at the target resolution + crop BEFORE the main pool, measures actual chars/3.5, and re-tunes `view_sample` per-video. Lets outlier content (very dense terminal UI, very sparse flat colors) escape the static `SAFE_AT_100K` table. Budget block surfaces `probe_calibration=YES view_sample retuned X→Y (probe_chars=N)` or the disabled/failed states.
+- **`CostEstimate.mcp_tokens_per_*` + `conversation_tokens_per_*`**: separates the chars/3.5 MCP transport metric (governs per-call truncation) from Anthropic image visual tokens (governs autocompact threshold). The v0.10.2 conflation made `pct_of_1m_window_thorough` over-warn autocompact at high resolution (max-tier on 24s reported 81%; actual conversation-token cost is ~8%).
+- **`watch` Budget block**: now always emitted, even when `skip_metadata=true`. Splits the verbose Source / Manifest / Video / Audio dumps from the structured Budget block so the gate-verification protocol (the six green-line check) stays usable in narrative_mode and skip-metadata flows.
+
+### Changed
+
+- **`AudioResult.loudness`** discriminated union: `{ value: number; scale: "dbfs" | "lufs" }` replaces the parallel `mean_dbfs?` + `mean_lufs?` fields. Lets callers branch on the measurement scale instead of guessing which field is set. `hallucination.applyHallucinationGate` no longer takes an explicit loudness param; reads it off `audio.loudness`.
+- **Anthropic image-token formula**: removed the `1568` cap from `conversationTokensPerFrame`. Validated 2026-05-21 against Opus 4.7 count_tokens that the cap doesn't apply at our tier resolutions; max-tier frames cost ~3028 tokens, not the 1568 the cap predicted. The bare `ceil(w*h/750)` formula matches within ~5%.
+- **`inspect.cost_estimate` recommendation logic**: walks DOWN from the current tier (not up from max) when current overflows autocompact. The previous order recommended denser tiers as "fits better" which is wrong — higher tiers chunk more and burn more total.
+- **`inspect` HMS construction**: probe-frame timestamps use `formatHMSPrecise` (was a hand-rolled `\`00:00:${probeAt.toFixed(3)}\`` that broke for videos > 60s).
+- **Sub-second extraction timestamp threshold**: switched from `fps >= 2` to `Number.isInteger(1/fps) === false`. Low tier (extraction fps 1.5) now emits sub-second timestamps (`00:00:00.000`, `00:00:00.667`, `00:00:01.333`, ...) instead of integer-second duplicates (`00:00:00`, `00:00:00`, `00:00:01`).
+
+### Fixed
+
+- **Cross-chunk frame collision in `extractFramesBySegments`**: each watch() call's segments were written to `sessionDir/frames/<format>/<res>/s${i}/`. Different chunks of the same video used the same indices (s0, s1, ...) for different time ranges. ffmpeg overwrote leading `frame_NNNN.jpg` filenames but left trailing files from prior chunks behind, and `extractFrames` then mis-assigned timestamps to those stale files via `offset + i/fps`. Surfaced as `out_of_range_dropped > 0` and phantom frames past requested `end_time` on the v0.10.3 mid-tier probe retest. Fixed by writing to a per-call workdir, then copying into the session cache by timestamp (matches the regular extractFrames path). Helper `persistSegmentFramesToSession` consolidates the copy logic.
+- **`workDir` leak on the session-enabled path**: `rmSync(workDir)` only fired when `!useSession`. With sessions enabled by default, every watch() call leaked ~20-50 MB of JPEGs into `/tmp/lumiere-<ts>/` until reboot. Now cleaned unconditionally after frames are copied to sessionDir.
+- **Adaptive sampling per-segment cap**: `Math.max(2, ...)` floors in `buildAdaptiveSegments` could push the total above `totalBudget` when motion windows are short (max-tier chunk-3 V2 anomaly: 2 motion + 1 static segments tried to claim 3 frames against a 2-frame budget). New `distributeIntegerBudget` largest-remainder allocator honors the floor only when budget allows, then drops to greedy-by-weight when the floor would exceed total. Guarantees `sum == totalBudget`.
+- **Truncation hint at sub-second tail**: distinguished `## Truncation hint (MCP cap mid-stream)` from `## Sampling note (fps quantization tail)`. When the remaining slack after the last frame is shorter than `1/fps`, no further frame is possible at the current rate — recommending "retry the remaining window at the same fps" would extract nothing. New hint recommends a higher fps for the tail.
+
+### Internal
+
+- `LoudnessReading` type added to `src/types.ts`; consumed by `backends/local.ts`, `tools/watch.ts`, `tools/analyze.ts`, `utils/hallucination.ts`.
+- `distributeIntegerBudget` in `src/utils/adaptive-segments.ts`: largest-remainder integer allocator with optional floor. File-private.
+- `conversationTokensPerFrame` in `src/defaults.ts`: shared Anthropic image-token formula used by both inspect's per-tier estimate and watch's budget block.
+- `persistSegmentFramesToSession` in `src/tools/watch.ts`: shared between the segments and adaptive-segments extraction branches. Per-call workdir + copy-by-timestamp pattern matches the regular extractFrames path.
+- `fitFramesForRuntimeCap` now reused by the probe-calibration block (was duplicating the chars/3.5 + overhead math).
+- `estimateWatchCost` accepts `video_width` + `video_height` for accurate Anthropic image-token sizing per video; `exact_conversation_tokens_per_frame` lets the caller inject count_tokens results.
+
 ## [0.10.2] - 2026-05-21
 
 Comprehensive cost-model overhaul plus four observability/consistency fixes. Subsumes the in-development v0.10.1 (never published) so this is the first public release after v0.10.0 with the full set of perception-pipeline corrections.

@@ -1,8 +1,14 @@
-import type { AudioResult, TranscriptionSegment, VideoAnalysis } from "../types.js"
+import type { AudioResult, LoudnessReading, TranscriptionSegment, VideoAnalysis } from "../types.js"
 import { parseHMS } from "./timestamps.js"
 
 export const SUPPRESSED_TRANSCRIPT_TEXT =
   "[low confidence: likely silent / music-only audio; whisper output suppressed]"
+
+// Threshold for the "low loudness" signal in detectLowConfidenceTranscript.
+// Applied to either LUFS (K-weighted) or dBFS (peak); -28 is conservative for
+// both scales and is one of four fuzzy signals, so cross-scale calibration
+// doesn't need to be tight.
+const LOW_LOUDNESS_THRESHOLD = -28
 
 // Known whisper.cpp credits-style hallucinations on near-silent / music audio.
 // These appear verbatim (or close to verbatim) when the audio has no actual speech.
@@ -29,14 +35,14 @@ export interface LowConfidenceCheck {
 export function detectLowConfidenceTranscript(
   segments: TranscriptionSegment[] | undefined,
   durationSeconds: number,
-  meanLufs: number | undefined,
+  loudness: LoudnessReading | undefined,
 ): LowConfidenceCheck {
   const reasons: string[] = []
   if (!segments || segments.length === 0) return { flagged: false, reasons }
 
   // Signal 1: low loudness AND any transcript present
-  if (meanLufs !== undefined && meanLufs < -28) {
-    reasons.push(`loudness ${meanLufs.toFixed(1)} LUFS suggests low speech presence`)
+  if (loudness !== undefined && loudness.value < LOW_LOUDNESS_THRESHOLD) {
+    reasons.push(`loudness ${loudness.value.toFixed(1)} ${loudness.scale.toUpperCase()} suggests low speech presence`)
   }
 
   // Signal 2: identical text repeated 3+ times (the credits-loop pattern)
@@ -86,16 +92,16 @@ export function suppressHallucinatedTranscript(segments: TranscriptionSegment[])
   return [{ start, end, text: SUPPRESSED_TRANSCRIPT_TEXT }]
 }
 
-// One-stop apply-if-flagged for the watch path. Mutates the AudioResult in a
-// returned copy when the multi-signal heuristic flags hallucination.
+// One-stop apply-if-flagged for the watch path. Reads loudness off the
+// AudioResult's discriminated union, so callers no longer pluck out a raw
+// number with an implicit scale.
 export function applyHallucinationGate(
   audio: AudioResult,
   durationSeconds: number,
-  loudness: number | undefined,
 ): AudioResult {
   if (!audio.transcription || audio.transcription.length === 0) return audio
   if (audio.transcription_skipped_reason) return audio
-  const check = detectLowConfidenceTranscript(audio.transcription, durationSeconds, loudness)
+  const check = detectLowConfidenceTranscript(audio.transcription, durationSeconds, audio.loudness)
   if (!check.flagged) return audio
   return {
     ...audio,
@@ -105,19 +111,19 @@ export function applyHallucinationGate(
   }
 }
 
-// Applies the same gate to an in-progress VideoAnalysis. Keeps the analyze
-// path's branching identical (it also sets low_confidence_reasons; this
-// version preserves that contract).
+// Applies the same gate to an in-progress VideoAnalysis. The analyze path
+// always has LUFS (from ebur128) so we synthesize a LoudnessReading for the
+// shared detector.
 export function applyHallucinationGateToAnalysis(
   analysis: VideoAnalysis,
   durationSeconds: number,
 ): void {
   if (!analysis.transcription || analysis.transcription.length === 0) return
-  const check = detectLowConfidenceTranscript(
-    analysis.transcription,
-    durationSeconds,
-    analysis.loudness_summary?.mean_lufs,
-  )
+  const meanLufs = analysis.loudness_summary?.mean_lufs
+  const loudness: LoudnessReading | undefined = meanLufs !== undefined
+    ? { value: meanLufs, scale: "lufs" }
+    : undefined
+  const check = detectLowConfidenceTranscript(analysis.transcription, durationSeconds, loudness)
   if (!check.flagged) return
   analysis.transcription_low_confidence = true
   analysis.transcription_low_confidence_reasons = check.reasons

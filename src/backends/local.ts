@@ -6,7 +6,7 @@ import { dirname } from "path"
 import { pipeline } from "stream/promises"
 import { detectPlatform, recommendWhisperModel } from "../utils/platform.js"
 import { formatHMS } from "../utils/timestamps.js"
-import type { AudioResult, TranscriptionSegment, WhisperModel } from "../types.js"
+import type { AudioResult, LoudnessReading, TranscriptionSegment, WhisperModel } from "../types.js"
 import { MODELS_DIR } from "../config.js"
 import { DEFAULTS } from "../defaults.js"
 
@@ -78,10 +78,10 @@ export async function transcribeWithWhisper(
         audio_tags: [],
         full_analysis: null,
         transcription_skipped_reason: `audio_too_quiet (cached mean=${opts.cachedMeanLufs.toFixed(1)} LUFS from analyze, threshold=${WHISPER_VAD_MIN_LUFS} LUFS); whisper suppressed to avoid silent-audio hallucination`,
-        mean_lufs: opts.cachedMeanLufs,
+        loudness: { value: opts.cachedMeanLufs, scale: "lufs" },
       }
     }
-    return runWhisperOnLoudAudio(wavPath, model, undefined, opts.cachedMeanLufs)
+    return runWhisperOnLoudAudio(wavPath, model, { value: opts.cachedMeanLufs, scale: "lufs" })
   }
 
   // Path B: no cached LUFS, fall back to volumedetect dBFS.
@@ -93,17 +93,20 @@ export async function transcribeWithWhisper(
       audio_tags: [],
       full_analysis: null,
       transcription_skipped_reason: `audio_too_quiet (mean=${meanDbfs.toFixed(1)} dBFS, threshold=${WHISPER_VAD_MIN_DBFS} dBFS); whisper suppressed to avoid silent-audio hallucination`,
-      mean_dbfs: meanDbfs,
+      loudness: { value: meanDbfs, scale: "dbfs" },
     }
   }
-  return runWhisperOnLoudAudio(wavPath, model, meanDbfs, undefined)
+  return runWhisperOnLoudAudio(
+    wavPath,
+    model,
+    Number.isFinite(meanDbfs) ? { value: meanDbfs, scale: "dbfs" } : undefined,
+  )
 }
 
 async function runWhisperOnLoudAudio(
   wavPath: string,
   model: WhisperModel,
-  meanDbfs: number | undefined,
-  cachedMeanLufs: number | undefined,
+  loudness: LoudnessReading | undefined,
 ): Promise<AudioResult> {
 
   const resolved = resolveModel(model)
@@ -135,8 +138,7 @@ async function runWhisperOnLoudAudio(
   ], { timeout: 600_000, maxBuffer: 50 * 1024 * 1024 })
 
   const result = parseWhisperOutput(stdout)
-  if (meanDbfs !== undefined) result.mean_dbfs = meanDbfs
-  if (cachedMeanLufs !== undefined) result.mean_lufs = cachedMeanLufs
+  if (loudness) result.loudness = loudness
   return result
 }
 

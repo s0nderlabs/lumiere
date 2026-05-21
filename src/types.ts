@@ -60,6 +60,18 @@ export interface ChunkWarning {
   detail?: string
 }
 
+export type LoudnessScale = "dbfs" | "lufs"
+
+// Single loudness reading with its measurement scale. Replaces the parallel
+// mean_dbfs?/mean_lufs? pair (v0.10.3) so downstream code can branch on the
+// scale instead of guessing which field is set. dBFS is from ffmpeg
+// volumedetect (per-chunk fallback); LUFS is K-weighted from ebur128 in
+// analyze.loudness_summary (reused by watch via cachedMeanLufs).
+export interface LoudnessReading {
+  value: number
+  scale: LoudnessScale
+}
+
 export interface AudioResult {
   backend: Backend | "youtube-captions"
   transcription: TranscriptionSegment[]
@@ -68,23 +80,9 @@ export interface AudioResult {
   transcription_source?: string
   transcription_source_detail?: string
   transcription_fallback_reason?: string
-  // v0.10.1: VAD pre-gate. When whisper is skipped entirely (audio is too
-  // quiet to contain speech), the reason is surfaced here so the caller can
-  // distinguish "we tried and got nothing" from "we never tried because the
-  // audio was silent/music-only". Catches the 'Teksting av Nicolai Winther' /
-  // Japanese-credit class of whisper hallucinations on music-only videos.
   transcription_skipped_reason?: string
-  // dBFS from ffmpeg volumedetect (used by VAD pre-gate fallback). Distinct
-  // from the LUFS metric (ebur128); ~3-5 dB scale offset typical.
-  mean_dbfs?: number
-  // LUFS (K-weighted) from ebur128 in analyze.loudness_summary, reused by
-  // watch as cachedMeanLufs. Both fields may be set on the loud-cached path
-  // (the LUFS was used for gating, dBFS was measured as a fallback signal).
-  mean_lufs?: number
+  loudness?: LoudnessReading
   low_confidence?: boolean
-  // Surfaced when applyHallucinationGate fired post-whisper. Lists the
-  // multi-signal reasons (loudness, repetition, known-phrase match, span
-  // overflow). Matches the analyze-side transcription_low_confidence_reasons.
   transcription_low_confidence_reasons?: string[]
   warnings?: ChunkWarning[]
 }

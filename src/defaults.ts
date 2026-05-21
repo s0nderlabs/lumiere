@@ -205,6 +205,34 @@ function tokensPerFrame(resolution: number): number {
   return pickFromTable(TOKENS_PER_FRAME, resolution)
 }
 
+// Anthropic image visual tokens for a scaled frame. ceil(w*h/750) per the
+// docs; matches Opus 4.7's tokenizer within ~5% across 384-1536 px square
+// content (validated 2026-05-21 against count_tokens). The 1568 "cap" cited
+// in older docs only kicks in for images above the model's max processable
+// resolution (~8000x8000); our tier outputs are well below that and the cap
+// would under-predict. When count_tokens runs over a real frame we use that
+// exact value instead; this is the fallback when no key is set.
+const IMAGE_TOKEN_DIVISOR = 750
+
+export function conversationTokensPerFrame(opts: {
+  resolution: number
+  videoWidth?: number
+  videoHeight?: number
+}): number {
+  const scaledW = opts.resolution
+  let scaledH: number
+  if (opts.videoWidth && opts.videoHeight && opts.videoWidth > 0) {
+    scaledH = Math.round(opts.resolution * (opts.videoHeight / opts.videoWidth))
+  } else {
+    // 16:9 default; the only consumer without metadata is "custom" mode in
+    // direct estimateWatchCost calls.
+    scaledH = Math.round(opts.resolution * 9 / 16)
+  }
+  return Math.ceil((scaledW * scaledH) / IMAGE_TOKEN_DIVISOR)
+}
+
+export type ConversationTokensSource = "heuristic_image_formula" | "exact_count_tokens"
+
 export interface CostEstimate {
   mode: WatchMode | "custom"
   resolution: number
@@ -216,33 +244,44 @@ export interface CostEstimate {
   duration_seconds: number
   ffmpeg_frames_extracted: number
   frames_returned_per_chunk: number
-  est_tokens_per_frame: number
-  est_tokens_per_call: number
+  // MCP transport (chars/3.5) — predicts per-call truncation against the
+  // MAX_MCP_OUTPUT_TOKENS cap. Distinct from conversation tokens; never
+  // compared against the 813K autocompact threshold.
+  mcp_tokens_per_frame: number
+  mcp_tokens_per_call: number
   exceeds_mcp_cap_per_call: boolean
+  // Conversation tokens — what Claude actually sees as input. Drives the
+  // pct_of_1m_window + autocompact projection. Either the Anthropic image
+  // formula (cheap heuristic) or an exact count_tokens probe per tier.
+  conversation_tokens_per_frame: number
+  conversation_tokens_per_call: number
+  conversation_tokens_source: ConversationTokensSource
   // Thorough coverage: full-video coverage at TARGET_FPS_THOROUGH so each tier
   // delivers its tier-specific spatial density × temporal density. Higher tier
-  // = more chunks because view_sample_cap shrinks with resolution. This is the
-  // canonical cost view; the v0.10.0-era "legacy single-call" fields were
-  // removed in v0.10.2 because they were misleading after the tier-aware
-  // extraction fps change.
+  // = more chunks because view_sample_cap shrinks with resolution.
   target_fps_thorough: number
   chunk_duration_thorough_seconds: number
   chunks_for_full_coverage_thorough: number
-  est_total_tokens_thorough: number
+  mcp_total_tokens_thorough: number
+  conversation_total_tokens_thorough: number
   pct_of_1m_window_thorough: number
   will_trigger_autocompact_thorough: boolean
 }
 
 // Pure cost estimator. Uses the SAME fps derivation as watch.ts (via
 // deriveFpsForBudget) so inspect's preview matches what watch will actually
-// do at runtime. Also reports exceeds_mcp_cap_per_call so callers see when a
-// single chunk would truncate, even if duration-based chunk math says "1 chunk".
+// do at runtime. Reports MCP-cap and conversation-token metrics separately
+// since they track different limits (per-call MCP truncation vs whole-
+// transcript autocompact).
 export function estimateWatchCost(opts: {
   mode?: WatchMode
   resolution?: number
   fps?: number
   view_sample?: number
   duration_seconds: number
+  video_width?: number
+  video_height?: number
+  exact_conversation_tokens_per_frame?: number
 }): CostEstimate {
   const resolution = opts.resolution ?? (opts.mode ? MODE_RESOLUTION[opts.mode] : MODE_RESOLUTION.high)
   const view_sample_cap = opts.view_sample ?? autoBudgetViewSample(resolution)
@@ -254,19 +293,31 @@ export function estimateWatchCost(opts: {
   })
   const ffmpeg_frames = Math.max(1, Math.round(fps * opts.duration_seconds))
   const frames_returned = Math.min(ffmpeg_frames, view_sample_cap)
-  const tpf = tokensPerFrame(resolution)
-  // Safety margin accounts for unpredictable overhead variance per call.
-  const est_per_call = Math.round((frames_returned * tpf + STATIC_TOKENS_PER_CALL) * COST_ESTIMATE_SAFETY_MARGIN)
+  const tpf_mcp = tokensPerFrame(resolution)
+  const mcp_per_call = Math.round((frames_returned * tpf_mcp + STATIC_TOKENS_PER_CALL) * COST_ESTIMATE_SAFETY_MARGIN)
 
-  const exceeds_cap = est_per_call > CAP
+  const conversation_source: ConversationTokensSource = opts.exact_conversation_tokens_per_frame !== undefined
+    ? "exact_count_tokens"
+    : "heuristic_image_formula"
+  const tpf_conversation = opts.exact_conversation_tokens_per_frame ?? conversationTokensPerFrame({
+    resolution,
+    videoWidth: opts.video_width,
+    videoHeight: opts.video_height,
+  })
+  // Static per-call conversation overhead: the budget block + narrative
+  // guidance + manifest summary + audio block + per-frame headers add ~3K
+  // conversation tokens on top of image tokens. Calibrated against measure()
+  // text-only count_tokens results from v0.10.2 testing.
+  const STATIC_CONVERSATION_TOKENS = 3000
+  const conv_per_call = frames_returned * tpf_conversation + STATIC_CONVERSATION_TOKENS
 
-  // Thorough coverage: anchored at TARGET_FPS_THOROUGH so each tier's chunks
-  // cover view_sample_cap / TARGET_FPS_THOROUGH seconds of video at the tier's
-  // spatial resolution. Higher tier = smaller chunks = more total burn.
+  const exceeds_cap = mcp_per_call > CAP
+
   const chunk_duration_thorough = view_sample_cap / TARGET_FPS_THOROUGH
   const chunks_thorough = Math.max(1, Math.ceil(opts.duration_seconds / chunk_duration_thorough))
-  const total_tokens_thorough = est_per_call * chunks_thorough
-  const pct_thorough = (total_tokens_thorough / 1_000_000) * 100
+  const mcp_total_thorough = mcp_per_call * chunks_thorough
+  const conv_total_thorough = conv_per_call * chunks_thorough
+  const pct_thorough = (conv_total_thorough / 1_000_000) * 100
 
   return {
     mode: opts.mode ?? "custom",
@@ -276,24 +327,43 @@ export function estimateWatchCost(opts: {
     duration_seconds: opts.duration_seconds,
     ffmpeg_frames_extracted: ffmpeg_frames,
     frames_returned_per_chunk: frames_returned,
-    est_tokens_per_frame: tpf,
-    est_tokens_per_call: est_per_call,
+    mcp_tokens_per_frame: tpf_mcp,
+    mcp_tokens_per_call: mcp_per_call,
     exceeds_mcp_cap_per_call: exceeds_cap,
+    conversation_tokens_per_frame: tpf_conversation,
+    conversation_tokens_per_call: conv_per_call,
+    conversation_tokens_source: conversation_source,
     target_fps_thorough: TARGET_FPS_THOROUGH,
     chunk_duration_thorough_seconds: Math.round(chunk_duration_thorough * 10) / 10,
     chunks_for_full_coverage_thorough: chunks_thorough,
-    est_total_tokens_thorough: total_tokens_thorough,
+    mcp_total_tokens_thorough: mcp_total_thorough,
+    conversation_total_tokens_thorough: conv_total_thorough,
     pct_of_1m_window_thorough: Math.round(pct_thorough * 10) / 10,
-    will_trigger_autocompact_thorough: total_tokens_thorough >= AUTOCOMPACT_THRESHOLD,
+    will_trigger_autocompact_thorough: conv_total_thorough >= AUTOCOMPACT_THRESHOLD,
   }
 }
 
-// Convenience: estimate all 4 preset tiers in one shot. inspect() returns this
-// so the caller can compare tiers and choose without doing arithmetic.
-export function estimateAllTiers(duration_seconds: number): Record<WatchMode, CostEstimate> {
+// Convenience: estimate all 4 preset tiers in one shot. Optionally takes
+// metadata (for heuristic image-token sizing) and per-tier exact conversation
+// tokens (when inspect calls count_tokens). inspect() returns this so the
+// caller can compare tiers and choose without doing arithmetic.
+export function estimateAllTiers(
+  duration_seconds: number,
+  opts?: {
+    video_width?: number
+    video_height?: number
+    exact_conversation_tokens_per_frame?: Partial<Record<WatchMode, number>>
+  },
+): Record<WatchMode, CostEstimate> {
   const result = {} as Record<WatchMode, CostEstimate>
   for (const mode of ["low", "mid", "high", "max"] as WatchMode[]) {
-    result[mode] = estimateWatchCost({ mode, duration_seconds })
+    result[mode] = estimateWatchCost({
+      mode,
+      duration_seconds,
+      video_width: opts?.video_width,
+      video_height: opts?.video_height,
+      exact_conversation_tokens_per_frame: opts?.exact_conversation_tokens_per_frame?.[mode],
+    })
   }
   return result
 }

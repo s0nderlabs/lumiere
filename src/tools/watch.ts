@@ -243,8 +243,59 @@ function truncationHintMcpCap(args: {
 Received ${args.delivered}/${args.requested} frames; output hit the MCP per-call cap mid-stream at timestamp ${args.lastTs}. To cover the remaining ${args.remainingSec.toFixed(2)}s at the SAME fps (preserving temporal resolution), retry with start_time=${args.nextStartHms} end_time=${args.endLabel}. DO NOT drop to a coarser fps; narrow the window instead.`
 }
 
+// Sub-second tail short of the next fps step. Not an MCP-cap event: ffmpeg
+// produced every frame that fits at the requested fps, the requested
+// view_sample was just larger than what the duration could fit. Telling the
+// caller to "retry the remaining tail" would only yield an empty extract.
+function truncationHintFpsQuantization(args: {
+  delivered: number
+  requested: number
+  lastTs: string
+  remainingSec: number
+  fps: number
+}): string {
+  return `## Sampling note (fps quantization tail)
+Received ${args.delivered}/${args.requested} frames. The remaining ${args.remainingSec.toFixed(3)}s after the last frame is shorter than the inter-frame interval at fps=${args.fps} (1/fps=${(1 / args.fps).toFixed(3)}s), so no further frame fits at this fps. This is NOT a trailing MCP-cap truncation. To pull a tail frame at a higher rate, retry that segment with a denser fps, e.g. watch(path, start_time=${args.lastTs}, end_time=[end], fps=${Math.ceil(args.fps * 2)}).`
+}
+
 function tsFilename(ts: string, ext: string): string {
   return `${ts.replace(/:/g, "-")}.${ext}`
+}
+
+// Copy extracted segment frames out of the per-call workdir into the session
+// cache and stitch them into the manifest. Using a per-call workdir during
+// extraction (instead of writing directly into sessionDir's per-index
+// subdirs) is what prevents the v0.10.3 cross-chunk frame-collision bug:
+// segment index N from one chunk used to write into `s${N}/` and a different
+// chunk's segment N would overwrite some files there, leaving stale frames
+// behind that extractFrames then mis-labeled by index.
+async function persistSegmentFramesToSession(opts: {
+  frames: SegmentFrame[]
+  sessionDir: string
+  frameFormat: import("../types.js").FrameFormat
+  frameExt: string
+  getBucket: (f: SegmentFrame) => string
+  mergeInto: (cacheKey: string, entries: { timestamp: string; file: string }[]) => void
+}): Promise<void> {
+  type EntryGroup = { resDir: string; cacheKey: string; entries: { timestamp: string; file: string }[] }
+  const grouped = new Map<string, EntryGroup>()
+  for (const f of opts.frames) {
+    if (!f.sourcePath) continue
+    const bucket = opts.getBucket(f)
+    const cacheKey = frameCacheKey(String(f.resolution), opts.frameFormat, bucket)
+    const bucketDir = bucket || "full"
+    const resDir = join(opts.sessionDir, "frames", opts.frameFormat, String(f.resolution), bucketDir)
+    let group = grouped.get(cacheKey)
+    if (!group) {
+      group = { resDir, cacheKey, entries: [] }
+      grouped.set(cacheKey, group)
+    }
+    if (!existsSync(group.resDir)) mkdirSync(group.resDir, { recursive: true })
+    const dest = join(group.resDir, tsFilename(f.timestamp, opts.frameExt))
+    if (!existsSync(dest)) copyFileSync(f.sourcePath, dest)
+    group.entries.push({ timestamp: f.timestamp, file: dest })
+  }
+  for (const g of grouped.values()) opts.mergeInto(g.cacheKey, g.entries)
 }
 
 function mimeFromFile(file: string): string {
@@ -401,6 +452,7 @@ export function registerWatch(server: McpServer): void {
       narrative_mode: z.boolean().optional().describe("Inject temporal-narrative guidance into the response so Claude reads frames as a continuous action sequence (anchors/changes/actions) rather than as independent images. Recommended for action/motion-heavy segments. Auto-suggested when analyze() reports high motion or dense scene cuts."),
       roi: z.union([z.literal(ROI_AUTO), z.literal(ROI_PER_WINDOW), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional().describe("Crop frames to a region of interest before scaling. 'auto' uses a single global analyze().subject_bbox. 'per-window' assigns each motion-window's frames its OWN bbox from analyze().window_bboxes - tracks a traveling subject so each window's pixels land tight on the subject even when the subject moves across the frame (requires adaptive_sampling and prior analyze with motion=true). 'x,y,w,h' is an explicit pixel bbox. ROI crop gives the subject the full target resolution instead of being averaged out by background pixels."),
       adaptive_sampling: z.boolean().optional().describe("Motion-adaptive frame allocation. When true (or auto-enabled because narrative_mode is on AND analyze().motion_windows is cached AND duration > 4s), the per-call frame budget is split non-uniformly: 70% to motion-dense windows (weighted by duration * intensity), 30% to static spans. Same total frame count, but temporal resolution biased toward where action is happening. Pass false to force uniform sampling. Ignored if `segments` is given."),
+      probe_calibration: z.boolean().optional().describe("Per-video view_sample calibration. Extracts one probe frame at the target resolution + crop BEFORE the main pool, measures its base64 chars, and derives a per-video view_sample from chars/3.5 instead of the static SAFE_AT_100K table. Useful for outlier content (very dense terminal UI, very sparse flat colors) where the static table over- or under-predicts. Adds ~150-300ms extraction latency. Defaults to off; set `LUMIERE_PROBE_CALIBRATION=1` to enable globally. Ignored when `segments`, `view`, or explicit `view_sample` is given."),
     },
     async (params) => {
       const config = loadConfig()
@@ -471,6 +523,57 @@ export function registerWatch(server: McpServer): void {
         effectiveViewSample = autoBudgetViewSample(resolution)
       }
 
+      const workDir = join(tmpdir(), `lumiere-${Date.now()}`)
+      mkdirSync(workDir, { recursive: true })
+
+      const roiCrop = resolveRoi(params.roi, manifest)
+
+      // Per-video view_sample calibration via one probe frame. Replaces the
+      // static SAFE_AT_100K with a measurement taken on THIS video at THIS
+      // resolution + crop. Costs one extra ffmpeg extraction but lets very
+      // dense or very sparse content stop relying on the table average.
+      const probeEnabled = params.probe_calibration === true
+        || (params.probe_calibration === undefined
+            && !params.view_sample
+            && !params.segments
+            && (process.env.LUMIERE_PROBE_CALIBRATION === "1" || process.env.LUMIERE_PROBE_CALIBRATION === "true"))
+      let probeChars: number | null = null
+      let probeCalibratedFrom: number | null = null
+      let probeError: string | null = null
+      if (probeEnabled && effectiveViewSample) {
+        const probeDir = join(tmpdir(), `lumiere-probe-${Date.now()}`)
+        mkdirSync(probeDir, { recursive: true })
+        try {
+          const windowStart = params.start_time ? parseHMS(params.start_time) : 0
+          const windowEnd = params.end_time ? parseHMS(params.end_time) : metadata.duration_seconds
+          const probeAt = Math.max(windowStart, Math.min(windowEnd - 0.01, (windowStart + windowEnd) / 2))
+          const probeStartHms = formatHMSPrecise(probeAt, 3)
+          const probeEndHms = formatHMSPrecise(Math.min(probeAt + 1, metadata.duration_seconds), 3)
+          const probeFrames = await extractFrames(safePath, {
+            fps: 1,
+            resolution,
+            outputDir: probeDir,
+            format: frameFormat,
+            startTime: probeStartHms,
+            endTime: probeEndHms,
+            maxFrames: 1,
+            crop: roiCrop ?? undefined,
+          })
+          const derived = fitFramesForRuntimeCap(probeFrames)
+          if (derived !== null && probeFrames[0]?.image) {
+            probeChars = probeFrames[0].image.length
+            probeCalibratedFrom = effectiveViewSample
+            effectiveViewSample = derived
+          } else {
+            probeError = "no frame extracted"
+          }
+        } catch (err) {
+          probeError = err instanceof Error ? err.message : String(err)
+        } finally {
+          rmSync(probeDir, { recursive: true, force: true })
+        }
+      }
+
       const fps = deriveFps({
         fps: params.fps,
         view_sample: effectiveViewSample,
@@ -480,11 +583,6 @@ export function registerWatch(server: McpServer): void {
         duration_seconds: metadata.duration_seconds,
         resolution,
       })
-
-      const workDir = join(tmpdir(), `lumiere-${Date.now()}`)
-      mkdirSync(workDir, { recursive: true })
-
-      const roiCrop = resolveRoi(params.roi, manifest)
 
       // Decide narrative + adaptive once, up front. Both watch and measure call
       // into utils/decisions.ts so the same precedence applies to predictions
@@ -535,21 +633,23 @@ export function registerWatch(server: McpServer): void {
 
       let framesPromise: Promise<Frame[]>
       if (params.segments && params.segments.length > 0) {
-        const extractDir = useSession ? join(sessionDir!, "frames", frameFormat) : join(workDir, "frames")
+        const extractDir = join(workDir, "frames")
         framesPromise = extractFramesBySegments(safePath, params.segments as Segment[], extractDir, frameFormat, roiCrop ?? undefined)
-          .then((sf: SegmentFrame[]) => {
-            if (useSession && manifest && !params.skip_cached) {
-              for (const f of sf) {
-                if (!f.sourcePath) continue
-                const cacheKey = frameCacheKey(String(f.resolution), frameFormat, globalRoiBucket)
-                manifest = mergeFrames(manifest!, cacheKey, [{ timestamp: f.timestamp, file: f.sourcePath }])
-              }
+          .then(async (sf: SegmentFrame[]) => {
+            if (useSession && manifest && sessionDir && !params.skip_cached) {
+              await persistSegmentFramesToSession({
+                frames: sf,
+                sessionDir,
+                frameFormat,
+                frameExt,
+                getBucket: () => globalRoiBucket,
+                mergeInto: (cacheKey, entries) => { manifest = mergeFrames(manifest!, cacheKey, entries) },
+              })
             }
             return sf
           })
       } else if (adaptiveSegs.length > 0) {
-        // Route adaptive segments through the existing segments extraction path.
-        const extractDir = useSession ? join(sessionDir!, "frames", frameFormat) : join(workDir, "frames")
+        const extractDir = join(workDir, "frames")
         const segs: Segment[] = adaptiveSegs.map(s => ({
           start: s.start,
           end: s.end,
@@ -558,14 +658,16 @@ export function registerWatch(server: McpServer): void {
           crop: s.crop,
         }))
         framesPromise = extractFramesBySegments(safePath, segs, extractDir, frameFormat, roiCrop ?? undefined)
-          .then((sf: SegmentFrame[]) => {
-            if (useSession && manifest && !params.skip_cached) {
-              for (const f of sf) {
-                if (!f.sourcePath) continue
-                const segBucket = f.crop ? roiBucketKey(f.crop) : globalRoiBucket
-                const cacheKey = frameCacheKey(String(f.resolution), frameFormat, segBucket)
-                manifest = mergeFrames(manifest!, cacheKey, [{ timestamp: f.timestamp, file: f.sourcePath }])
-              }
+          .then(async (sf: SegmentFrame[]) => {
+            if (useSession && manifest && sessionDir && !params.skip_cached) {
+              await persistSegmentFramesToSession({
+                frames: sf,
+                sessionDir,
+                frameFormat,
+                frameExt,
+                getBucket: (f) => f.crop ? roiBucketKey(f.crop) : globalRoiBucket,
+                mergeInto: (cacheKey, entries) => { manifest = mergeFrames(manifest!, cacheKey, entries) },
+              })
             }
             return sf
           })
@@ -645,13 +747,10 @@ export function registerWatch(server: McpServer): void {
 
       // Borderline-quiet music can pass the VAD gate and still leak credits-
       // style hallucinations ("Teksting av...", "[Music]"). Run the same
-      // multi-signal heuristic as analyze on the live transcription. Prefer
-      // LUFS (cached from analyze) over dBFS as the loudness signal.
-      rawAudio = applyHallucinationGate(
-        rawAudio,
-        metadata.duration_seconds,
-        rawAudio.mean_lufs ?? rawAudio.mean_dbfs,
-      )
+      // multi-signal heuristic as analyze on the live transcription. Loudness
+      // (LUFS-cached or dBFS-fallback) is read off the AudioResult's
+      // discriminated union; gate handles the scale internally.
+      rawAudio = applyHallucinationGate(rawAudio, metadata.duration_seconds)
 
       const offset = params.start_time ? parseHMS(params.start_time) : 0
       const audio = shiftAudioResult(rawAudio, offset)
@@ -748,28 +847,47 @@ export function registerWatch(server: McpServer): void {
       }
 
       if (useSession && manifest && sessionDir) saveManifest(sessionDir, manifest)
-      if (!useSession) rmSync(workDir, { recursive: true, force: true })
+      // workDir holds the per-call extraction (kept off the session cache to
+      // avoid the cross-chunk index-collision bug). Always rmSync — frames the
+      // session needs have already been copied into sessionDir by
+      // persistSegmentFramesToSession. Pre-v0.10.3 this only cleaned up when
+      // !useSession, which leaked ~20-50MB JPEGs per call on the default path.
+      rmSync(workDir, { recursive: true, force: true })
 
       const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = []
 
-      // Skip the metadata block by default when narrative_mode is on; the
-      // narrative pass benefits from clean frame data more than from the
-      // manifest dump (which can eat 30K+ tokens at high fps). Caller can pass
-      // skip_metadata=false explicitly to keep it.
-      const effectiveSkipMetadata = params.skip_metadata === true
+      // Source/Manifest/Video/Audio dumps are large; suppress them by default
+      // when narrative_mode is on. The Budget block is small + structured and
+      // is required for the gate-verification protocol, so it ALWAYS renders
+      // regardless of skip_metadata. Callers wanting full silence pass
+      // skip_metadata=true AND consume only the frames.
+      const skipVerboseBlocks = params.skip_metadata === true
         || (useNarrative && params.skip_metadata === false ? false : useNarrative)
 
-      if (!effectiveSkipMetadata) {
+      if (!skipVerboseBlocks) {
         if (resolved.source) content.push({ type: "text", text: `## Source\n${JSON.stringify(resolved.source, null, 2)}` })
         if (manifest) {
           const summary = summarizeManifest(manifest)
           content.push({ type: "text", text: `## Session Manifest\n${JSON.stringify(summary, null, 2)}` })
         }
+        content.push({
+          type: "text",
+          text: `## Video Metadata\n${JSON.stringify(metadata, null, 2)}\n\n## Audio Analysis\n${JSON.stringify(audio, null, 2)}`,
+        })
+      }
+
+      // Budget block: always emitted. Even on skip_metadata=true the gate
+      // verification protocol depends on these six fields being present per
+      // chunk (view_sample_applied, extraction_fps, proactive_sizing,
+      // runtime_trim, out_of_range_dropped, frames delivered).
+      {
         const cost = estimateWatchCost({
           resolution,
           fps,
           view_sample: effectiveViewSample,
           duration_seconds: metadata.duration_seconds,
+          video_width: metadata.width,
+          video_height: metadata.height,
         })
         const narrativeDesc = describeNarrative(narrativeReason)
         let roiDesc: string
@@ -804,9 +922,19 @@ export function registerWatch(server: McpServer): void {
         const proactiveDesc = proactiveSizedFrom !== null
           ? `\nproactive_sizing=YES view_sample lowered ${proactiveSizedFrom}→${effectiveViewSample} (content denser than TPF predicted; runtime_trim avoided)`
           : `\nproactive_sizing=no (content matched TPF estimate)`
+        let probeDesc = ""
+        if (probeEnabled) {
+          if (probeCalibratedFrom !== null) {
+            probeDesc = `\nprobe_calibration=YES view_sample retuned ${probeCalibratedFrom}→${effectiveViewSample} (probe_chars=${probeChars})`
+          } else if (probeError) {
+            probeDesc = `\nprobe_calibration=enabled but probe failed (${probeError}); fallback to table`
+          } else {
+            probeDesc = `\nprobe_calibration=enabled (no override applied)`
+          }
+        }
         content.push({
           type: "text",
-          text: `## Video Metadata\n${JSON.stringify(metadata, null, 2)}\n\n## Audio Analysis\n${JSON.stringify(audio, null, 2)}\n\n## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} extraction_fps=${fps} effective_fps=${effectiveFpsDesc} resolution=${resolution} frame_format=${frameFormat}\nest_tokens_this_call=${cost.est_tokens_per_call} (~${cost.pct_of_1m_window_thorough}% of 1M when fully covered)\nthorough_coverage_chunks_needed=${cost.chunks_for_full_coverage_thorough} (~${(cost.est_total_tokens_thorough / 1000).toFixed(0)}K total tokens at target_fps=${cost.target_fps_thorough})\nautocompact_warning=${cost.will_trigger_autocompact_thorough ? "YES - thorough coverage would exceed " + AUTOCOMPACT_THRESHOLD + " tokens" : "no"}\nnarrative_mode=${narrativeDesc}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${proactiveDesc}${runtimeTrimDesc}${outOfRangeDesc}`,
+          text: `## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} extraction_fps=${fps} effective_fps=${effectiveFpsDesc} resolution=${resolution} frame_format=${frameFormat}\nmcp_tokens_this_call=${cost.mcp_tokens_per_call} (chars/3.5; governs per-call truncation)\nconversation_tokens_this_call=${cost.conversation_tokens_per_call} (~${cost.pct_of_1m_window_thorough}% of 1M when fully covered)\nthorough_coverage_chunks_needed=${cost.chunks_for_full_coverage_thorough} (~${(cost.conversation_total_tokens_thorough / 1000).toFixed(0)}K conversation tokens at target_fps=${cost.target_fps_thorough})\nautocompact_warning=${cost.will_trigger_autocompact_thorough ? "YES - thorough coverage would exceed " + AUTOCOMPACT_THRESHOLD + " conversation tokens" : "no"}\nnarrative_mode=${narrativeDesc}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${probeDesc}${proactiveDesc}${runtimeTrimDesc}${outOfRangeDesc}`,
         })
       }
 
@@ -879,16 +1007,30 @@ export function registerWatch(server: McpServer): void {
           const lastTs = frames[frames.length - 1].timestamp
           const coveredSec = parseHMS(lastTs)
           const requestedEndSec = params.end_time ? parseHMS(params.end_time) : metadata.duration_seconds
+          const remainingSec = requestedEndSec - coveredSec
+          // fps quantization tail: when the remaining slack is smaller than
+          // a single inter-frame interval at this fps, no further frame is
+          // possible. Suggesting "retry the remaining window" would extract
+          // nothing. The denser-fps hint is the actionable advice instead.
+          const isFpsQuantizationTail = remainingSec > 0 && remainingSec < (1 / fps + 0.005)
           content.push({
             type: "text",
-            text: truncationHintMcpCap({
-              delivered: frames.length,
-              requested: effectiveViewSample,
-              lastTs,
-              remainingSec: requestedEndSec - coveredSec,
-              nextStartHms: formatHMSPrecise(coveredSec, 3),
-              endLabel: params.end_time ?? "[original end]",
-            }),
+            text: isFpsQuantizationTail
+              ? truncationHintFpsQuantization({
+                  delivered: frames.length,
+                  requested: effectiveViewSample,
+                  lastTs,
+                  remainingSec,
+                  fps,
+                })
+              : truncationHintMcpCap({
+                  delivered: frames.length,
+                  requested: effectiveViewSample,
+                  lastTs,
+                  remainingSec,
+                  nextStartHms: formatHMSPrecise(coveredSec, 3),
+                  endLabel: params.end_time ?? "[original end]",
+                }),
           })
         }
       }

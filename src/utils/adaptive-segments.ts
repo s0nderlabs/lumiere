@@ -84,15 +84,17 @@ export function buildAdaptiveSegments(opts: BuildAdaptiveSegmentsOpts): Adaptive
 
   const segs: AdaptiveSegment[] = []
 
+  // Largest-remainder distribution. Each segment gets its share of the budget,
+  // rounded so the integer total equals the budget exactly. When floors push
+  // the sum above the budget (the chunk-3 max-tier over-allocation case where
+  // 2 motion + 1 static segments tried to claim 3 frames against a 2-frame
+  // budget), distributeIntegerBudget shrinks segments greedily by weight.
   if (motionBudget > 0 && merged.length > 0) {
     const weights = merged.map(w => (w.endSec - w.startSec) * Math.max(1, w.intensity))
-    const totalWeight = weights.reduce((a, b) => a + b, 0)
-    let allocated = 0
+    const motionAllocation = distributeIntegerBudget(weights, motionBudget, 1)
     for (let i = 0; i < merged.length; i++) {
-      const share = totalWeight > 0 ? weights[i] / totalWeight : 1 / merged.length
-      let frames = Math.max(2, Math.round(motionBudget * share))
-      if (i === merged.length - 1) frames = Math.max(2, motionBudget - allocated)
-      allocated += frames
+      const frames = motionAllocation[i]
+      if (frames <= 0) continue
       const dur = merged[i].endSec - merged[i].startSec
       const fps = Math.max(0.5, frames / dur)
       segs.push({
@@ -109,14 +111,13 @@ export function buildAdaptiveSegments(opts: BuildAdaptiveSegmentsOpts): Adaptive
   }
 
   if (staticBudget > 0 && staticSpans.length > 0) {
-    let allocated = 0
+    const weights = staticSpans.map(s => s.endSec - s.startSec)
+    const staticAllocation = distributeIntegerBudget(weights, staticBudget, 1)
     for (let i = 0; i < staticSpans.length; i++) {
+      const frames = staticAllocation[i]
+      if (frames <= 0) continue
       const s = staticSpans[i]
       const dur = s.endSec - s.startSec
-      const share = staticTotalDur > 0 ? dur / staticTotalDur : 1 / staticSpans.length
-      let frames = Math.max(1, Math.round(staticBudget * share))
-      if (i === staticSpans.length - 1) frames = Math.max(1, staticBudget - allocated)
-      allocated += frames
       const fps = Math.max(0.2, frames / dur)
       segs.push({
         start: formatSegmentBound(s.startSec),
@@ -132,6 +133,47 @@ export function buildAdaptiveSegments(opts: BuildAdaptiveSegmentsOpts): Adaptive
 
   segs.sort((a, b) => a.startSec - b.startSec)
   return segs
+}
+
+// Largest-remainder method with per-segment floor honored only when budget
+// allows. When floor*N > totalBudget, the floor is dropped and budget is
+// distributed greedily to the highest-weight segments. Guarantees sum ==
+// totalBudget and no entry is negative.
+function distributeIntegerBudget(weights: number[], totalBudget: number, floor: number): number[] {
+  const n = weights.length
+  const result = new Array<number>(n).fill(0)
+  if (totalBudget <= 0 || n === 0) return result
+
+  const totalWeight = weights.reduce((a, b) => a + b, 0)
+
+  // Tight-budget case: floors alone would exceed the budget. Drop the floor
+  // and assign whole frames greedily by weight (descending).
+  if (floor * n > totalBudget) {
+    const order = weights.map((_, i) => i).sort((a, b) => weights[b] - weights[a])
+    for (let i = 0; i < totalBudget; i++) result[order[i % n]]++
+    return result
+  }
+
+  // Standard case: seed every segment with the floor, distribute remainder
+  // proportionally, hand out leftover frames by largest fractional remainder.
+  for (let i = 0; i < n; i++) result[i] = floor
+  let remaining = totalBudget - floor * n
+  if (remaining === 0) return result
+
+  const fractional = new Array<number>(n).fill(0)
+  for (let i = 0; i < n; i++) {
+    const share = totalWeight > 0 ? (weights[i] / totalWeight) * remaining : remaining / n
+    const whole = Math.floor(share)
+    result[i] += whole
+    fractional[i] = share - whole
+  }
+  const used = result.reduce((a, b) => a + b, 0)
+  let leftover = totalBudget - used
+  if (leftover > 0) {
+    const order = fractional.map((f, i) => ({ f, i })).sort((a, b) => b.f - a.f)
+    for (let i = 0; leftover > 0 && i < n; i++, leftover--) result[order[i].i]++
+  }
+  return result
 }
 
 export function formatAdaptiveSummary(segs: AdaptiveSegment[]): string {
