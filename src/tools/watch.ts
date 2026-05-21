@@ -58,7 +58,8 @@ import {
   shouldAutoSuggestNarrative,
 } from "../utils/decisions.js"
 import { applyHallucinationGate } from "../utils/hallucination.js"
-import type { AudioResult, Frame, Segment, SessionManifest, SegmentFrame } from "../types.js"
+import { resolveNarrativeProfile } from "../prompts/narrative-profiles.js"
+import type { AudioResult, ContentClass, Frame, Segment, SessionManifest, SegmentFrame } from "../types.js"
 
 const HMS_REGEX = TIMESTAMP_HMS_REGEX
 // lookupTimestamps normalizes numerically so format mismatches with cached
@@ -97,95 +98,10 @@ function fitFramesForRuntimeCap(frames: { image?: string }[]): number | null {
   return Math.max(2, Math.floor((RUNTIME_CAP - TEXT_OVERHEAD_BUDGET) / perFrameTokens))
 }
 
-// Narrative-pass guidance prompt. Injected when narrative_mode is requested or
-// auto-suggested. Asks the model to treat frames as a temporal sequence and
-// gives anatomy/source-attribution priors so novel colors map to emission
-// events, not body parts.
-const NARRATIVE_GUIDANCE = `## Interpretation guidance (narrative_mode)
-
-These frames are CONSECUTIVE MOMENTS IN TIME from one video. Treat them as a temporal sequence, not as independent images:
-
-1. **ANCHORS:** identify what PERSISTS across the frames (subject, setting, camera, background). These are reference points that stay the same across time.
-
-2. **CHANGES:** identify what DIFFERS across the frames (position, posture, attribute, state, environment, lighting, UI content). These are events.
-
-3. **RESOLVE** each change as one of:
-   - (a) an ACTION the subject performs. Pick the verb family that fits:
-     - PHYSICAL: jumps, lands, leaps, runs, walks, falls, hovers, levitates, climbs
-     - EMISSION: fires, emits, shoots, beams, sparks, casts, blasts, radiates
-     - EQUIPMENT: puts on, equips, dons, draws, takes off, removes, sheds, drops
-     - MANIPULATION: types, picks up, slices, scrolls, edits, opens, clicks, drags
-   - (b) a TRANSITION in the scene (cut, fade, pan, zoom, dissolve)
-   - (c) a STATE CHANGE in the world (counter advances, file changes, light turns on, level fills)
-
-4. **NARRATE** the sequence as continuous prose using temporal connectors (then, while, after) and the verbs you identified. Do NOT list each frame independently.
-
-### Detail bar (apply to every narrative)
-
-Specificity is non-negotiable. The reader should be able to picture each moment without ever seeing the video.
-
-- **Name the SPECIFIC type of every prop, garment, or object.** Not "a hat", but "a wide-brimmed pointed wizard hat in deep purple with a yellow crescent-moon decal". Not "a tool", but "a circular saw blade, raised above the head". When you cannot identify the species/type, say "X-like object" and describe its silhouette so a reader can guess.
-- **Quote ALL visible text verbatim.** Wordmarks, captions, subtitles, UI labels, tooltips, code snippets, numeric values, units. Read it character-for-character. If a number changes across frames, list every value with timestamps.
-- **Note color in named shades when distinguishable.** Not "blue", but "indigo / sky blue / royal blue / navy" as fits. Hex codes if the tier supports them (max=1536px).
-- **Track START state and END state of each feature channel separately.** Begin: "eyes closed, no headgear, hands tucked." End: "eyes glowing red, headgear equipped, hands raised."
-- **Identify LOOPS and REPEATS.** If an action cycle starts again (e.g. the mascot lands, then immediately leaps again at the end of the clip), say so explicitly with both timestamps.
-- **Identify SCENE/EXAMPLE BOUNDARIES** in tutorial / multi-example videos. ("First example uses an airplane icon", "second example uses the text '47m'"). Each example is a discrete demonstration; name them separately.
-- **Resist generic verbs.** Replace "moves", "does something", "appears" with specific actions: "slides 40px to the left", "fades in over 4 frames", "the blur radius increases from 0 to ~12px".
-
-### Specific priors (apply before committing to a verb)
-
-- **Branded character = fixed identity, BUT costumes/props ARE binary state changes.** If the subject is a branded mascot/product/character, your DEFAULT hypothesis is: this is the SAME character across all frames. Identity-swap is a last-resort interpretation. HOWEVER, costumes / accessories / held-props ARE valid state changes, track them as discrete on/off events with start and end timestamps, not as per-frame pose oscillations. A red mass that appears on top of the head and STAYS for N frames is HEADGEAR EQUIPPED, not a "windswept hair pose."
-
-- **Mascot + wordmark + plain background is the canonical animation setup, NOT a static "title card" by default.** If the layout is mascot-above-wordmark (or wordmark-above-mascot) on a flat background, and you see ANY pose / silhouette / position difference across frames, that is an ANIMATION. The composition does not become static just because the wordmark stays put. Resist the urge to label early frames "title card" and late frames "title card" if the mascot moved between them. Read the SAME WORDMARK as background, the mascot as foreground action. Treat each motion-window frame as an action beat, not a duplicate.
-
-- **Cape / wings / cloak detection.** If a darker / different-shade mass appears symmetrically on BOTH sides of the body silhouette (visible left-of-body AND right-of-body extending outward) and this mass was absent in earlier frames, that is a **CAPE EQUIPPED** or **WINGS DEPLOYED** state, not "wider sprite" or "different character variant." Track equip + remove timestamps. The cape may have its own shading (often darker than the body proper) so don't read the shade difference as a separate object.
-
-- **Hover / flight detection.** If the body baseline moves UP relative to a fixed anchor (wordmark, ground, frame edge) AND a cape/wings state is active, the mascot is FLYING / HOVERING. If a particle stream (small dots, plume, beam) emerges from BELOW the body or behind it while elevated, that is THRUST / PROPULSION / DOWNWARD EMISSION. List candidate verbs in order: hovers, levitates, flies, takes off. Pick "hovers" if the elevation persists across frames; "leaps/takes off" if elevation only appears in one frame.
-
-- **Downward streams from the eye region during hover.** If the mascot is elevated AND a vertical line / column / plume extends downward from the eye-line (or from the body during a hover pose), inspect for color match with novel-palette events. A red/orange/pink column extending DOWN through the body during a hover beat is most likely **EMISSION-FROM-EYES (downward laser/beam)** that passes the body silhouette on its way down. Compare with the silent-baseline frames: if the column color is NOT present in non-hover frames, it is an emission event, not body anatomy.
-
-- **Dramatic outline change ≠ identity swap.** When silhouette OUTLINE changes a lot but silhouette AREA is roughly conserved between consecutive frames, that is a POSE CHANGE or a PROP EQUIPPED/REMOVED. Ask: "does the eye position stay constant?" If yes, it is the same character. Then ask: "does the new mass appear ABOVE the eye-line?" If yes, suspect HEADGEAR EQUIPPED. "Outside the body silhouette?" Suspect PROP IN HAND.
-
-- **Novel color in 1-2 frames = EVENT, list candidate SOURCES.** If a color appears in only 1-2 frames and is absent elsewhere, that color is almost certainly a projectile, beam, particle, flash, or light effect. BEFORE committing to where it's drawn, list 2-3 candidate SOURCES on the subject and pick one:
-  - eyes → laser/beam/vision ray/sight attack
-  - mouth → breath/blast/sonic shout/words
-  - hands → projectile/spark/blast/orb
-  - body → aura/radiance/explosion/transformation
-  - feet → dust puff/motion trail (only if there's also vertical translation; otherwise prefer body)
-  Then TRACE the trajectory: do the novel pixels originate at one of those candidate sources and extend AWAY from it? If they extend straight down from the eye region, they are eye lasers, not leg trails. Verify-then-attribute, not attribute-then-verify.
-
-- **Feature-channel tracking.** Do not anchor only on silhouette. Also track named feature channels frame-to-frame:
-  - **EYES**: constant (black squares) vs glowing/emitting/changing color. If novel pixels appear collinear with or adjacent to the eye region, this channel is active.
-  - **HANDS / ARMS**: idle vs holding/firing/raised
-  - **MOUTH**: closed vs open/emitting
-  - **HEADGEAR / EQUIPMENT**: NONE vs hat/wig/rope/helmet/crown/mask/accessory equipped. If any structure persists ABOVE the eye-line for ≥3 consecutive frames, mark this channel as ACTIVE and narrate the equip + remove events with timestamps. Do NOT collapse this into a "pose"; it is a discrete state.
-  - **BODY BASELINE**: at rest position relative to wordmark/ground anchor vs lifted above it (= hovering/jumping/flying)
-
-- **Position relative to fixed anchors.** If the subject's vertical offset from a fixed anchor (wordmark, ground line, frame edge) is different from baseline AND that offset persists for ≥2 consecutive frames, the subject is HOVERING / LEVITATING / FLYING, not just in an "extended stance."
-
-- **Verb taxonomy with body-region anchors:**
-  - PHYSICAL (body): jumps, lands, leaps, runs, walks, falls, hovers, levitates, climbs
-  - EMISSION-FROM-EYES: fires (lasers), beams, casts (vision rays)
-  - EMISSION-FROM-MOUTH: blasts, breathes (flame/cold/sonic), shouts
-  - EMISSION-FROM-HANDS: throws, hurls, shoots, sparks, conjures
-  - EMISSION-FROM-BODY: radiates, glows, transforms, explodes
-  - EQUIPMENT: puts on, equips, dons, draws, takes off, removes, sheds, drops
-  - MANIPULATION: types, picks up, slices, scrolls, edits, opens, clicks, drags
-
-- **If you are unsure**, list 2-3 candidate interpretations and pick one with a confidence note. Honest hedge > confident misreading. At resolution <= 512 specifically, you SHOULD say "I can describe shapes but not feature-channel state at this resolution; recommend mid/high for any verb that depends on a specific feature (eyes/mouth/hands)."
-
-### Continuity audit (mandatory final pass)
-
-After you write the narrative, re-read your draft once more. For each verb where you committed to a specific body-region source or causal verb, ask:
-
-1. Did I have >1 plausible candidate source at the time? If yes, list the alternatives I rejected and the trajectory evidence that ruled them out. If I cannot, that attribution is provisional, flag it.
-2. Did I commit to a sequence (A then B then C) where the time spacing was tight (< 0.5s between events)? If yes, ensure my anchor frames support the ordering, not just the existence of each event.
-3. Are there any frames I described as "duplicate" or "same as previous"? Re-check them; sub-pixel changes (eye color shift, hand pose change, beam path) can hide in apparent duplicates. If unsure, hedge instead of asserting "no change."
-4. **Sampling-gap audit.** Read the budget block to know what coverage you actually have. If "runtime_trim=YES policy=motion-aware", the dense action moments WERE preserved (motion frames are kept first, static bookends even-spaced). In that case your claims about ACTION are well-supported; provisional flags are only needed for SILENT-CHANNEL claims (background detail persistence, peripheral wordmark stability) within static-segment gaps. If "runtime_trim=YES policy=uniform" (no motion segments) OR "runtime_trim=no" with a sampling_gap_warning block, then equip/unequip and other silhouette-area events outside the motion_window may have been missed; flag PROVISIONAL on "feature X stayed constant" claims. Use the dropped_timestamps list in the budget to know exactly which moments are unverified.
-
-Revise any verb where the audit surfaces doubt. A flagged hedge is more useful than a confident wrong attribution.
-
-The subject can be anything: a person, animation, UI element, product, animal, sports moment, cooking step. Adapt your verbs to what is actually happening. Your job is to recover the temporal narrative, not catalog the frames.`
+// v0.11: Narrative guidance now lives in src/prompts/narrative-profiles.ts as
+// a per-content-class registry. resolveNarrativeProfile() picks the right
+// profile based on analyze().content_class or the explicit
+// narrative_mode_profile param.
 
 // Tier-gated hedge hint. At <=512 px, ambiguous silhouettes can lead the model to
 // commit to a confident-but-wrong action verb. Empirically observed during the
@@ -452,7 +368,8 @@ export function registerWatch(server: McpServer): void {
       narrative_mode: z.boolean().optional().describe("Inject temporal-narrative guidance into the response so Claude reads frames as a continuous action sequence (anchors/changes/actions) rather than as independent images. Recommended for action/motion-heavy segments. Auto-suggested when analyze() reports high motion or dense scene cuts."),
       roi: z.union([z.literal(ROI_AUTO), z.literal(ROI_PER_WINDOW), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional().describe("Crop frames to a region of interest before scaling. 'auto' uses a single global analyze().subject_bbox. 'per-window' assigns each motion-window's frames its OWN bbox from analyze().window_bboxes - tracks a traveling subject so each window's pixels land tight on the subject even when the subject moves across the frame (requires adaptive_sampling and prior analyze with motion=true). 'x,y,w,h' is an explicit pixel bbox. ROI crop gives the subject the full target resolution instead of being averaged out by background pixels."),
       adaptive_sampling: z.boolean().optional().describe("Motion-adaptive frame allocation. When true (or auto-enabled because narrative_mode is on AND analyze().motion_windows is cached AND duration > 4s), the per-call frame budget is split non-uniformly: 70% to motion-dense windows (weighted by duration * intensity), 30% to static spans. Same total frame count, but temporal resolution biased toward where action is happening. Pass false to force uniform sampling. Ignored if `segments` is given."),
-      probe_calibration: z.boolean().optional().describe("Per-video view_sample calibration. Extracts one probe frame at the target resolution + crop BEFORE the main pool, measures its base64 chars, and derives a per-video view_sample from chars/3.5 instead of the static SAFE_AT_100K table. Useful for outlier content (very dense terminal UI, very sparse flat colors) where the static table over- or under-predicts. Adds ~150-300ms extraction latency. Defaults to off; set `LUMIERE_PROBE_CALIBRATION=1` to enable globally. Ignored when `segments`, `view`, or explicit `view_sample` is given."),
+      probe_calibration: z.boolean().optional().describe("Per-video view_sample calibration. Extracts one probe frame at the target resolution + crop BEFORE the main pool, measures its base64 chars, and derives a per-video view_sample from chars/3.5 instead of the static SAFE_AT_100K table. v0.11+: defaults to ON (the static table is calibrated against animation/UI content and biased for real-world video). Set `LUMIERE_PROBE_CALIBRATION=0` to disable globally. Ignored when `segments`, `view`, or explicit `view_sample` is given."),
+      narrative_mode_profile: z.enum(["auto", "animation", "ui-screen", "human-motion", "talking-head", "real-world", "nature", "generic"]).optional().describe("Per-content-class narrative-mode prompt selection. 'auto' (default) reads analyze().content_class and routes to the matching profile. Explicit values force a specific profile regardless of cached content_class. Use 'generic' when content type is ambiguous and you want minimal domain priors."),
     },
     async (params) => {
       const config = loadConfig()
@@ -507,7 +424,9 @@ export function registerWatch(server: McpServer): void {
         const bucketLabel = viewBucket || "full-frame"
         content.push({ type: "text", text: `## Cache lookup: ${frames.length}/${params.view.length} timestamps found (bucket=${bucketLabel})` })
         if (params.narrative_mode) {
-          content.push({ type: "text", text: NARRATIVE_GUIDANCE })
+          const cachedClass = manifest?.analysis?.content_class as ContentClass | undefined
+          const profile = resolveNarrativeProfile(params.narrative_mode_profile, cachedClass)
+          content.push({ type: "text", text: profile.guidance })
           if (resolution <= 512) content.push({ type: "text", text: LOW_TIER_HEDGE_HINT })
         }
         for (const f of frames) {
@@ -530,13 +449,21 @@ export function registerWatch(server: McpServer): void {
 
       // Per-video view_sample calibration via one probe frame. Replaces the
       // static SAFE_AT_100K with a measurement taken on THIS video at THIS
-      // resolution + crop. Costs one extra ffmpeg extraction but lets very
-      // dense or very sparse content stop relying on the table average.
+      // resolution + crop. Costs one extra ffmpeg extraction (~150-300ms) but
+      // lets very dense (busy real-world JPEG) or very sparse (flat animation)
+      // content stop relying on the table average.
+      //
+      // v0.11: default ON. The static TPF table is calibrated against animation/
+      // UI content and is 2-3.5x pessimistic for animation but accurate for
+      // real-world video. Probing per-call eliminates the calibration bias
+      // entirely; only opt out for latency-sensitive paths.
+      const probeOptInExplicit = process.env.LUMIERE_PROBE_CALIBRATION === "0"
+        || process.env.LUMIERE_PROBE_CALIBRATION === "false"
       const probeEnabled = params.probe_calibration === true
         || (params.probe_calibration === undefined
             && !params.view_sample
             && !params.segments
-            && (process.env.LUMIERE_PROBE_CALIBRATION === "1" || process.env.LUMIERE_PROBE_CALIBRATION === "true"))
+            && !probeOptInExplicit)
       let probeChars: number | null = null
       let probeCalibratedFrom: number | null = null
       let probeError: string | null = null
@@ -712,14 +639,29 @@ export function registerWatch(server: McpServer): void {
       } else if (config.backend === "gemini-api") {
         audioPromise = analyzeWithGeminiApi(safePath, { startTime: params.start_time, endTime: params.end_time })
       } else if (config.backend === "local") {
-        const audioDir = join(workDir, "audio")
-        // v0.10.2: pass cached LUFS from prior analyze() so we skip the
-        // per-chunk volumedetect call and unify the VAD scale. Falls back
-        // to per-call dBFS when analyze hasn't run.
+        // v0.11: cache-aware audio. If analyze() already flagged this video's
+        // transcription as low-confidence (whisper hallucinated on quiet/music
+        // audio), skip the whisper pass entirely. Pre-v0.11 watch() ignored the
+        // cached flag and re-ran whisper, leaking the same hallucinations into
+        // every chunk. Confirmed bug on real fitness/gym footage where ambient
+        // gym audio passed the loudness VAD but hallucinated tourist content.
         const cachedLufs = manifest?.analysis?.loudness_summary?.mean_lufs
-        audioPromise = extractAudio(safePath, audioDir, {
-          startTime: params.start_time, endTime: params.end_time,
-        }).then(wav => transcribeWithWhisper(wav, config.whisper_model, { cachedMeanLufs: cachedLufs }))
+        if (manifest?.analysis?.transcription_low_confidence === true) {
+          const reasons = manifest.analysis.transcription_low_confidence_reasons?.join("; ") ?? "analyze() flagged low confidence"
+          audioPromise = Promise.resolve({
+            backend: "local" as const,
+            transcription: [],
+            audio_tags: [],
+            full_analysis: null,
+            transcription_skipped_reason: `analyze() flagged transcription as low-confidence (${reasons}); whisper re-run suppressed to avoid hallucination`,
+            loudness: cachedLufs !== undefined ? { value: cachedLufs, scale: "lufs" as const } : undefined,
+          })
+        } else {
+          const audioDir = join(workDir, "audio")
+          audioPromise = extractAudio(safePath, audioDir, {
+            startTime: params.start_time, endTime: params.end_time,
+          }).then(wav => transcribeWithWhisper(wav, config.whisper_model, { cachedMeanLufs: cachedLufs }))
+        }
       } else {
         audioPromise = Promise.resolve({ backend: "none" as const, transcription: [], audio_tags: [], full_analysis: null })
       }
@@ -932,9 +874,19 @@ export function registerWatch(server: McpServer): void {
             probeDesc = `\nprobe_calibration=enabled (no override applied)`
           }
         }
+        // v0.11: surface content_class + bbox.confidence + motion_warning so
+        // callers can see what classification and signal trail drove this call.
+        const cachedClass = manifest?.analysis?.content_class
+        const cachedBboxConf = manifest?.analysis?.subject_bbox?.confidence
+        const cachedBboxMethod = manifest?.analysis?.subject_bbox?.method
+        const motionWarning = manifest?.analysis?.motion_detection_warning
+        const classDesc = cachedClass
+          ? `${cachedClass}${cachedBboxConf !== undefined ? ` (bbox=${cachedBboxMethod}, conf=${cachedBboxConf.toFixed(2)})` : ""}`
+          : "n/a (run analyze with motion=true to classify)"
+        const motionWarningLine = motionWarning ? `\nmotion_detection_warning=${motionWarning}` : ""
         content.push({
           type: "text",
-          text: `## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} extraction_fps=${fps} effective_fps=${effectiveFpsDesc} resolution=${resolution} frame_format=${frameFormat}\nmcp_tokens_this_call=${cost.mcp_tokens_per_call} (chars/3.5; governs per-call truncation)\nconversation_tokens_this_call=${cost.conversation_tokens_per_call} (~${cost.pct_of_1m_window_thorough}% of 1M when fully covered)\nthorough_coverage_chunks_needed=${cost.chunks_for_full_coverage_thorough} (~${(cost.conversation_total_tokens_thorough / 1000).toFixed(0)}K conversation tokens at target_fps=${cost.target_fps_thorough})\nautocompact_warning=${cost.will_trigger_autocompact_thorough ? "YES - thorough coverage would exceed " + AUTOCOMPACT_THRESHOLD + " conversation tokens" : "no"}\nnarrative_mode=${narrativeDesc}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${probeDesc}${proactiveDesc}${runtimeTrimDesc}${outOfRangeDesc}`,
+          text: `## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} extraction_fps=${fps} effective_fps=${effectiveFpsDesc} resolution=${resolution} frame_format=${frameFormat}\nmcp_tokens_this_call=${cost.mcp_tokens_per_call} (chars/3.5; governs per-call truncation)\nconversation_tokens_this_call=${cost.conversation_tokens_per_call} (~${cost.pct_of_1m_window_thorough}% of 1M when fully covered)\nthorough_coverage_chunks_needed=${cost.chunks_for_full_coverage_thorough} (~${(cost.conversation_total_tokens_thorough / 1000).toFixed(0)}K conversation tokens at target_fps=${cost.target_fps_thorough})\nautocompact_warning=${cost.will_trigger_autocompact_thorough ? "YES - thorough coverage would exceed " + AUTOCOMPACT_THRESHOLD + " conversation tokens" : "no"}\ncontent_class=${classDesc}\nnarrative_mode=${narrativeDesc}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${probeDesc}${proactiveDesc}${runtimeTrimDesc}${outOfRangeDesc}${motionWarningLine}`,
         })
       }
 
@@ -1036,7 +988,9 @@ export function registerWatch(server: McpServer): void {
       }
 
       if (useNarrative) {
-        content.push({ type: "text", text: NARRATIVE_GUIDANCE })
+        const cachedClass = manifest?.analysis?.content_class as ContentClass | undefined
+        const profile = resolveNarrativeProfile(params.narrative_mode_profile, cachedClass)
+        content.push({ type: "text", text: profile.guidance })
         if (resolution <= 512) content.push({ type: "text", text: LOW_TIER_HEDGE_HINT })
         const paletteHint = paletteOutlierHint(manifest)
         if (paletteHint) content.push({ type: "text", text: paletteHint })

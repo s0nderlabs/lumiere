@@ -51,17 +51,20 @@ Cheap metadata pass + per-tier context-cost preview. Always call first on a new 
 v0.10.3 splits the per-tier estimate into two metrics: `mcp_tokens_per_*` (chars/3.5 transport metric, predicts per-call MCP truncation) and `conversation_tokens_per_*` (Anthropic image-token formula, predicts whole-transcript autocompact). The previous combined metric over-warned autocompact at high resolution. Pass `exact_tokens=true` (requires `LUMIERE_ANTHROPIC_API_KEY`) to probe one frame per tier and call `count_tokens` for exact conversation-token values; falls back to the heuristic otherwise.
 
 ### `analyze`
-Structural ffmpeg pass. Returns: scene cuts, silence intervals, motion windows, subject bbox (connected-component segmentation), palette outliers (color novelty), transcription. No frames extracted. Plan chunks from this.
+Structural ffmpeg pass. Returns: scene cuts, silence intervals, motion windows, subject bbox (3-tier cascade: CC segmentation → cropdetect → center-prior heuristic, each with a `confidence` 0.0-1.0), palette outliers (color novelty), transcription, and (v0.11) `content_class` (7-way classification: `animation` | `ui-screen` | `human-motion` | `talking-head` | `real-world` | `nature` | `generic`) plus `motion_detection_warning` when global motion windows are unreliable (subject-region siti finds no peaks → synthetic-middle fallback fires). No frames extracted. Plan chunks from this.
 
 ### `watch`
 Frame extraction + audio. Returns base64 images with narrative guidance. Key params:
 - `mode`: `low` (384px) | `mid` (512px) | `high` (1024px, default) | `max` (1536px)
 - `narrative_mode`: temporal sequence reading instead of frame-by-frame
+- `narrative_mode_profile` (v0.11): `auto` (default, reads `analyze.content_class`) | `animation` | `ui-screen` | `human-motion` | `talking-head` | `real-world` | `nature` | `generic`. Forces a specific narrative-prompt profile when content is ambiguous.
 - `adaptive_sampling`: motion-window-aware frame allocation (70/30 motion/static split)
 - `roi`: `"auto"` reads `analyze.subject_bbox`; `"per-window"` (v0.8) assigns each motion window its own bbox from `analyze.window_bboxes` so a traveling subject stays tight in every crop (requires `adaptive_sampling=true` + prior `analyze` with motion=true); `"x,y,w,h"` explicit. Subject gets full target resolution
 - `start_time` / `end_time`: chunk a sub-segment
 - `view_sample`: override the auto-budget
-- `probe_calibration` (v0.10.3): extract one probe frame at the target resolution + crop BEFORE the main pool, measure actual chars/3.5, derive a per-video `view_sample` from the measurement. Replaces the static `SAFE_AT_100K` table for that call. Useful for outlier content (dense terminal UI, sparse flat colors). Adds ~150-300ms. `LUMIERE_PROBE_CALIBRATION=1` enables globally.
+- `probe_calibration` (v0.10.3, default-on in v0.11): extract one probe frame at the target resolution + crop BEFORE the main pool, measure actual chars/3.5, derive a per-video `view_sample` from the measurement. Replaces the static `SAFE_AT_100K` table for that call. Useful for outlier content (dense terminal UI, sparse flat colors). Adds ~150-300ms. `LUMIERE_PROBE_CALIBRATION=0` disables globally.
+
+watch's audio path is cache-aware (v0.11): if `analyze` already flagged the transcription as low-confidence (typical for ambient gym / music / quiet audio that whisper hallucinates on), watch skips the whisper re-run and emits the same skipped-reason text. Eliminates the v0.10.x leak where every chunk got fresh whisper hallucinations.
 
 Auto-budget respects `MAX_MCP_OUTPUT_TOKENS`. Runtime trim drops frames if the response would exceed the cap. The Budget block (containing the gate-verification fields: `view_sample_applied`, `extraction_fps`, `proactive_sizing`, `runtime_trim`, `out_of_range_dropped`, etc.) is always emitted, including when `skip_metadata=true` or `narrative_mode=true` would suppress the verbose Source/Manifest/Video/Audio dumps.
 
@@ -104,7 +107,7 @@ When the moving subject is small relative to the frame (mascot inside a brand ca
 
 Requires `adaptive_sampling=true` and a prior `analyze(motion=true)` call.
 
-## How narrative_mode works (v0.3+)
+## How narrative_mode works (v0.3+, per-class profiles in v0.11)
 
 Frame-sampled perception has a structural failure: each frame gets interpreted in isolation, so continuous action reads as a sprite sheet of unrelated costumes. The fix is a temporal-narrative prompt:
 
@@ -113,9 +116,22 @@ Frame-sampled perception has a structural failure: each frame gets interpreted i
 3. RESOLVE: each change as action / transition / state change
 4. NARRATE: as continuous prose
 
-Plus priors that catch known failure modes: branded character identity is fixed (no identity-swap default), novel-color in 1-2 frames is an EVENT (laser / projectile / flash) not a body part, named feature channels (eyes / hands / mouth / headgear) tracked separately from silhouette. v0.6 adds a continuity audit pass: re-read the draft, flag any verb with multiple plausible candidate sources, double-check tight sequences.
+v0.11 splits the narrative-mode prompt into seven per-content-class profiles (`animation`, `ui-screen`, `human-motion`, `talking-head`, `real-world`, `nature`, `generic`). `analyze` classifies the video into one of these via signal-based rules (motion summary, scene cuts, palette outliers, subject bbox confidence, transcription LC flag). `watch` then picks the matching profile prompt. Examples:
+- **animation**: branded character / mascot priors (cape/wings/headgear/EMISSION-FROM-EYES). Calibrated for ClaudeDevs launch-video class content.
+- **ui-screen**: terminal/code/dashboard priors (cursor + selection state, text content changes, tool-call lifecycle markers).
+- **human-motion**: biomechanics priors (lift phases, joint angles, bar/object paths, rep counts, tempo cadence).
+- **talking-head**: gesture / expression / B-roll insert priors.
+- **real-world**, **nature**, **generic**: lighter priors for varied or low-action content.
 
-Auto-suggested when prior `analyze` reports high motion, dense scene cuts, subject-region motion, palette outliers, or a small subject bbox.
+Auto-suggested when prior `analyze` reports a content_class other than `nature` or `generic`. Override via `narrative_mode_profile` if `analyze` mis-classifies (or run without `analyze` and the v0.10 animation prompt is the default fallback).
+
+## How content classification works (v0.11)
+
+`analyze` returns `content_class` as a structured 7-way enum so `watch` can route to the right narrative-prompt profile. The classifier is signal-based — no extra ffmpeg passes — and uses a decision tree over motion summary (si / ti / subject ratio), scene cut density, palette outlier count, subject bbox method + confidence, and the transcription low-confidence flag.
+
+Bbox detection runs a 3-tier cascade: connected-component segmentation (cleanest tight crop, confidence 0.9 when area_pct ∈ [10, 70]) → cropdetect (confidence 0.5 when area_pct < 85) → center-prior heuristic (60% center crop, confidence 0.2). The third tier is a v0.11 addition that gives `roi=auto` a useful crop on busy-background content (fitness videos, sports footage) where CC + cropdetect both fail.
+
+When global motion windows cluster at the video boundaries (typical for fixed-camera footage with an off-center subject — the entry/exit walk registers as motion but the actual action does not), `analyze` runs a subject-region siti pass on the bbox crop. If that finds peaked windows, they replace the globals. If subject-region siti ALSO returns no peaks (typical for slow continuous motion like a deadlift or yoga flow), `analyze` synthesizes a single middle-60% best-guess action window so `adaptive_sampling` doesn't bias toward the boundary noise. `motion_detection_warning` surfaces the heuristic when it fires.
 
 ## CLI: `lumiere-cost`
 

@@ -109,9 +109,12 @@ export interface FrameStats {
   v_chroma?: number  // raw VAVG-128 chroma
 }
 
-// Single source of truth for the detected subject bbox. Produced by either the
-// connected-component detector (extractors/bbox.ts) or the cropdetect-fallback
-// parser (extractors/analyzers.ts); stored under analysis.subject_bbox.
+// Single source of truth for the detected subject bbox. Produced by the
+// connected-component detector (extractors/bbox.ts), the multi-region siti grid
+// fallback (extractors/analyzers.ts), or the cropdetect parser when both fail.
+// The `confidence` field lets callers decide whether to trust roi=auto: 1.0 means
+// a tight, dominant single blob; 0.0 means no signal (cropdetect-fallback returning
+// full-frame). Stored under analysis.subject_bbox.
 export interface SubjectBbox {
   x: number
   y: number
@@ -120,8 +123,22 @@ export interface SubjectBbox {
   frame_w: number
   frame_h: number
   area_pct: number
-  method?: "cc" | "cropdetect" | "cropdetect-fallback"
+  method?: "cc" | "multi-region" | "center-prior" | "cropdetect" | "cropdetect-fallback"
+  confidence?: number
 }
+
+// Content-class detector output. Drives narrative-profile selection in watch(),
+// per-class TPF overrides, and motion-detection algorithm choice. Computed in
+// analyze() from existing signals (motion summary, scenes, palette, subject_bbox)
+// so adding it costs no new ffmpeg passes.
+export type ContentClass =
+  | "animation"      // mascot, branded character, motion graphics, launch reels
+  | "ui-screen"      // terminal, IDE, code editor, dashboard, agentic UI
+  | "human-motion"   // sports, fitness, dance, gymnastics
+  | "talking-head"   // single human, mostly face, podcast/interview/reaction
+  | "real-world"     // dashcam, POV, drone, varied subject
+  | "nature"         // landscape, slow camera, no clear subject
+  | "generic"        // fallback when signals don't fit a specific class
 
 export interface AnalysisFilters {
   scene_changes: boolean
@@ -152,6 +169,13 @@ export interface VideoAnalysis {
   transcription_skipped_reason?: string
   audio_warnings?: ChunkWarning[]
   content_profile: string
+  // Structured content classification. Drives narrative profile selection,
+  // per-class TPF overrides, and motion detection algorithm preference.
+  // content_profile remains as the human-readable label for backward compat.
+  content_class?: ContentClass
+  // Why the detector picked that class. Useful for debugging misclassification
+  // and for callers that want to log the signal trail.
+  content_class_reasons?: string[]
   // Raw siti scores so callers can see the numbers behind the content_profile label.
   motion_summary?: { siAvg?: number; tiAvg?: number }
   // Center-crop motion that catches small-subject high-motion (e.g. animated
@@ -173,11 +197,15 @@ export interface VideoAnalysis {
   // the video's global median + 1.5 MAD. Used by watch's adaptive_sampling=true
   // mode to allocate the per-call frame budget non-uniformly: more frames inside
   // motion windows, fewer in static spans.
-  motion_windows?: Array<{ start: string; end: string; intensity: number }>
+  motion_windows?: Array<{ start: string; end: string; intensity: number; coverage_score?: number }>
   // Per-motion-window subject bboxes (cc-segmentation per window range).
   // Powers watch's roi="per-window" so a traveling subject stays tight.
   // Null entries: detection found no usable blob in that window.
   window_bboxes?: Array<SubjectBbox | null>
+  // Warning when global motion_windows are unreliable (cluster at boundaries
+  // only, or subject_motion >> global motion). Lets callers know that
+  // adaptive_sampling may bias toward the wrong segments.
+  motion_detection_warning?: string
 }
 
 export interface SessionManifest {

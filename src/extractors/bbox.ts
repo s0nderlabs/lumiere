@@ -225,13 +225,46 @@ export async function detectSubjectBboxViaCC(
     if (w < 20 || h < 20) return null
 
     const area_pct = (w * h) / (frameW * frameH) * 100
+
+    // v0.11: confidence score for the CC detection. Anchored on area_pct ranges
+    // measured against known-good content:
+    //   - 10-70% area: tight isolated subject (high confidence)
+    //   - <10% or 70-85%: edge cases (single-pixel artifact or near-full-frame)
+    // Below 10% likely too small to be the subject; >85% rejected above.
+    const confidence = area_pct >= 10 && area_pct <= 70 ? 0.9
+      : area_pct < 10 ? 0.4
+      : 0.6
+
     return {
       x, y, w, h,
       frame_w: frameW, frame_h: frameH,
       area_pct: Math.round(area_pct * 10) / 10,
       method: "cc",
+      confidence,
     }
   } finally {
     rmSync(workDir, { recursive: true, force: true })
+  }
+}
+
+// Center-weighted prior. Used when both CC and cropdetect fail to find a tight
+// subject — falls back to "assume the subject is the central 60% of the frame".
+// Imperfect (subjects can be off-center) but consistently better than the
+// full-frame fallback that defeats the whole roi=auto mechanism. Confidence is
+// intentionally low (0.2) so callers know this is a heuristic.
+export function centerPriorBbox(frameW: number, frameH: number): SubjectBbox {
+  const cropFrac = 0.6
+  const w = Math.floor(frameW * cropFrac)
+  const h = Math.floor(frameH * cropFrac)
+  const x = Math.floor((frameW - w) / 2)
+  const y = Math.floor((frameH - h) / 2)
+  const wEven = w - (w % 2)
+  const hEven = h - (h % 2)
+  return {
+    x, y, w: wEven, h: hEven,
+    frame_w: frameW, frame_h: frameH,
+    area_pct: Math.round((wEven * hEven) / (frameW * frameH) * 1000) / 10,
+    method: "center-prior",
+    confidence: 0.2,
   }
 }

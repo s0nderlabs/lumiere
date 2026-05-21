@@ -375,14 +375,20 @@ export interface MotionWindow {
   intensity: number
 }
 
-export function buildMotionWindowsCommand(videoPath: string, metaFile: string): { args: string[] } {
+// Motion-windows ffmpeg command. Optional crop scopes siti to a sub-region of
+// the frame — used by analyze.ts to re-derive motion windows on the subject
+// bbox when global windows cluster at boundaries (typical for small off-center
+// subjects in busy backgrounds like fitness/sports on fixed-camera setups).
+export function buildMotionWindowsCommand(
+  videoPath: string,
+  metaFile: string,
+  crop?: { x: number; y: number; w: number; h: number },
+): { args: string[] } {
+  const filter = crop
+    ? `crop=${crop.w}:${crop.h}:${crop.x}:${crop.y},fps=10,siti,metadata=mode=print:file=${metaFile}`
+    : `fps=10,siti,metadata=mode=print:file=${metaFile}`
   return {
-    args: [
-      "-i", videoPath, "-y",
-      "-vf", `fps=10,siti,metadata=mode=print:file=${metaFile}`,
-      "-an",
-      "-f", "null", "-",
-    ],
+    args: ["-i", videoPath, "-y", "-vf", filter, "-an", "-f", "null", "-"],
   }
 }
 
@@ -444,16 +450,25 @@ export function parseMotionWindowsFromMetaFile(content: string, durationSec: num
     }
   }
 
-  // Drop windows shorter than 0.4s (likely noise)
+  // Drop windows shorter than 0.4s (likely noise). v0.11: clamp window end to
+  // durationSec - 0.5 to avoid the EOF-adjacent ffmpeg crash (extractFrames
+  // with -ss too close to EOF returns 0 frames). 0.5s headroom is enough for
+  // the densest fps tier (12.5fps = 80ms per frame; 0.5s fits 6 frames safely).
+  const EOF_HEADROOM = 0.5
+  const safeEndCap = Math.max(0, durationSec - EOF_HEADROOM)
   const out: MotionWindow[] = []
   for (const w of merged) {
     const dur = smoothed[w.endIdx].time - smoothed[w.startIdx].time
     if (dur < 0.4) continue
     const slice = smoothed.slice(w.startIdx, w.endIdx + 1)
     const intensity = slice.reduce((a, b) => a + b.ti, 0) / slice.length
+    const winStart = Math.max(0, smoothed[w.startIdx].time - 0.1)
+    const winEnd = Math.min(safeEndCap, smoothed[w.endIdx].time + 0.1)
+    // After clamping, window must still satisfy minimum duration
+    if (winEnd - winStart < 0.4) continue
     out.push({
-      start: formatHMSPrecise(Math.max(0, smoothed[w.startIdx].time - 0.1), 3),
-      end: formatHMSPrecise(Math.min(durationSec, smoothed[w.endIdx].time + 0.1), 3),
+      start: formatHMSPrecise(winStart, 3),
+      end: formatHMSPrecise(winEnd, 3),
       intensity: Math.round(intensity * 10) / 10,
     })
   }

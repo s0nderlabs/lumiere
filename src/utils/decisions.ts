@@ -65,6 +65,11 @@ export function shouldAutoSuggestNarrative(
 ): boolean {
   const a = manifest?.analysis
   if (!a) return false
+  // v0.11: content_class is the primary signal. Every detected class except
+  // "nature" benefits from narrative framing. nature has so little inter-frame
+  // change that narrative_mode's per-token-cost isn't worth it.
+  if (a.content_class && a.content_class !== "nature" && a.content_class !== "generic") return true
+  // Legacy heuristics (still useful when content_class is "generic" or absent)
   if (a.content_profile && /high\s*motion|action|dynamic/i.test(a.content_profile)) return true
   const cutsPerSec = (a.scenes?.length ?? 0) / Math.max(1, durationSec)
   if (cutsPerSec > 0.3) return true

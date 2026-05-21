@@ -2,6 +2,52 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-05-21
+
+Universal-quality release. Lumiere now classifies videos into seven content classes (animation, ui-screen, human-motion, talking-head, real-world, nature, generic) and routes each to a dedicated narrative-mode prompt + dedicated motion-detection strategy. The five issues surfaced on real-world human-motion content (fitness footage) are all closed; the perception layer is no longer animation-biased.
+
+Validated across five rounds of 4-way parallel tmux testing covering deadlift footage, animation reels, edited talking-head shorts (MKBHD), sports highlights (NBA dunk), terminal UI demos (Claude Code /goal), 42 Berlin terminal short, and dashcam content. 12/12 smoke cases pass; all 4 tiers PASS on the deadlift anchor with the synthetic-middle motion-window fallback firing correctly.
+
+### Added
+
+- **`analyze.content_class`**: structured 7-way classification (`animation` | `ui-screen` | `human-motion` | `talking-head` | `real-world` | `nature` | `generic`). Drives narrative-profile routing in watch() and is surfaced in the watch budget block as `content_class=<class> (bbox=<method>, conf=<n>)`. Computed in `src/utils/content-class.ts` from existing analyze signals; no extra ffmpeg passes.
+- **`analyze.content_class_reasons`**: ordered array of signal explanations the classifier emitted. Useful for debugging mis-classification and for callers that want to log the signal trail.
+- **`analyze.motion_detection_warning`**: surfaces when motion-windows are unreliable. Fires when global windows cluster at boundaries (entry/exit detected, not subject action) AND subject-region siti also finds no peaks; in that case the synthetic-middle fallback emits a single middle-60% best-guess window and the warning explains why.
+- **`SubjectBbox.confidence` (0.0-1.0)**: lets callers decide whether to trust `roi=auto`. `cc` method with reasonable area_pct → 0.9; partial/edge → 0.4-0.6; center-prior heuristic → 0.2; cropdetect-fallback at full-frame → unreliable.
+- **`watch.narrative_mode_profile`**: explicit per-content-class profile selector (`auto` | `animation` | `ui-screen` | `human-motion` | `talking-head` | `real-world` | `nature` | `generic`). Default `auto` reads `analyze.content_class`. Forces a specific profile when content is ambiguous.
+- **Per-class narrative-mode prompts**: `src/prompts/narrative-profiles.ts` ships 7 curated guidance prompts. Animation keeps the v0.10 cape/eye-laser/mascot priors. ui-screen handles terminal/code/agentic UI. human-motion covers biomechanics / lift phases / rep counts. talking-head, real-world, nature, and generic round out the registry.
+- **`bbox.centerPriorBbox`**: deterministic 60% center crop used as final fallback when CC + cropdetect both fail to find a tight subject. Better than `cropdetect-fallback` at full-frame (which defeats roi=auto entirely) for off-center subjects in busy backgrounds.
+
+### Changed
+
+- **`probe_calibration` defaults to ON** (was opt-in via `LUMIERE_PROBE_CALIBRATION=1`). Empirical: the static TPF table over-predicts for animation/UI content (probe lowers view_sample) and under-predicts for real-world content (probe also lowers view_sample, avoiding runtime_trim). Set `LUMIERE_PROBE_CALIBRATION=0` to disable globally. Adds ~150-300ms per watch() call.
+- **`watch` audio path: cache-aware**. When `analyze.transcription_low_confidence=true` is cached in the session manifest, `watch()` skips the whisper re-run and emits the same skipped-reason text. Closes the issue 3 leak where every chunk got fresh whisper hallucinations ("OLD COMPTON STREET", "BATEMAN STREET") on ambient gym audio despite the analyze pass already flagging the audio as unreliable.
+- **`buildMotionWindowsCommand` accepts optional `crop`**. Subject-region siti is the same code path as global siti, just with a `crop=W:H:X:Y,` prefix in the filter chain. Subsumes the v0.11-internal `buildSubjectMotionWindowsCommand`.
+- **Bbox detector cascade**: `analyze.subject_bbox` now tries 3 tiers — CC segmentation (0.9 confidence when tight) → cropdetect (0.5 confidence when area_pct < 85) → center-prior heuristic (0.2 confidence). The pre-v0.11 path either returned a clean CC bbox or fell back to `cropdetect-fallback` at area_pct=100, which made `roi=auto` useless on busy-background content.
+- **`shouldAutoSuggestNarrative`** (in `src/utils/decisions.ts`): primary signal is now `content_class`. Every class except `nature` and `generic` auto-fires narrative_mode.
+- **Static motion-window end clamping**: `parseMotionWindowsFromMetaFile` now clamps window end to `durationSec - 0.5` to avoid the EOF-adjacent ffmpeg crash when extractFrames is asked to read past the file end at high fps.
+
+### Fixed
+
+- **content_class detector**: bbox-unreliable check now recognizes `center-prior` and any confidence < 0.3 as "subject can't be isolated", not just the v0.10 `cropdetect-fallback at area_pct=100` shape. Closes the deadlift mis-classification that made `human-motion` fall through to `generic`.
+- **Motion-windows on slow continuous action**: when global windows cluster at boundaries AND subject-region siti also returns no peaked windows (typical for slow continuous motion like a deadlift / yoga / plank), the synthetic-middle fallback synthesizes a single middle-60% action window (intensity = `subject_motion.tiAvg`) so adaptive_sampling biases toward the action span instead of boundary noise. Surfaces the heuristic via `motion_detection_warning`.
+- **Talking-head classifier with edited B-roll**: high-cut + high-spatial-detail + clean-speech content (MKBHD-style podcast shorts, 42 Berlin terminal short with presenter + caption overlays) now routes to `talking-head`, not `animation` or `human-motion`. New rule order: talking-head specialist fires BEFORE human-motion edited-sports rule when ms > 70 + cuts > 0.4 + speech is present.
+- **Animation rule false-positives**: `palette_outliers >= 3` no longer dominates on edited talking-head content with colorful backdrops. The animation path now requires either (a) continuous shot (cuts < 0.3) OR (b) no clean speech (lc === true). Prevents 42 Berlin's 50-palette-outlier unicorn backdrop from triggering animation.
+- **UI-screen classifier**: third detection branch added for sparse static-frame UI demos with near-zero ti + zero cuts + bbox detected (catches Claude Code TUI demos with mostly-blank cream backgrounds + small terminal text that the existing `ms > 180` and `ms > 100 + mt < 15` branches missed).
+- **Nature classifier**: now requires `cuts/s < 0.1` in addition to low ti. Edited content with cuts (talking-head explainers, sports highlights) can no longer be mis-classified as nature even when motion is low.
+
+### Removed
+
+- **Dead code**: `NARRATIVE_GUIDANCE_LEGACY_ANIMATION_FALLBACK` (replaced by profile registry), `tokensPerFrameForClass` (probe_calibration supersedes static per-class TPF tables), `describeContentClass` (uncalled).
+
+### Internal
+
+- `src/utils/content-class.ts`: signal-based classifier (decision-tree of 11 rules over si/ti/cuts/palette/bbox/transcription signals). Smoke-tested against 12 real-signal cases from rounds 3-5 across all 7 content classes.
+- `src/prompts/narrative-profiles.ts`: profile registry + per-class guidance prompts (~3-11K chars each, total ~50K chars). `resolveNarrativeProfile(explicit, cachedClass)` picks the right one.
+- `src/extractors/bbox.ts`: confidence scoring per-method + `centerPriorBbox` fallback helper.
+- `src/tools/analyze.ts`: 3-tier motion-window cascade (subject-region siti → synthetic-middle / tier-3 warning). Same control flow as the bbox cascade.
+- `src/tools/watch.ts`: cache-aware audio path + `narrative_mode_profile` zod param + budget-block `content_class` + `motion_detection_warning` surfacing.
+
 ## [0.10.3] - 2026-05-21
 
 Closes the eight v0.10.2 deferred backlog items + fixes one cross-chunk frame-collision bug surfaced during v0.10.3 validation. Round-2 retest across all four tiers green: probe_calibration respects start_time/end_time, no out-of-range frames, no duplicate timestamps, no runtime_trim activations.
