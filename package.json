@@ -1,6 +1,6 @@
 {
   "name": "lumiere",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "type": "module",
   "description": "Video perception + launch-video creation for Claude Code.",
   "main": "src/index.ts",

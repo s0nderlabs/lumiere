@@ -397,15 +397,22 @@ export function registerAnalyze(server: McpServer): void {
           // (lasers, projectiles, flashes). Below 25 = brightness/sat noise.
           const strongPaletteOutliers = (analysis.palette_outliers ?? [])
             .filter(o => o.chroma_distance > 25).length
-          // has_speech: real transcription detected (not LC-suppressed sentinel,
-          // not empty, not the "[low confidence: ...]" placeholder from
-          // applyHallucinationGateToAnalysis). The transcription array can
-          // contain one sentinel segment when hallucination was suppressed —
-          // detect that and treat as no-speech.
+          // has_speech: real transcription detected. Filters out:
+          //   - LC-suppression sentinel ("[low confidence: ...]")
+          //   - VAD-suppressed transcription (transcription_skipped_reason set)
+          //   - Music-only emoji markers ("🎵", "(music)")
+          //   - Single-word hallucinations ("Våldskapitalet" on near-silent audio)
+          // A real speech transcript has multiple words and meaningful length.
+          // Threshold: at least 3 alphabetic words AND >= 15 chars total alphabetic.
           const txs = analysis.transcription ?? []
-          const hasSpeech = txs.length > 0 && !(
-            txs.length === 1 && txs[0]?.text?.startsWith("[low confidence")
-          ) && !analysis.transcription_skipped_reason
+          let hasSpeech = false
+          if (txs.length > 0 && !analysis.transcription_skipped_reason
+              && !(txs.length === 1 && txs[0]?.text?.startsWith("[low confidence"))) {
+            const allText = txs.map(t => t.text ?? "").join(" ")
+            const alphaChars = (allText.match(/[A-Za-zÀ-ÿ]/g) ?? []).length
+            const words = (allText.match(/[A-Za-zÀ-ÿ]{2,}/g) ?? []).length
+            hasSpeech = words >= 3 && alphaChars >= 15
+          }
           const cls = classifyContent({
             motion_summary: analysis.motion_summary,
             subject_motion: analysis.subject_motion,

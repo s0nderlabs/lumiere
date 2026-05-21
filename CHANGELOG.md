@@ -2,6 +2,14 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.4] - 2026-05-21
+
+`has_speech` v0.11.3 was over-permissive: any non-empty transcript counted as speech, so a music marker ("🎵") in a waterfall timelapse + single-word whisper hallucinations ("Våldskapitalet") on near-silent astronaut footage both triggered the instructor human-motion rule.
+
+### Fixed
+
+- **Tightened `has_speech` to require ≥3 alphabetic words AND ≥15 alphabetic chars** in the transcription. Single-word hallucinations and emoji-only music markers no longer count as real speech. Restores nature/real-world classification for silent / music-only / hallucinated-on-quiet content.
+
 ## [0.11.3] - 2026-05-21
 
 Disambiguating the "speech present" signal in `content_class` rules. The v0.11.0-0.11.2 classifier used `transcription_low_confidence !== true` as a proxy for "speech is present", but `undefined` matched both "clean speech detected" AND "no audio / VAD-suppressed". This caused waterfall + astronaut POV (silent content) to false-flag as human-motion under the v0.11.1 instructor rule. Also adds a palette-free animation path for cinematic motion-graphics teasers.
