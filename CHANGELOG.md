@@ -2,6 +2,22 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.1] - 2026-05-21
+
+Classifier rigor patches surfaced by a 5-fresh-video live test post-v0.11.0 ship (4/5 false-flags on gymnastics tutorial, cooking onion, waterfall timelapse, Apple Vision Pro teaser, astronaut ISS POV). 57-case test suite (17 real-signal smoke + 40 fuzz cases covering boundaries, adversarial, conflicts, missing-signals, weird-content) now all green.
+
+### Fixed
+
+- **`palette_outliers` was silently absent when callers passed `motion: true` without `exposure: true`**. The animation classifier rule (palette ≥ 3) needs this signal to fire; without it, motion-graphic content (Apple Vision Pro film-clip montage with palette shifts) fell through to talking-head. `analyze.ts` now auto-enables `exposure` whenever `motion` is requested. Cheap: adds ~50ms of already-parsed signalstats data.
+- **Nature timelapse mis-classified as real-world** when scdet false-positives on timelapse frame transitions push `cuts/s` above the 0.1 nature gate (waterfall: cuts/s=0.28). Added a second nature branch: moderate ti (15-35) + low spatial complexity (si < 60) + no palette + no subject dominance + no speech → timelapse / continuous-flow nature. Distinguishes from drone-over-terrain (si > 60).
+- **Real-world rule now requires `si > 60`** (varied terrain detail) OR strong subject dominance. Pure uniform-color nature scenes (waterfall, clouds, wildlife) with bbox-fail + moderate ti no longer mis-fire as dashcam/POV.
+- **Gymnastics-style instructor content** (athlete small in busy background, subject ti barely above global, narrator present) fell through to `generic`. Added human-motion instructor rule: `bboxFail && mt > 18 && cuts < 0.4 && lc===false && st > 18` → human-motion. Catches gymnastics tutorials, yoga instruction, fitness explainers.
+- **Cinematic animation montage** (Apple Vision Pro teaser: ti=9.4, palette=6, cuts=0.37, si=29) was routed to talking-head because the original palette animation rule required `cuts < 0.3 OR lc===true`. Added third animation branch: `palette ≥ 5 && mt < 15 && cuts > 0.2 && si < 50` → animation. The `si < 50` gate distinguishes flat cinematic colors (Apple film montage) from edited talking-head with colorful B-roll (42 Berlin: si=75 with palette=50).
+
+### Internal
+
+- Test suite expansion: `/tmp/lumiere-smoke-classify.ts` now covers 17 real-signal cases including 5 fresh-video signals from the v0.11.0 rigor live test. `/tmp/lumiere-classifier-rigor.ts` adds 40 fuzz cases across boundaries, adversarial, multi-rule conflicts, missing-signals, long-duration, weird/extreme content. 57/57 pass.
+
 ## [0.11.0] - 2026-05-21
 
 Universal-quality release. Lumiere now classifies videos into seven content classes (animation, ui-screen, human-motion, talking-head, real-world, nature, generic) and routes each to a dedicated narrative-mode prompt + dedicated motion-detection strategy. The five issues surfaced on real-world human-motion content (fitness footage) are all closed; the perception layer is no longer animation-biased.

@@ -85,17 +85,24 @@ export function classifyContent(opts: ClassifyInputs): ClassifyResult {
     return { content_class: "ui-screen", reasons }
   }
 
-  // Animation: palette outliers (emission events) — but ONLY when the content
-  // looks like a continuous animation/render, NOT an edited multi-cut presenter
-  // video with colorful B-roll. Two paths to animation:
+  // Animation: palette outliers (emission events) — three paths:
   //   (a) palette outliers + continuous shot (low cuts) — classic emission event
   //   (b) palette outliers + no clean speech (hallucinated or silent audio) —
   //       cartoon / motion graphic with no narrator
-  // The combined gate prevents talking-head presenters with colorful backdrops
+  //   (c) palette outliers + low spatial complexity (flat cinematic colors) +
+  //       low motion + dense cuts — cinematic film-clip montage / motion graphic
+  //       reel (e.g., Apple Vision Pro teaser). Distinguished from edited
+  //       talking-head presenters (which have higher si from face detail) by
+  //       the ms < 50 gate.
+  // Combined gates prevent talking-head presenters with colorful backdrops
   // (e.g., 42 Berlin terminal short with unicorn bg cuts) from triggering on
   // palette variance from the backdrop swap.
   if (poCount >= 3 && (cutsPerSec < 0.3 || opts.transcription_low_confidence === true)) {
     reasons.push(`animation: ${poCount} palette outliers (one-off colors = emission/projectile events), cuts ${cutsPerSec.toFixed(2)}/s, lc=${opts.transcription_low_confidence}`)
+    return { content_class: "animation", reasons }
+  }
+  if (poCount >= 5 && mt < 15 && cutsPerSec > 0.2 && ms < 50) {
+    reasons.push(`animation: cinematic montage — ${poCount} palette outliers + low spatial detail (ms=${ms.toFixed(1)}) + low motion (mt=${mt.toFixed(1)}) + dense cuts (${cutsPerSec.toFixed(2)}/s)`)
     return { content_class: "animation", reasons }
   }
   if (mt >= 50 && !bboxFail && opts.subject_bbox_method === "cc") {
@@ -149,20 +156,50 @@ export function classifyContent(opts: ClassifyInputs): ClassifyResult {
     return { content_class: "talking-head", reasons }
   }
 
-  // Real-world / dashcam: bbox fails AND global motion is moderate-high. No
-  // single subject region dominates; camera moves through varied scenes.
-  if (bboxFail && mt > 25) {
-    reasons.push(`real-world: bbox failed, global ti (${mt.toFixed(1)}) > 25 = camera-driven motion (dashcam/pov/drone)`)
-    return { content_class: "real-world", reasons }
+  // Human-motion slow-instructor: bbox unreliable, moderate motion that's
+  // not subject-dominant (athlete small in busy bg), but speech IS present.
+  // Catches gymnastics tutorials, yoga instruction, fitness instructors, dance
+  // explainers where the subject is small in frame relative to a busy
+  // background. The narrator-with-physical-demo signal is the key tell.
+  if (bboxFail && mt > 18 && cutsPerSec < 0.4 && opts.transcription_low_confidence === false && st > 18) {
+    reasons.push(`human-motion: instructor/tutorial — bbox failed (subject small in busy bg), moderate ti (${mt.toFixed(1)}/${st.toFixed(1)}), low cuts (${cutsPerSec.toFixed(2)}/s), speech present`)
+    return { content_class: "human-motion", reasons }
   }
 
-  // Nature: very low temporal motion across the board AND low scene cuts.
-  // Slow camera, static landscape, no clear subject. Audio usually ambient.
-  // v0.11: cuts/s < 0.1 is a hard gate — edited content with cuts CAN'T be
-  // nature even if motion is low (e.g., edited talking-head explainer).
+  // Nature: low motion, OR uniform-color timelapse (waterfall, clouds, plants).
+  // Distinguishing from drone-over-terrain (which is real-world): nature
+  // content has UNIFORM low spatial complexity (si < 60), drone has varied
+  // landscape detail (si higher). Both have subject_motion ≈ global_motion,
+  // both can have low/moderate ti, but drone footage shows different terrain
+  // frame-to-frame while a timelapse on one scene stays uniform.
   if (mt < 15 && st < 20 && cutsPerSec < 0.1) {
     reasons.push(`nature: low ti everywhere (global ${mt.toFixed(1)}, subject ${st.toFixed(1)}), continuous shot (cuts ${cutsPerSec.toFixed(2)}/s)`)
     return { content_class: "nature", reasons }
+  }
+  // Moderate-motion timelapse / continuous-flow nature: water/clouds/wind.
+  // Requires moderate ti (> 15 distinguishes timelapse motion from cooking-like
+  // static), low spatial complexity (< 60 distinguishes from drone-over-terrain),
+  // no palette outliers, no clear subject. Scene-cut tolerance bumped to 0.35
+  // since scdet false-positives on timelapse frame transitions.
+  if (mt > 15 && mt < 35 && cutsPerSec < 0.35 && poCount === 0 && bboxFail && ms < 60
+      && Math.abs(subjectOverGlobal - 1) < 0.15
+      && opts.transcription_low_confidence !== false) {
+    reasons.push(`nature: timelapse / continuous-flow natural scene — moderate ti (${mt.toFixed(1)}), low spatial complexity (si=${ms.toFixed(1)}), no subject dominance (ratio ${subjectOverGlobal.toFixed(2)}), no palette, no speech`)
+    return { content_class: "nature", reasons }
+  }
+
+  // Real-world / dashcam / drone POV: bbox fails AND ti > 25 AND content has
+  // a "camera moves through varied scenes" signature. Distinguished from
+  // timelapse-style nature scenes by spatial complexity: drone over terrain,
+  // dashcam streetscapes, walking POV all have si > 60 (varied detail);
+  // waterfall / cloud / wildlife timelapses have si < 60 (uniform colors).
+  if (bboxFail && mt > 25 && ms > 60) {
+    reasons.push(`real-world: bbox failed, global ti (${mt.toFixed(1)}) > 25, moderate spatial complexity (si=${ms.toFixed(1)}) = camera over varied scenes`)
+    return { content_class: "real-world", reasons }
+  }
+  if (bboxFail && mt > 30 && subjectOverGlobal > 1.1) {
+    reasons.push(`real-world: bbox failed, global ti (${mt.toFixed(1)}) > 30, subject motion dominates by ${(subjectOverGlobal * 100 - 100).toFixed(0)}%`)
+    return { content_class: "real-world", reasons }
   }
 
   reasons.push("generic: signals did not match any specific class")

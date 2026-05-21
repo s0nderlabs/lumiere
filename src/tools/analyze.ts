@@ -81,7 +81,18 @@ export function registerAnalyze(server: McpServer): void {
       }
 
       try {
-        const ffFilters: AnalysisFilters = { ...filters, transcription: false }
+        // v0.11: auto-enable exposure when motion is enabled. palette_outliers
+        // (a key signal for content_class classification, esp. animation
+        // detection) is gated behind the exposure filter. Without auto-enable,
+        // callers that pass {motion: true} but omit exposure get no palette
+        // data and animation falls through to talking-head / generic on
+        // motion-graphic content. Cheap: exposure adds ~50ms of signalstats
+        // parsing in the same ffmpeg pass.
+        const ffFilters: AnalysisFilters = {
+          ...filters,
+          exposure: filters.exposure || filters.motion,
+          transcription: false,
+        }
         const cmd = buildAnalysisCommand(safePath, ffFilters, workDir)
         let stderr = ""
 
@@ -135,7 +146,7 @@ export function registerAnalyze(server: McpServer): void {
               }
             }
           }
-          if (filters.exposure && metaContent !== null) {
+          if (ffFilters.exposure && metaContent !== null) {
             const data = parseSignalstatsOutput(metaContent)
             const byTs = new Map<string, typeof analysis.frame_stats[number]>()
             for (const fs of analysis.frame_stats) byTs.set(fs.timestamp, fs)
@@ -158,7 +169,7 @@ export function registerAnalyze(server: McpServer): void {
         // Palette novelty pass. Runs off the already-parsed signalstats data
         // (no extra ffmpeg invocation), so it does not need to be parallel
         // with the motion ffmpeg passes below.
-        if (filters.exposure && analysis.frame_stats.length >= 8) {
+        if (ffFilters.exposure && analysis.frame_stats.length >= 8) {
           analysis.palette_outliers = detectPaletteOutliers(analysis.frame_stats)
         }
 
