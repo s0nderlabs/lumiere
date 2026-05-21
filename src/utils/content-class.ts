@@ -14,6 +14,12 @@ export interface ClassifyInputs {
   subject_bbox_confidence?: number
   loudness_lufs?: number
   transcription_low_confidence?: boolean
+  // True when analyze.transcription has non-suppressed segments AND those
+  // segments aren't a single LC-suppressed sentinel. Distinguishes "real
+  // speech detected" from "no speech / audio_too_quiet / hallucinated" — a
+  // signal `transcription_low_confidence !== true` alone can't make because
+  // undefined matches both "clean speech" and "no speech at all".
+  has_speech?: boolean
   // Most motion concentrated near video boundaries (entry/exit) instead of
   // distributed across the middle. Strong signal for human-motion in busy bg
   // where subject's walk-in/walk-out registers as global motion but the actual
@@ -105,6 +111,16 @@ export function classifyContent(opts: ClassifyInputs): ClassifyResult {
     reasons.push(`animation: cinematic montage — ${poCount} palette outliers + low spatial detail (ms=${ms.toFixed(1)}) + low motion (mt=${mt.toFixed(1)}) + dense cuts (${cutsPerSec.toFixed(2)}/s)`)
     return { content_class: "animation", reasons }
   }
+  // Cinematic animation without palette signal: very low spatial detail (< 35,
+  // distinguishes flat cinematic film palettes from talking-head studio detail)
+  // + very low motion (still shots between cuts) + moderate cut rate (montage
+  // editing) + speech not flagged as hallucinated. Catches motion-graphic
+  // reels / launch teasers where palette_outliers strict cd>25 filter zeroes
+  // the count even though the content IS animation.
+  if (ms < 35 && mt < 15 && cutsPerSec > 0.2 && cutsPerSec < 0.6 && opts.transcription_low_confidence !== true) {
+    reasons.push(`animation: motion-graphic / cinematic teaser — very low spatial detail (ms=${ms.toFixed(1)}), low motion (mt=${mt.toFixed(1)}), moderate cuts (${cutsPerSec.toFixed(2)}/s)`)
+    return { content_class: "animation", reasons }
+  }
   if (mt >= 50 && !bboxFail && opts.subject_bbox_method === "cc") {
     reasons.push(`animation: high temporal motion (${mt.toFixed(1)}) with CC bbox detection (clean single subject on flat bg)`)
     return { content_class: "animation", reasons }
@@ -157,12 +173,13 @@ export function classifyContent(opts: ClassifyInputs): ClassifyResult {
   }
 
   // Human-motion slow-instructor: bbox unreliable, moderate motion that's
-  // not subject-dominant (athlete small in busy bg), but speech IS present.
-  // Catches gymnastics tutorials, yoga instruction, fitness instructors, dance
-  // explainers where the subject is small in frame relative to a busy
-  // background. The narrator-with-physical-demo signal is the key tell.
-  if (bboxFail && mt > 18 && cutsPerSec < 0.4 && opts.transcription_low_confidence === false && st > 18) {
-    reasons.push(`human-motion: instructor/tutorial — bbox failed (subject small in busy bg), moderate ti (${mt.toFixed(1)}/${st.toFixed(1)}), low cuts (${cutsPerSec.toFixed(2)}/s), speech present`)
+  // not subject-dominant (athlete small in busy bg), AND real speech detected
+  // (narrator/instructor present). Catches gymnastics tutorials, yoga
+  // instruction, fitness instructors, dance explainers. Requires has_speech=true
+  // so silent timelapses / nature scenes don't false-trigger.
+  if (bboxFail && mt > 18 && cutsPerSec < 0.4 && opts.has_speech === true && st > 18
+      && opts.transcription_low_confidence !== true) {
+    reasons.push(`human-motion: instructor/tutorial — bbox failed (subject small in busy bg), moderate ti (${mt.toFixed(1)}/${st.toFixed(1)}), low cuts (${cutsPerSec.toFixed(2)}/s), narrator speech present`)
     return { content_class: "human-motion", reasons }
   }
 

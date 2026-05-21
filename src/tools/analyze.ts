@@ -397,6 +397,15 @@ export function registerAnalyze(server: McpServer): void {
           // (lasers, projectiles, flashes). Below 25 = brightness/sat noise.
           const strongPaletteOutliers = (analysis.palette_outliers ?? [])
             .filter(o => o.chroma_distance > 25).length
+          // has_speech: real transcription detected (not LC-suppressed sentinel,
+          // not empty, not the "[low confidence: ...]" placeholder from
+          // applyHallucinationGateToAnalysis). The transcription array can
+          // contain one sentinel segment when hallucination was suppressed —
+          // detect that and treat as no-speech.
+          const txs = analysis.transcription ?? []
+          const hasSpeech = txs.length > 0 && !(
+            txs.length === 1 && txs[0]?.text?.startsWith("[low confidence")
+          ) && !analysis.transcription_skipped_reason
           const cls = classifyContent({
             motion_summary: analysis.motion_summary,
             subject_motion: analysis.subject_motion,
@@ -408,6 +417,7 @@ export function registerAnalyze(server: McpServer): void {
             subject_bbox_confidence: analysis.subject_bbox?.confidence,
             loudness_lufs: analysis.loudness_summary?.mean_lufs,
             transcription_low_confidence: analysis.transcription_low_confidence,
+            has_speech: hasSpeech,
           })
           analysis.content_class = cls.content_class
           analysis.content_class_reasons = cls.reasons

@@ -2,6 +2,15 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.3] - 2026-05-21
+
+Disambiguating the "speech present" signal in `content_class` rules. The v0.11.0-0.11.2 classifier used `transcription_low_confidence !== true` as a proxy for "speech is present", but `undefined` matched both "clean speech detected" AND "no audio / VAD-suppressed". This caused waterfall + astronaut POV (silent content) to false-flag as human-motion under the v0.11.1 instructor rule. Also adds a palette-free animation path for cinematic motion-graphics teasers.
+
+### Fixed
+
+- **`has_speech` boolean signal added to classifier inputs**. Computed in `analyze.ts` from `analysis.transcription`: true only when transcription has real segments (not the LC-suppression sentinel, not VAD-suppressed). The human-motion instructor rule now requires `has_speech === true` so silent timelapses / POV cameras don't mis-fire.
+- **Animation rule for palette-less cinematic teasers**. After v0.11.2 added the strong-palette filter (cd > 25), the Apple Vision Pro film montage produced palette_count=0 even though it IS animation. Added a fourth animation branch: `ms < 35 && mt < 15 && cuts ∈ (0.2, 0.6) && lc !== true` → animation. The very low spatial complexity (< 35) distinguishes flat cinematic film palettes from edited talking-head studio detail (ms typically > 50).
+
 ## [0.11.2] - 2026-05-21
 
 `palette_outliers` count was meaningless: `detectPaletteOutliers` caps output at top-50 by chroma_distance, so EVERY video with `exposure` enabled gets ~50 outliers regardless of whether the events are real emission/projectile flashes or just brightness ramps from natural footage. v0.11.1 auto-enabled exposure (good for the palette signal), but the classifier was reading the saturated count as "this is animation".
