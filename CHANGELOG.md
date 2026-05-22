@@ -2,7 +2,22 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.11.4] - 2026-05-21
+## [0.11.5] - 2026-05-22
+
+Adaptive sampling could leave huge unsampled gaps when motion_windows fired on background animation (e.g. the Claude AI conference promo where a 0.6s city-pin transit was the only window in an 18s pixel-art mascot clip). After `probe_calibration` aggressively retuned view_sample to 2 against a dense middle probe, the remaining ~16s of timeline got zero coverage past the bookends, including the actual headphone equip/unequip events. The original concentration-based gap warning couldn't fire at small budgets either (budget ratio caps at 0.5 with 2 frames). v0.11.5 adds three layered fixes so frames spread across the timeline whenever motion signals are too sparse to trust.
+
+### Added
+
+- **Uniform-fallback path in `buildAdaptiveSegments`**. When motion windows cover <8% of the active span AND total budget <6 frames, the planner emits N micro-segments at sub-span midpoints (one frame each) instead of concentrating 70% of the budget into the tiny motion window. Same total frame count, but max gap = activeDur/totalBudget seconds instead of activeDur (the original placement).
+- **`applyProbeDensityFloor`** floors `probe_calibration`'s view_sample retune at `max(2, ceil(activeDur/5))`, capped at the original auto-budget. Guarantees ≥1 frame per 5s of timeline without ever exceeding what the auto-budget would have given pre-probe (so the MCP-cap protection role of probe_calibration is preserved for cases where the probe is correctly aggressive).
+- **Density-based sampling warning** (`samplingDensityWarning`). The original gap warning required >60% of budget concentrated in <30% of timeline, which can't fire at small budgets. The new path fires whenever the largest contiguous unsampled span exceeds `min(5s, 30% of timeline)`. Surfaces the gap, names what events it might miss (equip/unequip, costume swap, prop in-hand), and prescribes concrete follow-ups (chunk the call, drop tier, pin a segment).
+- **`"uniform"` kind** added to the `AdaptiveSegment.kind` union so the budget block honestly labels fallback micro-segments as "uniform (fallback)" instead of misreporting them as "static".
+
+### Changed
+
+- `formatSegmentBound` now emits sub-second HMS precision (`00:00:04.125`) instead of rounded whole seconds. Prevents adjacent uniform-fallback micro-segments from collapsing into duplicate HMS strings at sub-second spans.
+
+
 
 `has_speech` v0.11.3 was over-permissive: any non-empty transcript counted as speech, so a music marker ("🎵") in a waterfall timelapse + single-word whisper hallucinations ("Våldskapitalet") on near-silent astronaut footage both triggered the instructor human-motion rule.
 

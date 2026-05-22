@@ -38,7 +38,10 @@ import {
   sampleFrameIndices,
 } from "../session/manifest.js"
 import {
+  DENSITY_WARNING_THRESHOLDS,
+  applyProbeDensityFloor,
   buildAdaptiveSegments,
+  computeMaxSampleGap,
   formatAdaptiveSummary,
   type AdaptiveSegment,
 } from "../utils/adaptive-segments.js"
@@ -121,6 +124,18 @@ What this misses: silhouette-area-changing events (equip/unequip, costume on/off
 To verify before locking interpretation, run a follow-up uniform scan:
   watch(path, mode=mid, adaptive_sampling=false, fps=2, narrative_mode=true)
 The mid-tier uniform pass catches discrete on/off events the motion_window-weighted pass missed.`
+}
+
+function samplingDensityWarning(maxGapSec: number, spanSec: number, totalBudget: number): string {
+  return `## Sampling density warning
+Largest contiguous unsampled span is ${maxGapSec}s within a ${spanSec}s active window (${totalBudget} frames total). Any event happening inside that gap (silhouette-area change, equip/unequip, costume swap, prop in-hand, scene-internal state change) was NOT verified.
+
+Why this fires: at small frame budgets, even uniform placement leaves multi-second gaps. Even when adaptive_sampling falls back to uniform, ${totalBudget} frames over ${spanSec}s can only resolve events spaced ≥${maxGapSec}s apart. Brief on/off events that fall between samples are invisible.
+
+To verify before locking interpretation, run a follow-up at higher temporal density via one of:
+  - Chunk the video: watch(path, start_time=00:00:00, end_time=<halfway>) then watch(path, start_time=<halfway>, end_time=<end>) to halve the gap.
+  - Drop tier to widen the budget: watch(path, mode=mid) gets ~3x more frames per call at the cost of resolution per frame.
+  - Pin a specific segment: watch(path, start_time=<around suspected event>, end_time=<around suspected event + 2s>, fps=4) for dense coverage of the suspect span.`
 }
 
 function trimHintRuntimeMiddleDrop(args: {
@@ -489,8 +504,20 @@ export function registerWatch(server: McpServer): void {
           const derived = fitFramesForRuntimeCap(probeFrames)
           if (derived !== null && probeFrames[0]?.image) {
             probeChars = probeFrames[0].image.length
-            probeCalibratedFrom = effectiveViewSample
-            effectiveViewSample = derived
+            // applyProbeDensityFloor: keep ≥1 frame per 5s of active duration,
+            // capped at the original auto-budget so probe never ADDS frames.
+            // Surfaced 2026-05-22 on the Claude conference promo (probe_chars=
+            // 277016 from a dense pixel-art middle frame retuned 4→2, leaving
+            // a 9.2s sampling gap that masked all 4 equip events).
+            const flooredDerived = applyProbeDensityFloor({
+              derived,
+              originalViewSample: effectiveViewSample,
+              activeDurationSec: Math.max(0, windowEnd - windowStart),
+            })
+            if (flooredDerived !== effectiveViewSample) {
+              probeCalibratedFrom = effectiveViewSample
+              effectiveViewSample = flooredDerived
+            }
           } else {
             probeError = "no frame extracted"
           }
@@ -890,22 +917,34 @@ export function registerWatch(server: McpServer): void {
         })
       }
 
-      // Adaptive-cluster gap warning. When motion-window sampling clusters most
-      // of the budget into a tiny slice of the active duration, the LLM gets
-      // dense coverage of one moment and bookend anchors elsewhere. Equip/
-      // unequip events that don't pop the motion threshold fall into the gap.
-      // Empirically observed 2026-05-20: Claude conference promo put 64% of
-      // frames into 3% of the timeline and missed two headphone equip/unequip
-      // events because the only motion_window was a 0.6s pin-label transit.
+      // Sampling-gap warning. Two distinct trigger paths now:
+      //
+      // 1) CONCENTRATION (original v0.6): motion-window sampling clusters most
+      //    of the budget into a tiny slice of the active duration. Claude
+      //    conference promo (May 20 2026) put 64% of frames into 3% of timeline
+      //    and missed two headphone equip events. Threshold: budget concentrated
+      //    >60% into <30% of duration.
+      //
+      // 2) DENSITY (v0.11.5): the largest contiguous unsampled span exceeds
+      //    min(5s, 30% of active duration). Catches the small-budget case the
+      //    concentration check misses — at view_sample=2, budgetRatio peaks at
+      //    0.5 so the original check can't fire even when the actual coverage
+      //    has 9+ second gaps. Surfaced 2026-05-22 re-running the conference
+      //    promo with probe_calibration default-on (2 frames over 18.5s → 8.5s
+      //    tail returned zero frames including the unequip event at t=14-17).
       if (adaptiveSegs.length > 0) {
         let totalBudget = 0
         let motionBudget = 0
         let activeDur = 0
         let motionDur = 0
+        let spanStart = Infinity
+        let spanEnd = -Infinity
         for (const s of adaptiveSegs) {
           const dur = s.endSec - s.startSec
           totalBudget += s.budgetFrames
           activeDur += dur
+          if (s.startSec < spanStart) spanStart = s.startSec
+          if (s.endSec > spanEnd) spanEnd = s.endSec
           if (s.kind === "motion") {
             motionBudget += s.budgetFrames
             motionDur += dur
@@ -913,10 +952,34 @@ export function registerWatch(server: McpServer): void {
         }
         const budgetRatio = totalBudget > 0 ? motionBudget / totalBudget : 0
         const durRatio = activeDur > 0 ? motionDur / activeDur : 0
-        if (budgetRatio > GAP_WARN_BUDGET_RATIO && durRatio < GAP_WARN_DURATION_RATIO && motionDur > 0) {
+        const concentrationFires = budgetRatio > GAP_WARN_BUDGET_RATIO
+          && durRatio < GAP_WARN_DURATION_RATIO
+          && motionDur > 0
+
+        const fullSpan = Number.isFinite(spanStart) && Number.isFinite(spanEnd)
+          ? spanEnd - spanStart
+          : activeDur
+        const maxSampleGap = computeMaxSampleGap(adaptiveSegs, spanStart, spanEnd)
+        const gapThreshold = Math.min(
+          DENSITY_WARNING_THRESHOLDS.gapCapSec,
+          fullSpan * DENSITY_WARNING_THRESHOLDS.spanFraction,
+        )
+        const densityFires = maxSampleGap > gapThreshold
+          && fullSpan > DENSITY_WARNING_THRESHOLDS.minSpanSec
+
+        if (concentrationFires) {
           content.push({
             type: "text",
             text: samplingGapWarning(Math.round(budgetRatio * 100), Math.round(durRatio * 100)),
+          })
+        } else if (densityFires) {
+          content.push({
+            type: "text",
+            text: samplingDensityWarning(
+              Math.round(maxSampleGap * 10) / 10,
+              Math.round(fullSpan * 10) / 10,
+              totalBudget,
+            ),
           })
         }
       }
