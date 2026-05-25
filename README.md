@@ -57,7 +57,6 @@ Structural ffmpeg pass. Returns: scene cuts, silence intervals, motion windows, 
 Frame extraction + audio. Returns base64 images with narrative guidance. Key params:
 - `mode`: `low` (384px) | `mid` (512px) | `high` (1024px, default) | `max` (1536px)
 - `narrative_mode`: temporal sequence reading instead of frame-by-frame
-- `narrative_mode_profile` (v0.11): `auto` (default, reads `analyze.content_class`) | `animation` | `ui-screen` | `human-motion` | `talking-head` | `real-world` | `nature` | `generic`. Forces a specific narrative-prompt profile when content is ambiguous.
 - `adaptive_sampling`: motion-window-aware frame allocation (70/30 motion/static split)
 - `roi`: `"auto"` reads `analyze.subject_bbox`; `"per-window"` (v0.8) assigns each motion window its own bbox from `analyze.window_bboxes` so a traveling subject stays tight in every crop (requires `adaptive_sampling=true` + prior `analyze` with motion=true); `"x,y,w,h"` explicit. Subject gets full target resolution
 - `start_time` / `end_time`: chunk a sub-segment
@@ -75,7 +74,7 @@ Exact token forecast via Anthropic's `/v1/messages/count_tokens` (free endpoint,
 Set persistent server defaults:
 - `default_mode` (`low` / `mid` / `high` / `max`): tier used when watch/measure omit `mode`.
 - `default_narrative_mode` (`true` / `false` / `"auto"`): when true, narrative_mode defaults on for every watch/measure call that omits the param. When false, defaults off. When `"auto"` or unset, the heuristic decides per call (auto-suggest from motion / cuts / palette signals). Per-call param always wins.
-- `default_adaptive_sampling` (`true` / `false` / `"auto"`): same semantics for adaptive sampling. `true` activates whenever motion_windows are cached and duration > 4s. `false` forces uniform sampling. `"auto"` or unset = heuristic (auto-enable only when narrative is also on).
+- `default_adaptive_sampling` (`true` / `false`): `true` activates whenever motion_windows are cached and duration > 4s. `false` forces uniform sampling. Default is off; opt-in only.
 - `backend` (`local` / `gemini-api` / `none`): audio transcription backend.
 - `whisper_model` (`tiny` / `base` / `small` / `medium` / `large-v3-turbo` / `large-v3` / `auto`): whisper size when backend=local.
 - `clear_sessions: true`: wipe cached sessions + downloads.
@@ -107,7 +106,7 @@ When the moving subject is small relative to the frame (mascot inside a brand ca
 
 Requires `adaptive_sampling=true` and a prior `analyze(motion=true)` call.
 
-## How narrative_mode works (v0.3+, per-class profiles in v0.11)
+## How narrative_mode works (v0.3+, universal guidance in v0.12)
 
 Frame-sampled perception has a structural failure: each frame gets interpreted in isolation, so continuous action reads as a sprite sheet of unrelated costumes. The fix is a temporal-narrative prompt:
 
@@ -116,18 +115,11 @@ Frame-sampled perception has a structural failure: each frame gets interpreted i
 3. RESOLVE: each change as action / transition / state change
 4. NARRATE: as continuous prose
 
-v0.11 splits the narrative-mode prompt into seven per-content-class profiles (`animation`, `ui-screen`, `human-motion`, `talking-head`, `real-world`, `nature`, `generic`). `analyze` classifies the video into one of these via signal-based rules (motion summary, scene cuts, palette outliers, subject bbox confidence, transcription LC flag). `watch` then picks the matching profile prompt. Examples:
-- **animation**: branded character / mascot priors (cape/wings/headgear/EMISSION-FROM-EYES). Calibrated for ClaudeDevs launch-video class content.
-- **ui-screen**: terminal/code/dashboard priors (cursor + selection state, text content changes, tool-call lifecycle markers).
-- **human-motion**: biomechanics priors (lift phases, joint angles, bar/object paths, rep counts, tempo cadence).
-- **talking-head**: gesture / expression / B-roll insert priors.
-- **real-world**, **nature**, **generic**: lighter priors for varied or low-action content.
-
-Auto-suggested when prior `analyze` reports a content_class other than `nature` or `generic`. Override via `narrative_mode_profile` if `analyze` mis-classifies (or run without `analyze` and the v0.10 animation prompt is the default fallback).
+v0.12 uses one universal `NARRATIVE_GUIDANCE` prompt for all video types. The model determines what it's looking at from the frames alone, no domain-specific priors needed. Auto-suggested when prior `analyze` reports a content_class other than `nature` or `generic`.
 
 ## How content classification works (v0.11)
 
-`analyze` returns `content_class` as a structured 7-way enum so `watch` can route to the right narrative-prompt profile. The classifier is signal-based — no extra ffmpeg passes — and uses a decision tree over motion summary (si / ti / subject ratio), scene cut density, palette outlier count, subject bbox method + confidence, and the transcription low-confidence flag.
+`analyze` returns `content_class` as a structured 7-way enum for informational metadata. The classifier is signal-based, no extra ffmpeg passes, and uses a decision tree over motion summary (si / ti / subject ratio), scene cut density, palette outlier count, subject bbox method + confidence, and the transcription low-confidence flag. As of v0.12, content_class is no longer used to route narrative prompts but still drives auto-suggestion of narrative_mode.
 
 Bbox detection runs a 3-tier cascade: connected-component segmentation (cleanest tight crop, confidence 0.9 when area_pct ∈ [10, 70]) → cropdetect (confidence 0.5 when area_pct < 85) → center-prior heuristic (60% center crop, confidence 0.2). The third tier is a v0.11 addition that gives `roi=auto` a useful crop on busy-background content (fitness videos, sports footage) where CC + cropdetect both fail.
 

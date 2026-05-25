@@ -61,8 +61,8 @@ import {
   shouldAutoSuggestNarrative,
 } from "../utils/decisions.js"
 import { applyHallucinationGate } from "../utils/hallucination.js"
-import { resolveNarrativeProfile } from "../prompts/narrative-profiles.js"
-import type { AudioResult, ContentClass, Frame, Segment, SessionManifest, SegmentFrame } from "../types.js"
+import { NARRATIVE_GUIDANCE } from "../prompts/narrative-profiles.js"
+import type { AudioResult, Frame, Segment, SessionManifest, SegmentFrame } from "../types.js"
 
 const HMS_REGEX = TIMESTAMP_HMS_REGEX
 // lookupTimestamps normalizes numerically so format mismatches with cached
@@ -101,19 +101,8 @@ function fitFramesForRuntimeCap(frames: { image?: string }[]): number | null {
   return Math.max(2, Math.floor((RUNTIME_CAP - TEXT_OVERHEAD_BUDGET) / perFrameTokens))
 }
 
-// v0.11: Narrative guidance now lives in src/prompts/narrative-profiles.ts as
-// a per-content-class registry. resolveNarrativeProfile() picks the right
-// profile based on analyze().content_class or the explicit
-// narrative_mode_profile param.
-
-// Tier-gated hedge hint. At <=512 px, ambiguous silhouettes can lead the model to
-// commit to a confident-but-wrong action verb. Empirically observed during the
-// 2026-05-19 narrative-pass dispatch test: mid (512) hallucinated a "barbell workout"
-// for a sequence that was actually "rope-on + jump + eye-laser + land". The fix is
-// to explicitly ask for hedging at this tier.
-const LOW_TIER_HEDGE_HINT = `### Confidence note (resolution <= 512)
-
-At this resolution, silhouettes may be AMBIGUOUS between actions. When you are inferring a verb from a silhouette rather than reading it directly, FLAG it: write "looks like X" or "could be X or Y" instead of asserting X. Prefer honest uncertainty over confident misreading. If a frame's content is unclear at this tier, say so and recommend a higher tier (mode=high or mode=max) for that segment.`
+// v0.12: single universal NARRATIVE_GUIDANCE from narrative-profiles.ts.
+// No content-class routing, no per-class profiles, no domain-specific priors.
 
 function samplingGapWarning(concentrationPct: number, windowPct: number): string {
   return `## Sampling gap warning
@@ -335,16 +324,8 @@ function summarizeManifest(manifest: SessionManifest) {
   return { video_hash: manifest.video_hash, resolutions }
 }
 
-// When narrative_mode is active and analyze() flagged palette outliers, surface
-// them so the model treats novel colors as emission events instead of body parts.
-function paletteOutlierHint(manifest: SessionManifest | null): string | null {
-  if (!manifest?.analysis?.palette_outliers || manifest.analysis.palette_outliers.length === 0) return null
-  const outs = manifest.analysis.palette_outliers
-  const list = outs.slice(0, 8).map(o => `${o.timestamp} (dist=${o.chroma_distance})`).join(", ")
-  return `### Palette-novelty alert
-
-Prior \`analyze()\` flagged ${outs.length} frame(s) with color/brightness statistically far from the median: ${list}. These frames likely contain EMISSION events (laser, projectile, flash, particle effect) emanating FROM the subject rather than body parts OF the subject. When narrating these timestamps, prefer emission verbs (fires, emits, beams, casts) over physical/anatomy descriptors (legs, dust, particles).`
-}
+// v0.12: palette_outliers hint removed. The model can see color changes in
+// the frames without being told what to interpret them as.
 
 export function registerWatch(server: McpServer): void {
   server.tool(
@@ -382,9 +363,8 @@ export function registerWatch(server: McpServer): void {
       view: z.array(z.string().regex(HMS_VIEW_REGEX)).optional().describe("Look up specific timestamps from session cache (requires enable_index=true and at least one prior watch/analyze call). Accepts HH:MM:SS or HH:MM:SS.fff (matches the sub-second precision the manifest emits). Bypasses extraction."),
       narrative_mode: z.boolean().optional().describe("Inject temporal-narrative guidance into the response so Claude reads frames as a continuous action sequence (anchors/changes/actions) rather than as independent images. Recommended for action/motion-heavy segments. Auto-suggested when analyze() reports high motion or dense scene cuts."),
       roi: z.union([z.literal(ROI_AUTO), z.literal(ROI_PER_WINDOW), z.string().regex(/^\d+,\d+,\d+,\d+$/)]).optional().describe("Crop frames to a region of interest before scaling. 'auto' uses a single global analyze().subject_bbox. 'per-window' assigns each motion-window's frames its OWN bbox from analyze().window_bboxes - tracks a traveling subject so each window's pixels land tight on the subject even when the subject moves across the frame (requires adaptive_sampling and prior analyze with motion=true). 'x,y,w,h' is an explicit pixel bbox. ROI crop gives the subject the full target resolution instead of being averaged out by background pixels."),
-      adaptive_sampling: z.boolean().optional().describe("Motion-adaptive frame allocation. When true (or auto-enabled because narrative_mode is on AND analyze().motion_windows is cached AND duration > 4s), the per-call frame budget is split non-uniformly: 70% to motion-dense windows (weighted by duration * intensity), 30% to static spans. Same total frame count, but temporal resolution biased toward where action is happening. Pass false to force uniform sampling. Ignored if `segments` is given."),
+      adaptive_sampling: z.boolean().optional().describe("Motion-adaptive frame allocation. When true, the per-call frame budget is split non-uniformly: 70% to motion-dense windows (weighted by duration * intensity), 30% to static spans. Same total frame count, but temporal resolution biased toward where action is happening. Requires analyze().motion_windows cached and duration > 4s. Pass false to force uniform sampling. Ignored if `segments` is given."),
       probe_calibration: z.boolean().optional().describe("Per-video view_sample calibration. Extracts one probe frame at the target resolution + crop BEFORE the main pool, measures its base64 chars, and derives a per-video view_sample from chars/3.5 instead of the static SAFE_AT_100K table. v0.11+: defaults to ON (the static table is calibrated against animation/UI content and biased for real-world video). Set `LUMIERE_PROBE_CALIBRATION=0` to disable globally. Ignored when `segments`, `view`, or explicit `view_sample` is given."),
-      narrative_mode_profile: z.enum(["auto", "animation", "ui-screen", "human-motion", "talking-head", "real-world", "nature", "generic"]).optional().describe("Per-content-class narrative-mode prompt selection. 'auto' (default) reads analyze().content_class and routes to the matching profile. Explicit values force a specific profile regardless of cached content_class. Use 'generic' when content type is ambiguous and you want minimal domain priors."),
     },
     async (params) => {
       const config = loadConfig()
@@ -439,10 +419,7 @@ export function registerWatch(server: McpServer): void {
         const bucketLabel = viewBucket || "full-frame"
         content.push({ type: "text", text: `## Cache lookup: ${frames.length}/${params.view.length} timestamps found (bucket=${bucketLabel})` })
         if (params.narrative_mode) {
-          const cachedClass = manifest?.analysis?.content_class as ContentClass | undefined
-          const profile = resolveNarrativeProfile(params.narrative_mode_profile, cachedClass)
-          content.push({ type: "text", text: profile.guidance })
-          if (resolution <= 512) content.push({ type: "text", text: LOW_TIER_HEDGE_HINT })
+          content.push({ type: "text", text: NARRATIVE_GUIDANCE })
         }
         for (const f of frames) {
           content.push({ type: "text", text: `### Frame at ${f.timestamp}` })
@@ -551,7 +528,6 @@ export function registerWatch(server: McpServer): void {
       const motionWindows = manifest?.analysis?.motion_windows ?? []
       const adaptiveReason = decideAdaptive({
         param: params.adaptive_sampling,
-        narrativeOn: useNarrative,
         motionWindowCount: motionWindows.length,
         durationSec: metadata.duration_seconds,
         hasSegments: !!params.segments,
@@ -901,19 +877,9 @@ export function registerWatch(server: McpServer): void {
             probeDesc = `\nprobe_calibration=enabled (no override applied)`
           }
         }
-        // v0.11: surface content_class + bbox.confidence + motion_warning so
-        // callers can see what classification and signal trail drove this call.
-        const cachedClass = manifest?.analysis?.content_class
-        const cachedBboxConf = manifest?.analysis?.subject_bbox?.confidence
-        const cachedBboxMethod = manifest?.analysis?.subject_bbox?.method
-        const motionWarning = manifest?.analysis?.motion_detection_warning
-        const classDesc = cachedClass
-          ? `${cachedClass}${cachedBboxConf !== undefined ? ` (bbox=${cachedBboxMethod}, conf=${cachedBboxConf.toFixed(2)})` : ""}`
-          : "n/a (run analyze with motion=true to classify)"
-        const motionWarningLine = motionWarning ? `\nmotion_detection_warning=${motionWarning}` : ""
         content.push({
           type: "text",
-          text: `## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} extraction_fps=${fps} effective_fps=${effectiveFpsDesc} resolution=${resolution} frame_format=${frameFormat}\nmcp_tokens_this_call=${cost.mcp_tokens_per_call} (chars/3.5; governs per-call truncation)\nconversation_tokens_this_call=${cost.conversation_tokens_per_call} (~${cost.pct_of_1m_window_thorough}% of 1M when fully covered)\nthorough_coverage_chunks_needed=${cost.chunks_for_full_coverage_thorough} (~${(cost.conversation_total_tokens_thorough / 1000).toFixed(0)}K conversation tokens at target_fps=${cost.target_fps_thorough})\nautocompact_warning=${cost.will_trigger_autocompact_thorough ? "YES - thorough coverage would exceed " + AUTOCOMPACT_THRESHOLD + " conversation tokens" : "no"}\ncontent_class=${classDesc}\nnarrative_mode=${narrativeDesc}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${probeDesc}${proactiveDesc}${runtimeTrimDesc}${outOfRangeDesc}${motionWarningLine}`,
+          text: `## Budget\nview_sample_applied=${effectiveViewSample ?? "n/a"} extraction_fps=${fps} effective_fps=${effectiveFpsDesc} resolution=${resolution} frame_format=${frameFormat}\nmcp_tokens_this_call=${cost.mcp_tokens_per_call} (chars/3.5; governs per-call truncation)\nconversation_tokens_this_call=${cost.conversation_tokens_per_call} (~${cost.pct_of_1m_window_thorough}% of 1M when fully covered)\nthorough_coverage_chunks_needed=${cost.chunks_for_full_coverage_thorough} (~${(cost.conversation_total_tokens_thorough / 1000).toFixed(0)}K conversation tokens at target_fps=${cost.target_fps_thorough})\nautocompact_warning=${cost.will_trigger_autocompact_thorough ? "YES - thorough coverage would exceed " + AUTOCOMPACT_THRESHOLD + " conversation tokens" : "no"}\nnarrative_mode=${narrativeDesc}\nroi=${roiDesc}\nadaptive_sampling=${adaptiveDesc}${probeDesc}${proactiveDesc}${runtimeTrimDesc}${outOfRangeDesc}`,
         })
       }
 
@@ -1051,12 +1017,7 @@ export function registerWatch(server: McpServer): void {
       }
 
       if (useNarrative) {
-        const cachedClass = manifest?.analysis?.content_class as ContentClass | undefined
-        const profile = resolveNarrativeProfile(params.narrative_mode_profile, cachedClass)
-        content.push({ type: "text", text: profile.guidance })
-        if (resolution <= 512) content.push({ type: "text", text: LOW_TIER_HEDGE_HINT })
-        const paletteHint = paletteOutlierHint(manifest)
-        if (paletteHint) content.push({ type: "text", text: paletteHint })
+        content.push({ type: "text", text: NARRATIVE_GUIDANCE })
       }
 
       for (const f of frames) {

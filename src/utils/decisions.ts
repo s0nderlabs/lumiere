@@ -29,14 +29,12 @@ export function decideNarrative(opts: {
 
 export type AdaptiveReason =
   | { on: true; source: "explicit" }
-  | { on: true; source: "auto" }
   | { on: true; source: "config" }
   | { on: false; source: "explicit" }
   | { on: false; source: "default" }
 
 export function decideAdaptive(opts: {
   param: boolean | undefined
-  narrativeOn: boolean
   motionWindowCount: number
   durationSec: number
   hasSegments: boolean
@@ -46,7 +44,6 @@ export function decideAdaptive(opts: {
   const motionPreconditions = opts.motionWindowCount >= 1 && opts.durationSec > 4
   if (opts.param === true) return { on: true, source: "explicit" }
   if (opts.param === false) return { on: false, source: "explicit" }
-  if (opts.narrativeOn && motionPreconditions) return { on: true, source: "auto" }
   if (opts.configDefault === true && motionPreconditions) return { on: true, source: "config" }
   return { on: false, source: "default" }
 }
@@ -96,6 +93,5 @@ export function describeAdaptiveSource(reason: AdaptiveReason): string {
     return "off (no motion_windows or duration <= 4s)"
   }
   if (reason.source === "explicit") return "explicit"
-  if (reason.source === "auto") return "auto-enabled (narrative_mode + motion_windows cached)"
   return "server default (configure.default_adaptive_sampling=true)"
 }

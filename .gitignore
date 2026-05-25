@@ -5,6 +5,9 @@ CLAUDE.md
 # Reference / study material (not part of the shipped plugin)
 reference/
 
+# Local mocks / scratch (not part of the shipped plugin)
+mocks/
+
 # Dependencies
 node_modules/
 .pnp

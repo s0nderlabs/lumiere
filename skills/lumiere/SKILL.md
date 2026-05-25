@@ -14,6 +14,7 @@ You are now in lumiere video work mode. The user wants to do something with a vi
 The user may have invoked this skill with an argument (`$ARGUMENTS`). Parse it FIRST:
 
 - `$ARGUMENTS` starts with `mode ` (e.g. `mode max`, `mode high`, `mode mid`, `mode low`): **dispatch to set-default-mode flow.** Call `configure(default_mode=<value>)` then confirm by reading back the saved config. Do not enter full video work mode.
+- `$ARGUMENTS` is `dashboard`, `library`, `motion-library`, or any of those phrases (e.g. `open dashboard`, `open the dashboard`, `show me the library`): **dispatch to open-dashboard flow** below. Do not enter full video work mode.
 - `$ARGUMENTS` is a URL (http://, https://, x.com/, youtube.com, youtu.be, vimeo.com, or a local path): **dispatch to "user shared a reference video URL" flow** below with that URL.
 - `$ARGUMENTS` is empty or anything else: enter interactive mode and ask what the user wants to do.
 
@@ -40,21 +41,32 @@ The user may have invoked this skill with an argument (`$ARGUMENTS`). Parse it F
    - If `will_trigger_autocompact_thorough === true`, warn the user: "Thorough coverage at `<mode>` tier on this `<duration>s` video would burn ~`<pct_thorough>`% of 1M context (~`<N>` chunks). This will trigger autocompact. Options: (a) accept and proceed (you picked the tier for a reason), (b) drop to `<recommended_mode>` tier, (c) run /compact first, (d) analyze a sub-segment only with start_time/end_time."
 4. If the user accepts or chose a smaller tier, continue with chunked watch.
 
+### Open-dashboard flow
+
+When the user asks to open the dashboard / library / motion library:
+
+1. **Resolve the dashboard path.** Try `$CLAUDE_PLUGIN_ROOT/dashboard/index.html` first (the installed plugin path). If that variable is unset or the file is missing, fall back to the repo path the current session was launched with (the `--plugin-dir` argument). The file MUST exist before you proceed; if missing, report which paths you tried and ask the user to verify the plugin install.
+2. **Open in the user's browser.** Check `$LUMIERE_BROWSER`:
+   - If set (e.g. `qutebrowser`), run: `$LUMIERE_BROWSER "file://<resolved_path>"`
+   - If unset, use the system default: `open "file://<resolved_path>"` (macOS) or `xdg-open` (Linux)
+3. **Confirm briefly** which file was opened. Do not enter full video work mode after; the user invoked the dashboard, not perception work.
+
+The dashboard is pure HTML and bundles GSAP + fonts locally, so no dev server is needed and no network requests are required to render. It only persists state via `localStorage` (theme preference, favourited effects).
+
 ### When the user shares a reference video URL
 
 1. Pre-flight (above). Capture the thorough-coverage plan from inspect.
 2. Call `analyze(path, filters={scene_changes: true, silence: true, loudness: true, motion: true, transcription: true})` for a structural map.
 3. Read scene cuts + silence intervals + motion_windows.
-4. **Thorough-coverage chunking (HARD RULE for ALL tiers).** Compute the chunk plan from `cost_estimate.per_tier[<configured>]`:
+4. **Thorough-coverage chunking (HARD RULE, NO EXCEPTIONS).** Read the chunk plan from `cost_estimate.per_tier[<configured>]`:
    - N = `chunks_for_full_coverage_thorough`
-   - chunk_duration = `chunk_duration_thorough_seconds` (seconds per chunk)
-   - The tier IS the chunking knob (v0.10.2 calibration): low covers ~25s per chunk and delivers 25 frames at 384px, mid ~17s × 17 frames at 512px, high ~5s × 4 frames at 1024px, max ~2s × 2 frames at 1536px. Higher tier = more chunks = more burn = more captured. Higher tier produces more quality AND more token spend, NOT the same quality at higher resolution per frame. The operator picked the tier with that contract in mind.
-5. Issue N sequential watch() calls:
+   - chunk_duration = `chunk_duration_thorough_seconds`
+   - You MUST make EXACTLY N watch() calls. Do NOT merge chunks, skip chunks, or reduce N for any reason. If N feels large, that is by design. The user chose this tier knowing the cost. If you are concerned about context consumption, ask the user before deviating. Never silently reduce N on your own judgment.
+5. Issue EXACTLY N watch() calls with uniform chunk boundaries:
    - For i in 0..N-1: `watch(path, start_time=hms(i * chunk_duration), end_time=hms(min((i+1) * chunk_duration, duration)), mode=<configured>, narrative_mode=true)`
-   - Each call delivers view_sample_cap frames at the tier's resolution, covering its chunk window at target_fps ≈ 1.0
-   - If a chunk reports runtime_trim or sampling_gap, follow the trim hint (narrow window OR raise fps, never drop view_sample at the cost of temporal density)
-6. **Motion-window drill (additive, ONLY for high and max tiers).** AFTER the N chunks land, if `analyze.motion_windows` is non-empty AND the configured tier is `high` or `max`, optionally issue a follow-up `watch(path, start_time=<window.start>, end_time=<window.end>, mode=<configured>, fps=<dense>, narrative_mode=true)` for the densest motion_window if the chunk that contains it had insufficient density for a fast animation event (cape equip, hover, eye-laser, etc.). Skip if the action was captured cleanly inside the relevant chunk.
-7. Synthesize narrative across ALL N chunks (plus drill if added). Cite timestamps from each. Apply narrative priors (cape/wings/hover/eye-laser-down) where applicable.
+   - Do NOT batch or parallelize more than 6 calls at once (MCP concurrency limit).
+   - Do NOT adjust chunk boundaries based on content. Use the uniform grid from inspect.
+6. Synthesize narrative across ALL N chunks. Cite timestamps from each.
 
 ### When the user wants to copy 1:1 from a reference
 

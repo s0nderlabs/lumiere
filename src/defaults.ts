@@ -87,12 +87,10 @@ export const TOKENS_PER_FRAME: Record<number, number> = {
 }
 
 // Static per-call overhead (tool invocation, metadata blocks, audio analysis).
-// When adaptive_sampling + narrative_mode + roi=auto stack, the response
-// carries: budget block with per-segment summary (~2K), NARRATIVE_GUIDANCE
-// (~4K), palette outlier hint (~1K), continuity audit block (~1K), per-frame
-// timestamp headers (~50 bytes/frame), audio block (~3K), manifest summary
-// (~1K). Empirically calibrated against the 2026-05-19 4-tier blind retest
-// where a 4000-byte estimate undercounted by 25-30% and truncated every tier.
+// Budget block (~2K), NARRATIVE_GUIDANCE (~1K), per-frame timestamp headers
+// (~50 bytes/frame), audio block (~3K), manifest summary (~1K). Empirically
+// calibrated against the 2026-05-19 4-tier blind retest where a 4000-byte
+// estimate undercounted by 25-30% and truncated every tier.
 export const STATIC_TOKENS_PER_CALL = 8000
 export const COST_ESTIMATE_SAFETY_MARGIN = 1.25  // 25% above raw token count
 
@@ -100,17 +98,17 @@ export const COST_ESTIMATE_SAFETY_MARGIN = 1.25  // 25% above raw token count
 // Callers should warn the user before submitting a watch plan that exceeds this.
 export const AUTOCOMPACT_THRESHOLD = 813000
 
-// Target temporal density (frames per second of video) for thorough coverage.
-// Anchored to the temporal density `low` tier naturally achieves on a 24s clip
-// (38 frames / 24s ≈ 1.58fps). For thorough coverage at higher tiers, more
-// chunks are needed because their view_sample cap is smaller. This is the
-// "higher tier = more chunks = more burn = more captured" rule, validated
-// 2026-05-19 against the 4-way ClaudeDevs /goal blind test:
-//   low (cap=38) on 24s: 1 chunk × 100K = 100K total
-//   mid (cap=27) on 24s: 1 chunk × 110K = 110K total
-//   high (cap=11) on 24s: ~2-3 chunks × 95K = ~200K total
-//   max (cap=6) on 24s: ~4-5 chunks × 92K = ~460K total
-export const TARGET_FPS_THOROUGH = 1.0
+// Per-tier temporal density for thorough coverage. Higher tier = more calls.
+// Max matches high's fps (6.0) at higher resolution (1536 vs 1024).
+//   low  (cap=25) = 1.5 fps, chunk ~17s,  ~2 calls for 24s
+//   mid  (cap=17) = 3.0 fps, chunk ~6s,   ~5 calls for 24s
+//   high (cap=4)  = 6.0 fps, chunk ~0.7s, ~37 calls for 24s
+//   max  (cap=2)  = 6.0 fps, chunk ~0.3s, ~73 calls for 24s
+export function targetFpsThorough(resolution: number): number {
+  if (resolution <= 384) return 1.5
+  if (resolution <= 512) return 3.0
+  return 6.0
+}
 
 // Tier-aware EXTRACTION fps (controls ffmpeg sampling density, distinct from
 // delivered fps which is gated by view_sample). Higher tiers extract denser
@@ -256,9 +254,9 @@ export interface CostEstimate {
   conversation_tokens_per_frame: number
   conversation_tokens_per_call: number
   conversation_tokens_source: ConversationTokensSource
-  // Thorough coverage: full-video coverage at TARGET_FPS_THOROUGH so each tier
-  // delivers its tier-specific spatial density × temporal density. Higher tier
-  // = more chunks because view_sample_cap shrinks with resolution.
+  // Thorough coverage: full-video coverage at per-tier fps so each tier
+  // delivers its spatial density x temporal density. Higher tier = more
+  // chunks because view_sample_cap shrinks with resolution.
   target_fps_thorough: number
   chunk_duration_thorough_seconds: number
   chunks_for_full_coverage_thorough: number
@@ -313,7 +311,8 @@ export function estimateWatchCost(opts: {
 
   const exceeds_cap = mcp_per_call > CAP
 
-  const chunk_duration_thorough = view_sample_cap / TARGET_FPS_THOROUGH
+  const target_fps = targetFpsThorough(resolution)
+  const chunk_duration_thorough = view_sample_cap / target_fps
   const chunks_thorough = Math.max(1, Math.ceil(opts.duration_seconds / chunk_duration_thorough))
   const mcp_total_thorough = mcp_per_call * chunks_thorough
   const conv_total_thorough = conv_per_call * chunks_thorough
@@ -333,7 +332,7 @@ export function estimateWatchCost(opts: {
     conversation_tokens_per_frame: tpf_conversation,
     conversation_tokens_per_call: conv_per_call,
     conversation_tokens_source: conversation_source,
-    target_fps_thorough: TARGET_FPS_THOROUGH,
+    target_fps_thorough: target_fps,
     chunk_duration_thorough_seconds: Math.round(chunk_duration_thorough * 10) / 10,
     chunks_for_full_coverage_thorough: chunks_thorough,
     mcp_total_tokens_thorough: mcp_total_thorough,

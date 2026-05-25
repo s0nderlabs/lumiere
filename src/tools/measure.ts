@@ -96,7 +96,6 @@ export function registerMeasure(server: McpServer): void {
       })
       const useAdaptive = decideAdaptive({
         param: params.adaptive_sampling,
-        narrativeOn: narrativeDecision.on,
         motionWindowCount: motionWindows.length,
         durationSec: metadata.duration_seconds,
         hasSegments: false,

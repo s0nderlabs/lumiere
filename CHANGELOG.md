@@ -2,6 +2,29 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-05-25
+
+v0.12 strips the content-class narrative routing system and replaces it with one universal guidance prompt. The model determines what it's looking at from the frames alone, no domain-specific priors. Also ships the effects dashboard and per-tier temporal density (fps).
+
+### Added
+
+- **Effects dashboard** (`dashboard/`). Pure HTML gallery of all lumiere effects with GSAP animations. Opens via `/lumiere dashboard`. Uses `$LUMIERE_BROWSER` env var (falls back to system default).
+- **Per-tier `targetFpsThorough()`**. Replaces flat 1.0 fps constant. low=1.5, mid=3.0, high/max=6.0. Higher tiers now produce more chunks with finer temporal resolution.
+
+### Changed
+
+- **Universal `NARRATIVE_GUIDANCE`** replaces 7 per-content-class profiles (animation, ui-screen, human-motion, talking-head, real-world, nature, generic). One clean temporal-sequence prompt for all video types.
+- **SKILL.md chunk enforcement** tightened: "EXACTLY N chunks, no merging. If N feels large, ask user instead of silently reducing."
+- **`adaptive_sampling`** no longer auto-enables when `narrative_mode` is on. Opt-in only (explicit param or server config default).
+
+### Removed
+
+- `narrative_mode_profile` parameter from watch tool (breaking: callers passing this get zod rejection).
+- `resolveNarrativeProfile()`, `NarrativeProfile` interface, `NARRATIVE_PROFILES` registry.
+- `paletteOutlierHint()` injection (model sees colors without being told what to interpret).
+- `LOW_TIER_HEDGE_HINT` constant (universal guidance includes resolution-aware hedge).
+- `content_class`, `bbox`, `motion_detection_warning` from Budget block output.
+
 ## [0.11.5] - 2026-05-22
 
 Adaptive sampling could leave huge unsampled gaps when motion_windows fired on background animation (e.g. the Claude AI conference promo where a 0.6s city-pin transit was the only window in an 18s pixel-art mascot clip). After `probe_calibration` aggressively retuned view_sample to 2 against a dense middle probe, the remaining ~16s of timeline got zero coverage past the bookends, including the actual headphone equip/unequip events. The original concentration-based gap warning couldn't fire at small budgets either (budget ratio caps at 0.5 with 2 frames). v0.11.5 adds three layered fixes so frames spread across the timeline whenever motion signals are too sparse to trust.
