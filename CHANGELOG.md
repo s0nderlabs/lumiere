@@ -2,6 +2,12 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] - 2026-05-25
+
+### Fixed
+
+- Add `dashboard` to `/lumiere` skill argument-hint so it shows as a prefilled option.
+
 ## [0.12.0] - 2026-05-25
 
 v0.12 strips the content-class narrative routing system and replaces it with one universal guidance prompt. The model determines what it's looking at from the frames alone, no domain-specific priors. Also ships the effects dashboard and per-tier temporal density (fps).

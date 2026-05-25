@@ -2,7 +2,7 @@
 name: lumiere
 description: "Video work mode. Load when the user wants to analyze a reference video, watch a video URL, study effects from a launch video, or work on a launch-video project. Triggered by explicit video intent only (e.g., 'analyze this trailer', 'watch this video', 'study the X launch video'), NOT by every URL mention."
 user-invocable: true
-argument-hint: "[mode <low|mid|high|max>] | [video URL] | (none for interactive)"
+argument-hint: "[dashboard] | [mode <low|mid|high|max>] | [video URL] | (none for interactive)"
 ---
 
 # /lumiere: video perception (creation deferred)
