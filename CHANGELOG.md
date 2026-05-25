@@ -2,6 +2,14 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.2] - 2026-05-25
+
+### Fixed
+
+- **Multilingual Whisper hallucination detection.** Added 13 phrase patterns covering Indonesian, German, Spanish, French, Italian, Chinese, Russian, Portuguese, and English filler hallucinations observed on gym ambient audio.
+- **Short-chunk hallucination signal (Signal 5).** Single segment with <= 4 words on a sub-5s chunk is now flagged as likely hallucination. Catches novel single-phrase outputs that don't match the known-phrase list.
+- **Chunk-duration passed to hallucination gate.** `applyHallucinationGate` in watch now receives the actual chunk duration (from start_time/end_time) instead of the full video duration, so the short-chunk signal fires correctly on per-chunk watch calls.
+
 ## [0.12.1] - 2026-05-25
 
 ### Fixed

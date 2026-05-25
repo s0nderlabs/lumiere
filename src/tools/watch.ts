@@ -695,10 +695,13 @@ export function registerWatch(server: McpServer): void {
       // multi-signal heuristic as analyze on the live transcription. Loudness
       // (LUFS-cached or dBFS-fallback) is read off the AudioResult's
       // discriminated union; gate handles the scale internally.
-      rawAudio = applyHallucinationGate(rawAudio, metadata.duration_seconds)
+      // Pass chunk duration (not full video) so the short-chunk signal fires.
+      const startSec = params.start_time ? parseHMS(params.start_time) : 0
+      const endSec = params.end_time ? parseHMS(params.end_time) : metadata.duration_seconds
+      const chunkDuration = endSec - startSec
+      rawAudio = applyHallucinationGate(rawAudio, chunkDuration > 0 ? chunkDuration : metadata.duration_seconds)
 
-      const offset = params.start_time ? parseHMS(params.start_time) : 0
-      const audio = shiftAudioResult(rawAudio, offset)
+      const audio = shiftAudioResult(rawAudio, startSec)
 
       // Proactive sizing: measure actual chars/frame BEFORE applying
       // view_sample, lower effectiveViewSample if content is denser than the

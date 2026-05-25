@@ -25,6 +25,20 @@ const HALLUCINATION_PHRASES = [
   /^\s*you\s*\.?\s*$/i,          // single-word "you" hallucination
   /^\s*woo!?\s*$/i,              // "Woo!" repeats observed on Anthropic launch
   /www\.[a-z]+\.(com|org|net)/i,
+  // Multilingual hallucinations observed on gym ambient audio (v0.12.1)
+  /^\s*terima\s*kasih/i,                     // Indonesian "thank you"
+  /^\s*vielen\s*dank\.?\s*$/i,               // German "thank you"
+  /^\s*gracias\.?!?\s*$/i,                   // Spanish "thanks"
+  /^\s*merci\.?\s*$/i,                       // French "thanks"
+  /^\s*grazie\.?\s*$/i,                      // Italian "thanks"
+  /^\s*谢谢/,                                // Chinese "thanks"
+  /^\s*好\s*$/,                              // Chinese single-char filler
+  /^\s*走\s*$/,                              // Chinese single-char filler
+  /^\s*(yes|no|i don'?t know)\.?\s*$/i,      // English single-phrase fillers
+  /^\s*we'?ll be right back\.?\s*$/i,        // English broadcast filler
+  /редактор субтитров/i,                     // Russian subtitle credits
+  /корректор/i,                              // Russian proofreader credits
+  /para pensar\.?\s*$/i,                     // Portuguese filler
 ]
 
 export interface LowConfidenceCheck {
@@ -66,6 +80,19 @@ export function detectLowConfidenceTranscript(
   }
   if (hallucinationHits > 0 && hallucinationHits / segments.length >= 0.5) {
     reasons.push(`${hallucinationHits}/${segments.length} segments match known whisper-on-music hallucination phrases`)
+  }
+
+  // Signal 5: short chunk with minimal text. On sub-5s watch chunks, whisper
+  // often emits a single short phrase ("Yes.", "好", "Vielen Dank.") that's
+  // pure hallucination on ambient audio. Flag when: 1 segment, <= 4 words,
+  // chunk is short (< 5s). The 50% phrase-match gate in Signal 3 can't catch
+  // novel single-segment hallucinations because 1/1 = 100% only fires if the
+  // phrase is in the list. This signal catches the rest.
+  if (segments.length === 1 && durationSeconds < 5) {
+    const wordCount = segments[0].text.trim().split(/\s+/).length
+    if (wordCount <= 4) {
+      reasons.push(`single segment with ${wordCount} word(s) on ${durationSeconds.toFixed(1)}s chunk (likely hallucination on ambient audio)`)
+    }
   }
 
   // Signal 4: transcript spans wildly outside the video duration
