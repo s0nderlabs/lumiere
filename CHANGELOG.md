@@ -2,6 +2,23 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-05-30
+
+### Added
+
+- **5 new dashboard effects** from the ChatGPT personal-finance rewatch: `headline-type-on` (chrome-less centered headline that auto-fits and types in), `meter-rows` (icon + label + inline fill-bar + value rows), `composer-commit` (composer pill lifts and anchors as a sent user bubble top-right), `status-cycle` (Thinking/Querying/Received/Thought-for reasoning indicator with shimmer), `logo-mark-signoff` (wordmark crossfades to a monoline mark that scales + strokes in).
+- **Newest-first ordering** in the dashboard "New" filter view (latest additions float to the top).
+
+### Changed
+
+- **Rebuilt `inline-word-stream`** to match the reference opening title: "With" reveals centered, the whole wordmark glides left on one continuous eased settle while "Chat" reveals as a word and "GPT" types per-character. No reflow jitter, no blur.
+- Refined `donut-chart-fill` description to note the light-blue cash wedge alongside the green-gradient palette.
+
+### Fixed
+
+- **Full 1:1 audit of all 17 ChatGPT-sourced dashboard effects** against the reference video, fixing 6 that were sized for the 640x360 build preview rather than the live ~360x240 card: `headline-type-on` (font auto-fit so the full sentence no longer clips), `meter-rows` (reworked from a fixed 560px card so all 6 rows + fill-bars fit), `spinner-to-dot` (added Fidelity + Robinhood for the full 6-account top-to-bottom sync), `composer-commit` (measures the live stage so the bubble anchors top-right at any card size instead of flying off-screen), `inline-card-render` (added the Crypto holding + "5 holdings across 3 accounts" subtitle), `chat-conversation` (added the end-of-message action-icon row and fixed a re-trigger stream race).
+- Dashboard `effects.js` cache-buster bumped so reloads pick up the latest build.
+
 ## [0.12.2] - 2026-05-25
 
 ### Fixed

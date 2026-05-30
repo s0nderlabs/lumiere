@@ -1166,34 +1166,59 @@ window.LUMIERE_EFFECTS = [
 
   {
     id: "inline-word-stream", isNew: true, cat: "Text", display: "Inline Word Stream",
-    desc: "First word appears instantly, then the brand name types in character-by-character after a beat. ChatGPT opening interstitial pattern.",
-    html: `<div class='iws-stage'><span class='iws-word' data-iws-word>With</span><span class='iws-spacer'> </span><span class='iws-typed' data-iws-typed></span></div>`,
+    desc: "\"With\" reveals centered, then the whole wordmark glides left on one eased settle while \"Chat\" reveals as a whole word and \"GPT\" types in per-character. Continuous decelerating motion, no jitter. ChatGPT finance video opening title.",
+    html: `<div class='iws-stage'><div class='iws-phrase' data-iws-phrase><span class='iws-w' data-iws-with>With</span><span class='iws-chat' data-iws-chat>Chat</span><span class='iws-gpt'><span class='iws-c'>G</span><span class='iws-c'>P</span><span class='iws-c'>T</span></span></div></div>`,
     init(card) {
-      const wordEl = card.querySelector("[data-iws-word]")
-      const typedEl = card.querySelector("[data-iws-typed]")
-      const brand = "ChatGPT"
-      let timer = null, timer2 = null
-      gsap.set(wordEl, { opacity: 1, y: 0 })
-      typedEl.textContent = brand
-      return () => {
-        if (timer) clearTimeout(timer)
-        if (timer2) clearInterval(timer2)
-        gsap.killTweensOf(wordEl)
-        gsap.set(wordEl, { opacity: 0, y: 10 })
-        typedEl.textContent = ""
-        gsap.to(wordEl, { opacity: 1, y: 0, duration: 0.35, ease: "expo.out" })
-        let idx = 0
-        timer = setTimeout(() => {
-          timer2 = setInterval(() => {
-            if (idx < brand.length) {
-              typedEl.textContent = brand.slice(0, idx + 1)
-              idx++
-            } else {
-              clearInterval(timer2)
-              timer2 = null
-            }
-          }, 60)
-        }, 400)
+      const stage = card.querySelector(".iws-stage")
+      const phrase = card.querySelector("[data-iws-phrase]")
+      const withEl = card.querySelector("[data-iws-with]")
+      const chatEl = card.querySelector("[data-iws-chat]")
+      const gptChars = Array.from(card.querySelectorAll(".iws-gpt .iws-c"))
+
+      // Every glyph sits in the FINAL layout at all times; reveals are opacity and the
+      // whole phrase glides on one eased transform, so there is never a reflow
+      // (no jitter) and the motion is a single continuous decelerating settle.
+      // startX = shift the phrase right so "With" alone reads centred.
+      let startX = 0
+      function measure() {
+        const prevX = Number(gsap.getProperty(phrase, "x")) || 0
+        gsap.set(phrase, { x: 0 })
+        const sr = stage.getBoundingClientRect()
+        const wr = withEl.getBoundingClientRect()
+        if (sr.width === 0 || wr.width === 0) { gsap.set(phrase, { x: prevX }); return }
+        startX = (sr.left + sr.width / 2) - (wr.left + wr.width / 2)
+        gsap.set(phrase, { x: prevX })
+      }
+      function applyIdle() {
+        gsap.set(phrase, { x: 0 })
+        gsap.set([withEl, chatEl, ...gptChars], { opacity: 1 })
+      }
+      measure(); applyIdle()
+      requestAnimationFrame(() => { measure(); applyIdle() })
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measure(); applyIdle() })
+
+      let tl = null
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+        measure()
+        gsap.set(withEl, { opacity: 0 })
+        gsap.set([chatEl, ...gptChars], { opacity: 0 })
+        gsap.set(phrase, { x: startX })
+
+        tl = gsap.timeline()
+        // "With" reveals, centred, holds a beat
+        tl.to(withEl, { opacity: 1, duration: 0.22, ease: "power2.out" }, 0.06)
+        // ONE continuous decelerating glide from With-centred to final-centred
+        tl.to(phrase, { x: 0, duration: 0.72, ease: "power3.out" }, 0.46)
+        // reveals layered along the glide: "Chat" whole, then "GPT" per character
+        tl.to(chatEl, { opacity: 1, duration: 0.16, ease: "power2.out" }, 0.52)
+        tl.to(gptChars[0], { opacity: 1, duration: 0.1, ease: "power2.out" }, 0.7)
+        tl.to(gptChars[1], { opacity: 1, duration: 0.1, ease: "power2.out" }, 0.82)
+        tl.to(gptChars[2], { opacity: 1, duration: 0.1, ease: "power2.out" }, 0.94)
+        // hold the settled wordmark, then return to rest
+        tl.to({}, { duration: 1.0 }, 1.7)
+        tl.add(applyIdle, 2.7)
+        return tl
       }
     }
   },
@@ -1262,7 +1287,7 @@ window.LUMIERE_EFFECTS = [
 
   {
     id: "donut-chart-fill", isNew: true, cat: "Data Viz", display: "Donut Chart Fill",
-    desc: "Donut chart segments animate arcs from 0 to their value, with a green gradient palette. ChatGPT portfolio distribution.",
+    desc: "Donut chart segments animate arcs from 0 to their value, with a green-gradient palette plus a light-blue cash wedge. ChatGPT portfolio distribution.",
     html: `<div class='dcf-stage'>
       <div class='dcf-wrap'>
         <svg class='dcf-svg' viewBox='0 0 100 100' data-dcf-svg>
@@ -1437,6 +1462,8 @@ window.LUMIERE_EFFECTS = [
         <div class='std-item' data-std><div class='std-item-icon' style='background:#c41230'>BA</div><div class='std-item-name'>Bank of America<div class='std-item-sub'>2 accounts</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
         <div class='std-item' data-std><div class='std-item-icon' style='background:#00a3de'>CS</div><div class='std-item-name'>Charles Schwab<div class='std-item-sub'>1 account</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
         <div class='std-item' data-std><div class='std-item-icon' style='background:#6b3fa0'>ET</div><div class='std-item-name'>Etrade<div class='std-item-sub'>1 account</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
+        <div class='std-item' data-std><div class='std-item-icon' style='background:#368727'>FI</div><div class='std-item-name'>Fidelity<div class='std-item-sub'>1 account</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
+        <div class='std-item' data-std><div class='std-item-icon' style='background:#00c805'>RH</div><div class='std-item-name'>Robinhood<div class='std-item-sub'>1 account</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
       </div>
     </div>`,
     init(card) {
@@ -1507,31 +1534,43 @@ window.LUMIERE_EFFECTS = [
       <div class='ccv-user' data-ccv-user>Am I paying for subscriptions I don't need?</div>
       <div class='ccv-tool' data-ccv-tool>Querying financial data</div>
       <div class='ccv-response' data-ccv-resp></div>
+      <div class='ccv-actions' data-ccv-actions>
+        <svg class='ccv-act' viewBox='0 0 16 16'><rect x='5.5' y='5.5' width='7.5' height='7.5' rx='1.5'/><path d='M3 10.5V4.2A1.2 1.2 0 0 1 4.2 3h6.3'/></svg>
+        <svg class='ccv-act' viewBox='0 0 16 16'><path d='M3.5 6.2v3.6h2L8.5 12V4L5.5 6.2h-2z'/><path d='M11 5.5a3.5 3.5 0 0 1 0 5'/></svg>
+        <svg class='ccv-act' viewBox='0 0 16 16'><path d='M4.5 7.5v5.5M4.5 7.5l2.4-4.3a1.3 1.3 0 0 1 1.7 1.6l-.8 2.2h3.6a1 1 0 0 1 1 1.25l-.95 3.7a1.2 1.2 0 0 1-1.15.95H4.5'/></svg>
+        <svg class='ccv-act' viewBox='0 0 16 16'><path d='M11.5 8.5V3M11.5 8.5l-2.4 4.3a1.3 1.3 0 0 1-1.7-1.6l.8-2.2H4.6a1 1 0 0 1-1-1.25l.95-3.7A1.2 1.2 0 0 1 5.7 2H11.5'/></svg>
+        <svg class='ccv-act' viewBox='0 0 16 16'><path d='M12.5 8a4.5 4.5 0 1 1-1.4-3.25M12.5 2.5v3h-3'/></svg>
+        <svg class='ccv-act' viewBox='0 0 16 16'><path d='M8 10.2V3.2M8 3.2 5.5 5.7M8 3.2l2.5 2.5M3.8 9v3.2a1 1 0 0 0 1 1h6.4a1 1 0 0 0 1-1V9'/></svg>
+      </div>
     </div>`,
     init(card) {
       const user = card.querySelector("[data-ccv-user]")
       const tool = card.querySelector("[data-ccv-tool]")
       const resp = card.querySelector("[data-ccv-resp]")
+      const actions = card.querySelector("[data-ccv-actions]")
       const fullResp = `I can see you're paying for <span class='ccv-bold'>4 fitness memberships.</span> Since your new job has you back in the office, you might consider only taking classes at your local gym. Canceling would save <span class='ccv-bold'>$329/month.</span>`
-      const words = fullResp.split(/(?=<)|(\s+)/).filter(Boolean)
+      const plain = "I can see you're paying for 4 fitness memberships. Since your new job has you back in the office, you might consider only taking classes at your local gym. Canceling would save $329/month."
+      const startDelay = 1200
       resp.innerHTML = fullResp
       gsap.set(user, { opacity: 1, y: 0 })
       gsap.set(tool, { opacity: 0.5 })
+      gsap.set(actions, { opacity: 1, y: 0 })
+      let timer = null, iv = null
       return () => {
-        gsap.killTweensOf([user, tool, resp])
+        // clear any in-flight stream so a re-trigger (hover) never races two streams
+        if (timer) { clearTimeout(timer); timer = null }
+        if (iv) { clearInterval(iv); iv = null }
+        gsap.killTweensOf([user, tool, resp, actions])
         gsap.set(user, { opacity: 0, y: 10 })
         gsap.set(tool, { opacity: 0 })
+        gsap.set(actions, { opacity: 0, y: 4 })
         resp.innerHTML = ""
         gsap.to(user, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", delay: 0.3 })
         gsap.to(tool, { opacity: 0.5, duration: 0.3, delay: 0.8 })
-        let charIdx = 0
-        const plain = "I can see you're paying for 4 fitness memberships. Since your new job has you back in the office, you might consider only taking classes at your local gym. Canceling would save $329/month."
-        const startDelay = 1200
-        let timer = null
         timer = setTimeout(() => {
           gsap.to(tool, { opacity: 0, duration: 0.2 })
           let ci = 0
-          const iv = setInterval(() => {
+          iv = setInterval(() => {
             if (ci < plain.length) {
               const partial = plain.slice(0, ci + 1)
               resp.innerHTML = partial
@@ -1540,7 +1579,8 @@ window.LUMIERE_EFFECTS = [
               ci += 1 + Math.floor(Math.random() * 2)
             } else {
               resp.innerHTML = fullResp
-              clearInterval(iv)
+              clearInterval(iv); iv = null
+              gsap.to(actions, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out" })
             }
           }, 25)
         }, startDelay)
@@ -1556,9 +1596,11 @@ window.LUMIERE_EFFECTS = [
       <div class='icr-card' data-icr-card>
         <div class='icr-card-title'>Portfolio distribution</div>
         <div class='icr-card-val'>$102,938</div>
+        <div class='icr-card-sub'>5 holdings across 3 accounts</div>
         <div class='icr-card-row'><span class='icr-card-dot' style='background:#1a5e3a'></span>Stocks<div class='icr-card-bar'><div class='icr-card-bar-fill' data-icr-fill style='background:#1a5e3a;width:47%'></div></div><span class='icr-card-amt'>$48,512</span></div>
         <div class='icr-card-row'><span class='icr-card-dot' style='background:#2e9b66'></span>ETFs<div class='icr-card-bar'><div class='icr-card-bar-fill' data-icr-fill style='background:#2e9b66;width:19%'></div></div><span class='icr-card-amt'>$19,134</span></div>
         <div class='icr-card-row'><span class='icr-card-dot' style='background:#5fcc88'></span>Bonds<div class='icr-card-bar'><div class='icr-card-bar-fill' data-icr-fill style='background:#5fcc88;width:18%'></div></div><span class='icr-card-amt'>$18,354</span></div>
+        <div class='icr-card-row'><span class='icr-card-dot' style='background:#a8e6cf'></span>Crypto<div class='icr-card-bar'><div class='icr-card-bar-fill' data-icr-fill style='background:#a8e6cf;width:10%'></div></div><span class='icr-card-amt'>$10,736</span></div>
         <div class='icr-card-row'><span class='icr-card-dot' style='background:#87ceeb'></span>Cash<div class='icr-card-bar'><div class='icr-card-bar-fill' data-icr-fill style='background:#87ceeb;width:6%'></div></div><span class='icr-card-amt'>$6,200</span></div>
       </div>
     </div>`,
@@ -1567,7 +1609,7 @@ window.LUMIERE_EFFECTS = [
       const crd = card.querySelector("[data-icr-card]")
       const fills = card.querySelectorAll("[data-icr-fill]")
       const rows = crd.querySelectorAll(".icr-card-row")
-      const widths = ["47%", "19%", "18%", "6%"]
+      const widths = ["47%", "19%", "18%", "10%", "6%"]
       gsap.set(prose, { opacity: 1 })
       gsap.set(crd, { opacity: 1, y: 0, scale: 1 })
       gsap.set(rows, { opacity: 1, x: 0 })
@@ -1619,6 +1661,519 @@ window.LUMIERE_EFFECTS = [
         tl.to(inner, { y: -60, duration: 1.5, ease: "power1.inOut" })
         tl.to(inner, { y: -130, duration: 1.5, ease: "power1.inOut" }, "+=0.6")
         tl.to(inner, { y: 0, duration: 0.8, ease: "power2.out" }, "+=1.2")
+      }
+    }
+  },
+
+  /* ============================================================
+     NEW (2026-05-30) — from ChatGPT personal-finance rewatch
+     ============================================================ */
+
+  {
+    id: "headline-type-on", isNew: true, cat: "Text", display: "Headline Type-On",
+    desc: "Large centered display headline types in character by character on a clean cream surface. No chrome around it. ChatGPT finance video uses this 4x as connective tissue between demo beats.",
+    html: `<div class='vp-stage hto-stage'>
+  <div class='hto-line'>
+    <span class='hto-headline' data-headline></span>
+  </div>
+</div>`,
+    init(card) {
+      const headline = card.querySelector('[data-headline]')
+      const TEXT = 'see where your money is going'
+
+      // Build per-character spans plus a trailing caret span (the caret lives INSIDE
+      // the headline so it always follows the last typed char and the whole unit
+      // stays centered). Spaces use a literal space inside .hto-char (white-space:pre).
+      if (!headline.dataset.split) {
+        const charsHtml = TEXT.split('').map(c =>
+          `<span class="hto-char">${c === ' ' ? ' ' : c}</span>`
+        ).join('')
+        headline.innerHTML = charsHtml + '<span class="hto-caret" data-caret></span>'
+        headline.dataset.split = '1'
+      }
+      const chars = Array.from(headline.querySelectorAll('.hto-char'))
+      const caret = headline.querySelector('[data-caret]')
+      const N = chars.length
+      const line = card.querySelector('.hto-line')
+
+      // Fit the headline to the card: the full sentence stays on one line (as the
+      // reference does) but must not clip. Scale the font down from the CSS size only
+      // when the typed-out line is wider than the available width. Re-fit after the
+      // web font loads (metrics change). Measured with all chars shown.
+
+      // Reveal up to `count` chars by toggling the display class. Driven by an
+      // onUpdate so it is fully deterministic under frame-by-frame timeline scrubbing
+      // (callbacks can be skipped on time() jumps; onUpdate fires every tick).
+      function reveal(count) {
+        const k = Math.max(0, Math.min(N, Math.floor(count)))
+        for (let i = 0; i < N; i++) {
+          if (i < k) chars[i].classList.add('is-on')
+          else chars[i].classList.remove('is-on')
+        }
+      }
+
+      function fit() {
+        headline.style.fontSize = ""           // reset to the CSS size, then measure
+        reveal(N)
+        gsap.set(caret, { opacity: 1 })
+        const avail = (line ? line.clientWidth : 0) - 6
+        const w = headline.scrollWidth
+        if (avail > 0 && w > avail) {
+          const base = parseFloat(getComputedStyle(headline).fontSize) || 46
+          headline.style.fontSize = (base * avail / w).toFixed(2) + "px"
+        }
+      }
+
+      // Idle / resting state: full sentence visible, fitted, caret resting. This is what
+      // the card shows before replay is triggered.
+      fit()
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit)
+
+      let tl = null
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+
+        // Reset to hidden: zero chars shown, caret on (the blinking cursor).
+        reveal(0)
+        gsap.set(caret, { opacity: 1 })
+
+        const start = 0.35
+        const perChar = 0.05               // ~20 chars/sec cadence, clearly legible
+        const typeDur = N * perChar
+        const typedDone = start + typeDur
+        const counter = { v: 0 }
+        tl = gsap.timeline()
+
+        // Type each character on, one at a time, left to right (scrub-safe onUpdate).
+        tl.to(counter, {
+          v: N,
+          duration: typeDur,
+          ease: 'none',
+          onUpdate: () => reveal(counter.v)
+        }, start)
+
+        // Caret blink during typing for texture (does not gate the type-on).
+        tl.to(caret, {
+          opacity: 0,
+          duration: 0.001,
+          repeat: Math.max(1, Math.floor(typedDone / 0.45)),
+          yoyo: true,
+          repeatDelay: 0.45,
+          ease: 'none'
+        }, start)
+
+        // Settle caret on, hold the full sentence ~1.3s, then fade caret out.
+        tl.set(caret, { opacity: 1 }, typedDone)
+        tl.to(caret, { opacity: 0, duration: 0.35, ease: 'power1.out' }, typedDone + 1.3)
+
+        // Return to idle resting state (full sentence visible, caret on).
+        tl.call(() => reveal(N), [], typedDone + 1.8)
+        tl.set(caret, { opacity: 1 }, typedDone + 1.8)
+        return tl
+      }
+    }
+  },
+
+  {
+    id: "meter-rows", isNew: true, cat: "Data Viz", display: "Meter Rows",
+    desc: "List of category rows, each row pairs an icon + label + thin inline fill-bar + right-aligned value. Rows stagger in top to bottom; each fill-bar animates 0 to width after its row lifts. ChatGPT finance video uses this for spending categories and portfolio holdings.",
+    html: `<div class='vp-stage'>
+  <div class='mr-card' data-mr-card>
+    <div class='mr-head'>
+      <span class='mr-title'>Spending by category</span>
+      <span class='mr-sub'>this month</span>
+    </div>
+    <div class='mr-rows' data-mr-rows></div>
+  </div>
+</div>`,
+    init(card) {
+      const rowsWrap = card.querySelector("[data-mr-rows]")
+
+      // Spending list from the ChatGPT finance video (14.7 to 16.1).
+      // Bars are proportional to the largest value (Rent at 100%).
+      const data = [
+        { label: "Rent",          value: "$1,850", pct: 100 },
+        { label: "Subscriptions", value: "$630",   pct: 34 },
+        { label: "Groceries",     value: "$620",   pct: 34 },
+        { label: "Miscellaneous", value: "$580",   pct: 31 },
+        { label: "Medical",       value: "$410",   pct: 22 },
+        { label: "Transit",       value: "$215",   pct: 12 }
+      ]
+
+      rowsWrap.innerHTML = data.map(d => (
+        "<div class='mr-row' data-mr-row>" +
+          "<span class='mr-icon'></span>" +
+          "<span class='mr-label'>" + d.label + "</span>" +
+          "<span class='mr-bar'><span class='mr-fill' data-mr-fill></span></span>" +
+          "<span class='mr-value'>" + d.value + "</span>" +
+        "</div>"
+      )).join("")
+
+      const rows = rowsWrap.querySelectorAll("[data-mr-row]")
+      const fills = rowsWrap.querySelectorAll("[data-mr-fill]")
+
+      // Idle resting state: rows visible, bars filled to their target width.
+      gsap.set(rows, { opacity: 1, y: 0 })
+      fills.forEach((f, i) => gsap.set(f, { width: data[i].pct + "%" }))
+
+      let tl = null
+
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+
+        // Hidden start: rows lifted + faded, bars empty.
+        gsap.set(rows, { opacity: 0, y: 14 })
+        gsap.set(fills, { width: "0%" })
+
+        tl = gsap.timeline()
+
+        rows.forEach((row, i) => {
+          const at = i * 0.12
+          // Row lifts in.
+          tl.to(row, { opacity: 1, y: 0, duration: 0.34, ease: "power2.out" }, at)
+          // Fill animates 0 to its width just after the row settles.
+          tl.to(fills[i], { width: data[i].pct + "%", duration: 0.42, ease: "power2.out" }, at + 0.18)
+        })
+
+        // Hold the final state so the data is readable (~1.6s).
+        tl.to({}, { duration: 1.6 })
+
+        return tl
+      }
+    }
+  },
+
+  {
+    id: "composer-commit", isNew: true, cat: "Chat", display: "Composer Commit",
+    desc: "Chat composer input pill lifts from bottom-center and anchors as a sent user bubble top-right; the + and send icons drop away as it travels. Bridges chat-input-typing to chat-conversation. ChatGPT finance video, 3 question commits.",
+    html: `<div class='vp-stage'>
+  <div class='cc-scene'>
+    <!-- target slot where the sent bubble anchors (top-right) -->
+    <div class='cc-slot' data-cc-slot></div>
+
+    <!-- the composer pill: idle state shows full chrome with text already typed -->
+    <div class='cc-pill' data-cc-pill>
+      <div class='cc-plus' data-cc-plus>+</div>
+      <div class='cc-text' data-cc-text>Am I paying for subscriptions I don't need?</div>
+      <div class='cc-send' data-cc-send>
+        <svg viewBox='0 0 16 16'><path d='M8 12V4M8 4L4 8M8 4l4 4'/></svg>
+      </div>
+    </div>
+  </div>
+</div>`,
+    init(card) {
+      const pill = card.querySelector("[data-cc-pill]")
+      const plus = card.querySelector("[data-cc-plus]")
+      const send = card.querySelector("[data-cc-send]")
+      const text = card.querySelector("[data-cc-text]")
+
+      const scene = card.querySelector(".cc-scene")
+      const idleWidthPct = 80           // matches css .cc-pill width
+      const bubbleWidthPct = 58         // ~27% narrower on arrival
+      const MARGIN = 22                 // gap from the top/right walls the bubble anchors to
+
+      // Travel is MEASURED from the live stage so it tracks any card size (the dashboard
+      // viewport is ~360x240, not the 640x360 build preview, where a hardcoded -226 lift
+      // flung the bubble off the top). gsap x/y are ADDITIONAL offsets on the pill's
+      // translateX(-50%) / bottom:30px baseline.
+      let travelX = 0, travelY = 0
+      function computeTravel() {
+        const sr = scene.getBoundingClientRect()
+        const pr = pill.getBoundingClientRect()   // measured at idle (width 80%, bottom-centre)
+        if (sr.width === 0 || pr.height === 0) return
+        const bubbleW = sr.width * bubbleWidthPct / 100
+        // horizontal: idle centre is the stage centre; target centre sits so the bubble's
+        // right edge is MARGIN from the right wall.
+        travelX = (sr.width - MARGIN - bubbleW / 2) - sr.width / 2
+        // vertical: idle centre = height - 30 - pillH/2; target centre = MARGIN + pillH/2.
+        travelY = (MARGIN + pr.height / 2) - (sr.height - 30 - pr.height / 2)
+      }
+
+      function setIdle() {
+        pill.classList.remove("cc-bubble")
+        gsap.set(pill, { x: 0, y: 0, width: idleWidthPct + "%", opacity: 1 })
+        gsap.set([plus, send], { opacity: 1, scale: 1 })
+        gsap.set(text, { opacity: 1 })
+      }
+
+      setIdle()
+
+      let tl = null
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+        setIdle()
+        computeTravel()   // measure against the current stage size before animating
+
+        // Timeline is paced for perception: a clear hold on the bottom-center composer,
+        // a long visible TRAVEL up to the top-right, then a long hold on the settled
+        // user bubble. Frame samplers must catch all three phases.
+        tl = gsap.timeline({ defaults: { ease: "power2.inOut" } })
+
+        // 0.0 to 0.7s: HOLD. Idle composer pill at bottom-center, full chrome visible.
+        tl.to(pill, { x: 0, duration: 0.7 }, 0)
+
+        // 0.7s: the "+" and send chrome cross-fade out as the lift begins (first ~30%
+        // of the travel), so the input chrome visibly drops away while the pill moves.
+        tl.to([plus, send], {
+          opacity: 0,
+          scale: 0.5,
+          duration: 0.34,
+          ease: "power1.in"
+        }, 0.7)
+
+        // 0.78 to 1.98s: the pill TRAVELS. A single long eased x/y/width tween reads as
+        // a smooth arc lifting from the bottom and flying to the upper-right, shrinking
+        // in width as it goes. 1.2s of motion so mid-flight frames get sampled.
+        tl.to(pill, {
+          x: travelX,
+          y: travelY,
+          width: bubbleWidthPct + "%",
+          duration: 1.2,
+          ease: "power2.inOut"
+        }, 0.78)
+
+        // ~1.75s: reshape into the user message bubble as it nears the slot. The radius
+        // and darker fill snap reads as "this is now a sent message".
+        tl.add(() => { pill.classList.add("cc-bubble") }, 1.62)
+
+        // 1.98s: small settle so the bubble feels anchored, not floating.
+        tl.to(pill, { y: travelY + 5, duration: 0.16, ease: "power2.out" }, 1.98)
+        tl.to(pill, { y: travelY,     duration: 0.20, ease: "power1.inOut" }, 2.14)
+
+        // 2.34 to 4.0s: HOLD. The bubble stays anchored top-right. Final state IS the
+        // resting state, no snap back to the bottom.
+        tl.to(pill, { y: travelY, duration: 1.66 }, 2.34)
+
+        return tl
+      }
+    }
+  },
+
+  {
+    id: "status-cycle", isNew: true, cat: "Chat", display: "Status Cycle",
+    desc: "Inline gray status line cycles Thinking, Querying, Received, Thought for Ns with a left-to-right shimmer band over the active labels. Final settled state is the collapsible Thought-for chevron. ChatGPT finance video reasoning indicator.",
+    html: `<div class='vp-stage'>
+  <div class='sc-wrap'>
+    <div class='sc-bubble'>
+      <div class='sc-userline'>Am I paying for subscriptions I don't need?</div>
+    </div>
+    <div class='sc-statusrow'>
+      <span class='sc-dot' data-sc-dot></span>
+      <span class='sc-line' data-sc-line>
+        <span class='sc-label' data-sc-label>Thought for 7s</span>
+        <span class='sc-chev' data-sc-chev>&rsaquo;</span>
+        <span class='sc-shimmer' data-sc-shimmer></span>
+      </span>
+    </div>
+    <div class='sc-resp' data-sc-resp>Here is a breakdown of your recurring charges.</div>
+  </div>
+</div>`,
+    init(card) {
+      const line = card.querySelector("[data-sc-line]")
+      const label = card.querySelector("[data-sc-label]")
+      const chev = card.querySelector("[data-sc-chev]")
+      const shimmer = card.querySelector("[data-sc-shimmer]")
+      const dot = card.querySelector("[data-sc-dot]")
+      const resp = card.querySelector("[data-sc-resp]")
+
+      // The label sequence. The first three are transient reasoning states;
+      // the last is the final settled, collapsible "Thought for Ns" state.
+      // active=true means the shimmer band sweeps across the text while it shows.
+      const states = [
+        { text: "Thinking",                 chev: false, active: true,  hold: 0.7 },
+        { text: "Querying financial data",  chev: false, active: true,  hold: 0.9 },
+        { text: "Received financial data",  chev: false, active: false, hold: 0.7 },
+        { text: "Thought for 7s",           chev: true,  active: false, hold: 0.0 }
+      ]
+      const finalState = states[states.length - 1]
+
+      let tl = null
+      let shimmerTween = null
+      let dotTween = null
+
+      function stopShimmer() {
+        if (shimmerTween) { shimmerTween.kill(); shimmerTween = null }
+        gsap.set(shimmer, { opacity: 0, xPercent: 0 })
+      }
+      function startShimmer() {
+        stopShimmer()
+        // sweep the highlight band from off the left edge to off the right edge,
+        // looping forever while the active state is held.
+        gsap.set(shimmer, { opacity: 1, xPercent: -100 })
+        shimmerTween = gsap.to(shimmer, {
+          xPercent: 230,
+          duration: 0.9,
+          ease: "power1.inOut",
+          repeat: -1
+        })
+      }
+      function stopDot() {
+        if (dotTween) { dotTween.kill(); dotTween = null }
+      }
+      function startDotPulse() {
+        stopDot()
+        gsap.set(dot, { opacity: 1, scale: 1 })
+        dotTween = gsap.to(dot, {
+          opacity: 0.35,
+          scale: 0.7,
+          duration: 0.55,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true
+        })
+      }
+
+      function applySettled() {
+        // resting state shown on first render and at end of replay
+        stopShimmer()
+        stopDot()
+        label.textContent = finalState.text
+        gsap.set(label, { opacity: 1 })
+        gsap.set(chev, { opacity: 1, display: "inline-block" })
+        gsap.set(dot, { opacity: 0, scale: 1 })
+        gsap.set(line, { opacity: 1 })
+        gsap.set(resp, { opacity: 1, y: 0 })
+      }
+
+      // IDLE: final settled "Thought for 7s >" state
+      applySettled()
+
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+        stopShimmer()
+        stopDot()
+
+        // reset to the very first reasoning state, response hidden
+        label.textContent = states[0].text
+        gsap.set(label, { opacity: 1 })
+        gsap.set(chev, { opacity: 0, display: "none" })
+        gsap.set(dot, { opacity: 1, scale: 1 })
+        gsap.set(line, { opacity: 0 })
+        gsap.set(resp, { opacity: 0, y: 6 })
+        gsap.set(shimmer, { opacity: 0, xPercent: -100 })
+
+        tl = gsap.timeline()
+
+        // line + dot fade in
+        tl.to(line, { opacity: 1, duration: 0.25, ease: "power2.out" }, 0)
+        tl.call(startDotPulse, null, 0)
+
+        let t = 0.25
+        states.forEach((st, i) => {
+          const isLast = i === states.length - 1
+          // when entering a new state (after the first), fade out old text, swap, fade in
+          if (i > 0) {
+            tl.to(label, { opacity: 0, duration: 0.15, ease: "power1.in" }, t)
+            tl.call(() => {
+              label.textContent = st.text
+              if (st.chev) { gsap.set(chev, { display: "inline-block", opacity: 0 }) }
+            }, null, t + 0.15)
+            tl.to(label, { opacity: 1, duration: 0.15, ease: "power1.out" }, t + 0.15)
+            if (st.chev) tl.to(chev, { opacity: 1, duration: 0.2, ease: "power2.out" }, t + 0.15)
+            t += 0.3
+          }
+          // toggle shimmer for this state
+          tl.call(st.active ? startShimmer : stopShimmer, null, t)
+          if (isLast) {
+            // settle: dot fades away, response appears
+            tl.call(stopDot, null, t)
+            tl.to(dot, { opacity: 0, duration: 0.3, ease: "power1.out" }, t)
+            tl.to(resp, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, t + 0.1)
+          }
+          t += st.hold
+        })
+
+        return tl
+      }
+    }
+  },
+
+  {
+    id: "logo-mark-signoff", isNew: true, cat: "Camera", display: "Logo Mark Signoff",
+    desc: "Brand sign-off: wordmark crossfades to a monoline geometric mark that scales up and strokes in, with a fixed disclaimer line held beneath. Used as the outro pattern in the ChatGPT finance video.",
+    html: `<div class='vp-stage lms-stage'>
+  <div class='lms-frame'>
+    <div class='lms-slot'>
+      <div class='lms-wm' data-wm>lumiere</div>
+      <svg class='lms-mark' data-mark viewBox='0 0 100 100' width='112' height='112' fill='none' aria-hidden='true'>
+        <g data-mark-paths stroke='var(--ink)' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'>
+          <circle class='lms-arc' data-arc cx='50' cy='50' r='30'></circle>
+          <circle class='lms-arc' data-arc cx='50' cy='50' r='20'></circle>
+          <circle class='lms-arc' data-arc cx='50' cy='50' r='10'></circle>
+          <line class='lms-arc' data-arc x1='50' y1='8' x2='50' y2='92'></line>
+          <line class='lms-arc' data-arc x1='8' y1='50' x2='92' y2='50'></line>
+        </g>
+      </svg>
+    </div>
+    <div class='lms-disclaimer' data-disclaimer>Not a replacement for professional advice.</div>
+  </div>
+</div>`,
+    init(card) {
+      const wordmark   = card.querySelector('[data-wm]')
+      const mark       = card.querySelector('[data-mark]')
+      const disclaimer = card.querySelector('[data-disclaimer]')
+      const arcs       = Array.from(card.querySelectorAll('[data-arc]'))
+
+      // measure each stroke path length for the dasharray draw-in
+      const lengths = arcs.map(a => {
+        const len = (typeof a.getTotalLength === 'function') ? a.getTotalLength() : 220
+        return (len && isFinite(len) && len > 0) ? len : 220
+      })
+
+      function setStrokeDrawn() {
+        // mark fully strokes-in (visible final state)
+        arcs.forEach((a, i) => {
+          gsap.set(a, { strokeDasharray: lengths[i], strokeDashoffset: 0 })
+        })
+      }
+      function setStrokeHidden() {
+        // mark hidden behind its own dash gap, ready to draw in
+        arcs.forEach((a, i) => {
+          gsap.set(a, { strokeDasharray: lengths[i], strokeDashoffset: lengths[i] })
+        })
+      }
+
+      // IDLE = final state: wordmark gone, mark fully visible + strokes drawn, disclaimer held
+      function applyIdle() {
+        gsap.set(wordmark,   { opacity: 0 })
+        gsap.set(mark,       { opacity: 1, scale: 1, transformOrigin: '50% 50%' })
+        gsap.set(disclaimer, { opacity: 1 })
+        setStrokeDrawn()
+      }
+      applyIdle()
+
+      let tl = null
+
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+
+        // rest the scene to its START state (wordmark visible, mark hidden + un-drawn)
+        gsap.set(wordmark,   { opacity: 1 })
+        gsap.set(mark,       { opacity: 0, scale: 0.6, transformOrigin: '50% 50%' })
+        gsap.set(disclaimer, { opacity: 1 }) // disclaimer holds the ENTIRE time
+        setStrokeHidden()
+
+        tl = gsap.timeline()
+
+        // hold the wordmark so the viewer reads it
+        tl.to(wordmark, { opacity: 1, duration: 0.5, ease: 'none' }, 0)
+
+        // SIMULTANEOUS crossfade: wordmark fades out while mark fades + scales in
+        tl.to(wordmark, { opacity: 0, duration: 0.6, ease: 'power2.in' }, 0.5)
+        tl.to(mark,     { opacity: 1, duration: 0.6, ease: 'power3.out' }, 0.5)
+        tl.to(mark,     { scale: 1, duration: 0.6, ease: 'power3.out' }, 0.5)
+
+        // stroke-in: each concentric arc draws from gap to full, slightly staggered
+        arcs.forEach((a, i) => {
+          tl.to(a, { strokeDashoffset: 0, duration: 0.7, ease: 'power2.out' }, 0.55 + i * 0.07)
+        })
+
+        // hold the final state ~1.5s
+        tl.to({}, { duration: 1.5 }, 1.45)
+
+        // reset back to idle (final mark state) at the end
+        tl.add(applyIdle, 3.1)
+        return tl
       }
     }
   },

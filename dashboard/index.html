@@ -1136,9 +1136,10 @@
   /* ===== ChatGPT-ref effects (scoped prefixes: iws-, pcc-, cbw-, dcf-, cfi-, std-, cit-, ccv-, icr-, srv-, sbf-, lcd-) ===== */
 
   /* inline-word-stream */
-  .iws-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:#fff;white-space:nowrap}
-  .iws-word,.iws-typed{font-family:'Outfit',sans-serif;font-size:22px;font-weight:800;color:#000;line-height:1.3;letter-spacing:-0.02em;display:inline}
-  .iws-spacer{display:inline;font-size:22px}
+  .iws-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:#fff;overflow:hidden}
+  .iws-phrase{font-family:'Outfit',sans-serif;font-size:28px;font-weight:800;color:#000;line-height:1.3;letter-spacing:-0.02em;white-space:nowrap;will-change:transform}
+  .iws-w,.iws-chat,.iws-gpt,.iws-gpt .iws-c{display:inline-block}
+  .iws-chat{margin-left:0.22em}
 
   /* parallax-card-collage */
   .pcc-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafaf8}
@@ -1178,14 +1179,14 @@
   .cfi-row-val{font-weight:600;color:#111;font-variant-numeric:tabular-nums}
 
   /* spinner-to-dot */
-  .std-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;padding:14px;gap:8px}
+  .std-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;padding:10px;gap:6px}
   .std-header{font-family:'Outfit',sans-serif;font-size:9px;color:#999;display:flex;align-items:center;gap:5px}
   .std-header-icon{width:16px;height:16px;border-radius:4px;background:#111;display:flex;align-items:center;justify-content:center}
   .std-header-icon svg{width:10px;height:10px;fill:#fff}
   .std-list{display:flex;flex-direction:column;gap:0;width:82%;background:#fff;border-radius:14px;border:1px solid rgba(0,0,0,0.06);overflow:hidden;box-shadow:0 2px 10px -4px rgba(0,0,0,0.06)}
-  .std-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-family:'Outfit',sans-serif;font-size:10px;color:#333;border-bottom:1px solid rgba(0,0,0,0.04)}
+  .std-item{display:flex;align-items:center;gap:8px;padding:5px 11px;font-family:'Outfit',sans-serif;font-size:9.5px;color:#333;border-bottom:1px solid rgba(0,0,0,0.04)}
   .std-item:last-child{border-bottom:none}
-  .std-item-icon{width:20px;height:20px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:7px;color:#fff;font-weight:700}
+  .std-item-icon{width:17px;height:17px;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:6.5px;color:#fff;font-weight:700}
   .std-item-name{flex:1;font-weight:500}
   .std-item-sub{font-size:7.5px;color:#aaa;margin-top:1px}
   .std-status{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:9px;color:#aaa;font-weight:500}
@@ -1207,6 +1208,8 @@
   .ccv-response{font-family:'Outfit',sans-serif;font-size:9.5px;color:#333;line-height:1.6;font-weight:400}
   .ccv-response .ccv-bold{font-weight:700;color:#000}
   .ccv-tool{font-size:8.5px;color:#c0c0c0;margin-top:3px;margin-bottom:6px;font-family:'Outfit',sans-serif;font-weight:400}
+  .ccv-actions{display:flex;align-items:center;gap:13px;margin-top:9px}
+  .ccv-act{width:13px;height:13px;fill:none;stroke:#bdbbb6;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
 
   /* inline-card-render */
   .icr-stage{position:absolute;inset:0;display:flex;flex-direction:column;background:#fff;padding:12px 14px;overflow:hidden;font-family:'Outfit',sans-serif}
@@ -1214,8 +1217,9 @@
   .icr-prose .icr-bold{font-weight:700;color:#111}
   .icr-card{background:#f8f7f5;border-radius:10px;padding:10px 12px;box-shadow:0 2px 8px -4px rgba(0,0,0,0.08)}
   .icr-card-title{font-size:10px;font-weight:600;color:#222;margin-bottom:2px}
-  .icr-card-val{font-size:14px;font-weight:700;color:#111;margin-bottom:6px}
-  .icr-card-row{display:flex;align-items:center;gap:6px;font-size:9px;color:#555;padding:3px 0}
+  .icr-card-val{font-size:14px;font-weight:700;color:#111;margin-bottom:1px}
+  .icr-card-sub{font-size:8px;color:#9a9a96;font-weight:500;margin-bottom:7px}
+  .icr-card-row{display:flex;align-items:center;gap:6px;font-size:9px;color:#555;padding:2.5px 0}
   .icr-card-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
   .icr-card-bar{height:3px;border-radius:2px;background:#e0e0e0;flex:1;position:relative;overflow:hidden}
   .icr-card-bar-fill{height:100%;border-radius:2px;position:absolute;left:0;top:0}
@@ -1252,6 +1256,345 @@
   .lcd-svg{width:100%;height:56px}
   .lcd-line{fill:none;stroke:#22c55e;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
   .lcd-fill{fill:url(#lcd-grad);opacity:0.25}
+
+  /* ===== NEW 2026-05-30: ChatGPT finance rewatch effects ===== */
+
+  /* --- headline-type-on --- */
+.hto-stage {
+  background: var(--cream);
+  padding: 0 20px;
+}
+.hto-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.hto-headline {
+  position: relative;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-align: center;
+  white-space: nowrap;
+}
+/* Each char reveals by toggling display, so the line width grows left to right
+   and the caret (::after on the headline) always sits right after the last
+   visible character, staying centered as a unit. */
+.hto-headline .hto-char {
+  display: none;
+  white-space: pre;
+}
+.hto-headline .hto-char.is-on {
+  display: inline-block;
+}
+.hto-headline .hto-caret {
+  display: inline-block;
+  width: 3px;
+  height: 0.86em;
+  margin-left: 2px;
+  background: var(--ink);
+  transform: translateY(0.10em);
+  border-radius: 1px;
+  vertical-align: baseline;
+}
+
+  /* --- meter-rows --- */
+.mr-card {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  padding: 13px 15px 15px;
+  font-family: 'Inter', 'Outfit', system-ui, sans-serif;
+}
+.mr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+}
+.mr-title {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.mr-sub {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.mr-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mr-row {
+  display: grid;
+  grid-template-columns: 13px 72px 1fr 48px;
+  align-items: center;
+  column-gap: 9px;
+}
+.mr-icon {
+  width: 11px;
+  height: 11px;
+  border-radius: 4px;
+  background: var(--proof-green);
+  justify-self: center;
+}
+.mr-label {
+  font-size: 10.5px;
+  font-weight: 550;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mr-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 4px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.mr-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: var(--proof-green);
+}
+.mr-value {
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+  /* --- composer-commit --- */
+.cc-scene{position:absolute;inset:0;background:var(--paper);overflow:hidden;font-family:'Outfit','Inter',system-ui,sans-serif}
+
+/* target anchor slot in the upper-right where the sent bubble lands */
+.cc-slot{position:absolute;top:26px;right:26px;width:62%;height:0;display:flex;justify-content:flex-end;pointer-events:none}
+
+/* the composer pill: rounded input bar, idle at bottom-center */
+.cc-pill{
+  position:absolute;
+  left:50%;
+  bottom:30px;
+  transform:translateX(-50%);
+  transform-origin:center center;
+  width:80%;
+  max-width:480px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  background:var(--cream);
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:9px 9px 9px 15px;
+  box-shadow:var(--shadow-pill);
+  will-change:transform,width,border-radius,background;
+}
+
+/* left "+" attach icon */
+.cc-plus{
+  width:28px;height:28px;flex-shrink:0;
+  border-radius:50%;
+  background:var(--paper-2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink-3);font-size:19px;font-weight:300;line-height:1;
+}
+
+/* the typed question text */
+.cc-text{
+  flex:1;min-width:0;
+  font-size:12px;font-weight:400;letter-spacing:-0.01em;
+  color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* right send button: black up-arrow circle */
+.cc-send{
+  width:28px;height:28px;flex-shrink:0;
+  border-radius:50%;
+  background:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+}
+.cc-send svg{width:13px;height:13px;fill:none;stroke:var(--cream);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+/* bubble look: applied to the pill at the end of travel, the chat user message */
+.cc-pill.cc-bubble{
+  background:var(--paper-2);
+  border-color:transparent;
+  border-radius:18px 18px 4px 18px;
+  box-shadow:none;
+  padding:10px 14px;
+  gap:0;
+}
+.cc-pill.cc-bubble .cc-text{
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+  line-height:1.4;
+  font-size:11px;
+}
+
+  /* --- status-cycle --- */
+.sc-wrap {
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* user bubble for context */
+.sc-bubble {
+  align-self: flex-end;
+  max-width: 80%;
+  background: var(--cream-warm);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 14px 14px 4px 14px;
+  padding: 9px 14px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.sc-userline { white-space: nowrap; }
+
+/* the status row sits just under the bubble, above the response */
+.sc-statusrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 2px;
+}
+
+/* small pulsing dot to the left of the label */
+.sc-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  flex: 0 0 auto;
+}
+
+/* the status line itself: relative so the shimmer can clip to it */
+.sc-line {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sc-label {
+  position: relative;
+  z-index: 1;
+}
+
+.sc-chev {
+  position: relative;
+  z-index: 1;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-4);
+  transform: translateY(-0.5px);
+}
+
+/* left-to-right shimmer band swept across the active label text */
+.sc-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(
+    90deg,
+    rgba(249, 248, 246, 0) 0%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(249, 248, 246, 0) 100%
+  );
+  mix-blend-mode: overlay;
+  opacity: 0;
+}
+
+/* response prose under the status line */
+.sc-resp {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+  padding-left: 2px;
+}
+
+  /* --- logo-mark-signoff --- */
+.lms-stage {
+  background: var(--vp-bg);
+}
+.lms-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  width: 100%;
+  height: 100%;
+}
+/* wordmark and mark share the SAME screen slot so they crossfade in place */
+.lms-slot {
+  position: relative;
+  width: 320px;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lms-wm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.lms-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
+}
+.lms-disclaimer {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: var(--ink-3);
+  text-align: center;
+}
+
 </style>
 </head>
 <body>
@@ -1353,7 +1696,7 @@
 </div>
 
 <script src="vendor/gsap.min.js"></script>
-<script src="effects.js"></script>
+<script src="effects.js?v=6"></script>
 <script>
 /* ============================================================
    DASHBOARD WIRING
@@ -1367,11 +1710,12 @@ const replayMap = new Map()
 
 function renderCards() {
   grid.innerHTML = ""
-  EFFECTS.forEach(spec => {
+  EFFECTS.forEach((spec, i) => {
     const card = document.createElement("article")
     card.className = "card"
     card.dataset.effect = spec.id
     card.dataset.cat = spec.cat
+    card.dataset.idx = String(i)
     if (spec.isNew) card.dataset.new = "1"
     card.innerHTML = `
       <div class='viewport'>${spec.html}</div>
@@ -1393,14 +1737,30 @@ function renderCards() {
 
 renderCards()
 
+/* Newest-first ordering for the "New" view only. isNew effects are appended to
+   the array over time, so a higher idx = more recently added. Negating idx via
+   CSS order floats the latest additions to the top. All other views keep their
+   curated array order (order reset to ""). */
+function setNewestFirst(on) {
+  document.querySelectorAll(".card").forEach(card => {
+    card.style.order = on ? String(-Number(card.dataset.idx || 0)) : ""
+  })
+}
+
 /* update sidebar counts dynamically */
 function updateCounts() {
   const counts = {}
   EFFECTS.forEach(e => { counts[e.cat] = (counts[e.cat] || 0) + 1 })
-  document.getElementById("cntAll").textContent = EFFECTS.length
-  ;["Camera","Reveal","Text","Motion","Layer","UI","Compose"].forEach(c => {
-    const el = document.getElementById("cnt" + c)
-    if (el) el.textContent = counts[c] || 0
+  const newCount = EFFECTS.filter(e => e.isNew).length
+  // Drive every nav-item off its own data-cat so multi-word cats ("Data Viz",
+  // "Chat") and future categories stay correct without a hardcoded id list.
+  document.querySelectorAll(".nav-item[data-cat]").forEach(item => {
+    const cat = item.dataset.cat
+    const el = item.querySelector(".count")
+    if (!el) return
+    if (cat === "all") el.textContent = EFFECTS.length
+    else if (cat === "new") el.textContent = newCount
+    else el.textContent = counts[cat] || 0
   })
   document.getElementById("searchLabel").textContent = `search ${EFFECTS.length} effects`
 }
@@ -1446,6 +1806,7 @@ document.querySelectorAll(".nav-item[data-cat]").forEach(item => {
       card.hidden = !show
       if (show) visible++
     })
+    setNewestFirst(cat === "new")
     /* surface empty state if a category somehow has zero */
     const existing = grid.querySelector(".empty-note")
     if (visible === 0 && !existing) {
@@ -1469,6 +1830,7 @@ document.querySelectorAll(".filter-chip").forEach(chip => {
       if (f === "all") { card.hidden = false }
       else if (f === "new") { card.hidden = card.dataset.new !== "1" }
     })
+    setNewestFirst(f === "new")
     const catNav = document.querySelector('.nav-item[data-cat="all"]')
     if (catNav) { document.querySelectorAll(".nav-item[data-cat]").forEach(x => x.classList.remove("active")); catNav.classList.add("active") }
   })
