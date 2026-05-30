@@ -2,6 +2,19 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-05-31
+
+### Added
+
+- **33 new dashboard effects** extracted from 8 Claude/Anthropic reference videos (Claude Code Fast mode, /goal, agent view, push notifications, /ultrareview, session recaps, the Code w/ Claude conference, and Claude for Financial Services), taking the library from 47 to 80 primitives. Highlights: the parametric pixel-mascot set (`pixel-mascot-idle-bob`, `mascot-prop-equip`, `mascot-celebration-hop`, `mascot-pose-turn`), data-viz (`waterfall-bridge-chart`, `morphing-node-graph`, `session-dashboard-list`, `agent-to-agent-pipe`, `globe-rotate-flightpaths`, `status-badge-resolve`), UI motifs (`toggle-flip-on`, `status-bullet-flip-green`, `ios-notification-banner`, `focus-band-carousel`, `workflow-stepper-progress`, `playful-spinner-verb`, `goal-active-timer-badge`), and reveal/camera/layer/chat effects (`spark-mark-bloom`, `hand-drawn-stroke-construct`, `source-citation-popover`, `perspective-tilt-settle`, `split-screen-diptych`, `focus-pull-dim`, `lasso-twirl-throw-capture`, `confetti-burst`, and more).
+- **Source-provenance filter**: a new "Sources" sidebar section tags every effect (all 80, new and existing) with the reference video(s) it came from and filters the grid by source. Effects reused across multiple videos appear under each one.
+
+### Fixed
+
+- All 33 new effects validated at the live ~360x240 card size. `morphing-node-graph` edges now render (a CSS `stroke-opacity:0` was overriding the JS-set attribute, leaving only the nodes); status-badge label spacing tightened.
+- Code-review hardening: `playful-spinner-verb` no longer accumulates `setTimeout` handles across its idle-loop cycles; `goal-active-timer-badge` replay now kills its prior `repeat:-1` timeline (no text-reset race on rapid re-hover); `focus-band-carousel` caches its chip-dot lookups out of the per-frame path; the filter-chip handler clears stale empty-state notes.
+- Dashboard `effects.js` cache-buster bumped so reloads pick up the new build.
+
 ## [0.13.0] - 2026-05-30
 
 ### Added
