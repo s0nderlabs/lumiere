@@ -2231,32 +2231,32 @@ window.LUMIERE_EFFECTS = [
     desc: "The terracotta pixel-art Claude critter idles: a continuous low-amplitude sine bob with feet anchored, discrete eye blinks, and occasional eye-look glances. The always-on liveliness sprite every other mascot effect layers onto, from the Claude Code launch clips.",
     html: `<div class='vp-stage pmb-stage'>
       <div class='pmb-mascot'>
-        <svg class='pmb-svg' viewBox='0 0 32 30' aria-hidden='true'>
+        <svg class='pmb-svg' viewBox='0 0 32 30' shape-rendering='crispEdges' aria-hidden='true'>
           <!-- ground shadow (static, anchors the feet) -->
-          <ellipse class='pmb-shadow' cx='16' cy='28.2' rx='9' ry='1.6'></ellipse>
+          <ellipse class='pmb-shadow' cx='16' cy='28.6' rx='9' ry='1.6'></ellipse>
           <!-- legs (static, never bob) -->
           <g class='pmb-legs'>
-            <rect x='10' y='24' width='3' height='3.4' rx='0.6'></rect>
-            <rect x='19' y='24' width='3' height='3.4' rx='0.6'></rect>
+            <rect x='10' y='25' width='4' height='3.4'></rect>
+            <rect x='18' y='25' width='4' height='3.4'></rect>
           </g>
-          <!-- bobbing group: body + arms + eyes -->
+          <!-- bobbing group: body + arms + eyes (sharp pixel sprite, pose-turn family) -->
           <g class='pmb-bob' data-pmb-bob>
             <!-- arm nubs -->
-            <rect class='pmb-arm' x='3.4' y='14' width='3.2' height='4.4' rx='1.4'></rect>
-            <rect class='pmb-arm' x='25.4' y='14' width='3.2' height='4.4' rx='1.4'></rect>
+            <rect class='pmb-arm' x='3' y='13' width='3.5' height='6'></rect>
+            <rect class='pmb-arm' x='25.5' y='13' width='3.5' height='6'></rect>
             <!-- body -->
-            <rect class='pmb-body' x='6' y='4' width='20' height='22' rx='5.5'></rect>
-            <!-- top-left highlight band -->
-            <rect class='pmb-hl' x='8.5' y='6.5' width='9' height='3' rx='1.5'></rect>
+            <rect class='pmb-body' x='6' y='4' width='20' height='21'></rect>
+            <!-- lit top stripe (full width) -->
+            <rect class='pmb-hl' x='6' y='4' width='20' height='2.4'></rect>
             <!-- eyes open (two square pixels) -->
             <g class='pmb-eyes-open' data-pmb-open>
-              <rect class='pmb-eye' x='10.5' y='12.5' width='3.4' height='3.6' rx='0.5'></rect>
-              <rect class='pmb-eye' x='18.1' y='12.5' width='3.4' height='3.6' rx='0.5'></rect>
+              <rect class='pmb-eye' x='10.5' y='12' width='4' height='5'></rect>
+              <rect class='pmb-eye' x='17.5' y='12' width='4' height='5'></rect>
             </g>
             <!-- eyes closed (thin slits, hidden at rest) -->
             <g class='pmb-eyes-closed' data-pmb-closed>
-              <rect class='pmb-slit' x='10.5' y='14.4' width='3.4' height='1' rx='0.5'></rect>
-              <rect class='pmb-slit' x='18.1' y='14.4' width='3.4' height='1' rx='0.5'></rect>
+              <rect class='pmb-slit' x='10.5' y='14.6' width='4' height='1.2'></rect>
+              <rect class='pmb-slit' x='17.5' y='14.6' width='4' height='1.2'></rect>
             </g>
           </g>
         </svg>
@@ -2343,20 +2343,21 @@ window.LUMIERE_EFFECTS = [
           <!-- ground shadow -->
           <ellipse class='mpe-shadow' data-mpe-shadow cx='50' cy='90' rx='26' ry='5'></ellipse>
 
-          <!-- BODY (terracotta critter) -->
+          <!-- BODY (terracotta critter, sharp pixel sprite -- pose-turn family) -->
           <g class='mpe-body' data-mpe-body>
             <!-- legs -->
-            <rect x='38' y='78' width='8' height='10' rx='1.5' fill='#a8523c'></rect>
-            <rect x='54' y='78' width='8' height='10' rx='1.5' fill='#a8523c'></rect>
+            <rect x='38' y='78' width='8' height='10' fill='#A84C30'></rect>
+            <rect x='54' y='78' width='8' height='10' fill='#A84C30'></rect>
             <!-- arm nubs -->
-            <rect class='mpe-arm mpe-arm-l' x='17' y='52' width='10' height='9' rx='3' fill='#b85a44'></rect>
-            <rect class='mpe-arm mpe-arm-r' data-mpe-arm-r x='73' y='52' width='10' height='9' rx='3' fill='#b85a44'></rect>
+            <rect class='mpe-arm mpe-arm-l' x='17' y='52' width='10' height='9' fill='#A84C30'></rect>
+            <rect class='mpe-arm mpe-arm-r' data-mpe-arm-r x='73' y='52' width='10' height='9' fill='#A84C30'></rect>
             <!-- torso -->
-            <rect x='26' y='30' width='48' height='52' rx='11' fill='#c8674f'></rect>
-            <rect x='30' y='33' width='40' height='20' rx='9' fill='#d96a4a' opacity='0.55'></rect>
+            <rect x='26' y='30' width='48' height='52' fill='#C15B3C'></rect>
+            <!-- lit top stripe -->
+            <rect x='26' y='30' width='48' height='6' fill='#cf6a48'></rect>
             <!-- eyes -->
-            <rect class='mpe-eye' x='38' y='50' width='8' height='9' rx='1.5' fill='#1a1714'></rect>
-            <rect class='mpe-eye' x='54' y='50' width='8' height='9' rx='1.5' fill='#1a1714'></rect>
+            <rect class='mpe-eye' x='38' y='50' width='8' height='9' fill='#1A1A1A'></rect>
+            <rect class='mpe-eye' x='54' y='50' width='8' height='9' fill='#1A1A1A'></rect>
           </g>
 
           <!-- HEADPHONES (swing on, pivots near left cup) -->
@@ -2456,11 +2457,16 @@ window.LUMIERE_EFFECTS = [
   html: `<div class='vp-stage wsb-stage'>
     <div class='wsb-scene'>
       <div class='wsb-mascot'>
-        <div class='wsb-body'>
-          <span class='wsb-eye wsb-eye-l'></span>
-          <span class='wsb-eye wsb-eye-r'></span>
-        </div>
-        <div class='wsb-arm'></div>
+        <svg class='wsb-critter' viewBox='0 0 62 56' shape-rendering='crispEdges' aria-hidden='true'>
+          <rect x='12' y='16' width='34' height='34' fill='#C15B3C'/>
+          <rect x='12' y='16' width='34' height='4'  fill='#cf6a48'/>
+          <rect x='6'  y='26' width='6'  height='11' fill='#A84C30'/>
+          <rect x='45' y='14' width='6'  height='13' fill='#A84C30'/>
+          <rect x='18' y='50' width='7'  height='6'  fill='#A84C30'/>
+          <rect x='33' y='50' width='7'  height='6'  fill='#A84C30'/>
+          <rect x='19' y='26' width='6'  height='7'  fill='#1A1A1A'/>
+          <rect x='31' y='26' width='6'  height='7'  fill='#1A1A1A'/>
+        </svg>
         <div class='wsb-wand'>
           <span class='wsb-wand-stick'></span>
           <span class='wsb-emitter' data-wsb-emit>
@@ -2676,29 +2682,30 @@ window.LUMIERE_EFFECTS = [
         <div class='mch-figure' data-mch-figure>
           <svg class='mch-sprite' viewBox='0 0 64 64' width='84' height='84' shape-rendering='crispEdges' aria-hidden='true'>
             <g class='mch-glow' data-mch-glow>
-              <rect x='14' y='16' width='36' height='34' rx='6' fill='#C9785C'></rect>
+              <rect x='14' y='16' width='36' height='34' fill='#C15B3C'></rect>
             </g>
             <g class='mch-arms' data-mch-arms>
-              <rect class='mch-arm-l' data-mch-arm-l x='8'  y='40' width='6' height='8' rx='2' fill='#B25E44'></rect>
-              <rect class='mch-arm-r' data-mch-arm-r x='50' y='40' width='6' height='8' rx='2' fill='#B25E44'></rect>
+              <rect class='mch-arm-l' data-mch-arm-l x='8'  y='40' width='6' height='8' fill='#A84C30'></rect>
+              <rect class='mch-arm-r' data-mch-arm-r x='50' y='40' width='6' height='8' fill='#A84C30'></rect>
             </g>
             <g class='mch-prop' data-mch-prop>
               <path d='M16 18 L48 18 L40 4 Q32 -2 24 4 Z' fill='#4B3A9E'></path>
               <rect x='12' y='17' width='40' height='5' rx='2' fill='#6B5FD6'></rect>
               <circle cx='37' cy='9' r='2.4' fill='#F2D469'></circle>
             </g>
-            <rect class='mch-body' x='14' y='16' width='36' height='34' rx='6' fill='#C9785C'></rect>
+            <rect class='mch-body' x='14' y='16' width='36' height='34' fill='#C15B3C'></rect>
+            <rect x='14' y='22' width='36' height='3' fill='#cf6a48'></rect>
             <g class='mch-eyes-open' data-mch-open>
-              <rect x='23' y='28' width='6' height='8' rx='1.5' fill='#1A1714'></rect>
-              <rect x='35' y='28' width='6' height='8' rx='1.5' fill='#1A1714'></rect>
+              <rect x='23' y='28' width='6' height='8' fill='#1A1A1A'></rect>
+              <rect x='35' y='28' width='6' height='8' fill='#1A1A1A'></rect>
             </g>
             <g class='mch-eyes-happy' data-mch-happy>
-              <path d='M22 33 Q26 27 30 33' stroke='#1A1714' stroke-width='2.6' fill='none' stroke-linecap='round'></path>
-              <path d='M34 33 Q38 27 42 33' stroke='#1A1714' stroke-width='2.6' fill='none' stroke-linecap='round'></path>
+              <path d='M22 33 Q26 27 30 33' stroke='#1A1A1A' stroke-width='2.6' fill='none' stroke-linecap='round'></path>
+              <path d='M34 33 Q38 27 42 33' stroke='#1A1A1A' stroke-width='2.6' fill='none' stroke-linecap='round'></path>
             </g>
             <g class='mch-legs'>
-              <rect x='22' y='49' width='7' height='6' rx='2' fill='#A8543C'></rect>
-              <rect x='35' y='49' width='7' height='6' rx='2' fill='#A8543C'></rect>
+              <rect x='22' y='49' width='7' height='6' fill='#A84C30'></rect>
+              <rect x='35' y='49' width='7' height='6' fill='#A84C30'></rect>
             </g>
           </svg>
         </div>
@@ -2763,86 +2770,6 @@ window.LUMIERE_EFFECTS = [
       }
     }
   },
-
-  {
-  id: "spark-mark-bloom", isNew: true, cat: "Reveal", display: "Claude Spark-Mark Bloom",
-  source: ["claude-code-fast-mode", "claude-code-agent-view", "claude-financial-services"],
-  desc: "The Claude brand spark constructs itself spoke-by-spoke from a seed dot, each tapered ray drawing outward as the whole mark scales and rotates to settle. The brand-mark formation moment from the Claude Code launch + financial-services videos.",
-  html: `<div class='smb-stage'>
-    <div class='smb-glow' data-smb-glow></div>
-    <svg class='smb-mark' data-smb-mark viewBox='0 0 100 100' width='150' height='150' aria-hidden='true'>
-      <g class='smb-spark' data-smb-spark>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <path class='smb-spoke' data-smb-spoke d='M50 50 L47 31 L50 11 L53 31 Z'></path>
-        <circle class='smb-seed' data-smb-seed cx='50' cy='50' r='6'></circle>
-      </g>
-    </svg>
-  </div>`,
-  init(card) {
-    const spark = card.querySelector("[data-smb-spark]")
-    const seed  = card.querySelector("[data-smb-seed]")
-    const glow  = card.querySelector("[data-smb-glow]")
-    const spokes = Array.from(card.querySelectorAll("[data-smb-spoke]"))
-
-    /* bake each spoke's radial angle (30deg fan) + a sub-degree hand-drawn wobble,
-       rotated about the seed center via svgOrigin so all spokes share one pivot */
-    const angles = spokes.map((sp, i) => {
-      const wobble = (i % 2 ? 0.6 : -0.6) + (i % 3 - 1) * 0.35
-      const ang = i * 30 + wobble
-      gsap.set(sp, { svgOrigin: "50 50", rotation: ang })
-      return ang
-    })
-
-    /* IDLE = fully bloomed mark: spokes drawn, seed settled, group at rest */
-    function applyIdle() {
-      gsap.set(spark, { svgOrigin: "50 50", scale: 1, rotation: 0 })
-      spokes.forEach((sp, i) => gsap.set(sp, { svgOrigin: "50 50", scaleY: 1, autoAlpha: 1, rotation: angles[i] }))
-      gsap.set(seed, { svgOrigin: "50 50", scale: 0.55, autoAlpha: 1 })
-      gsap.set(glow, { autoAlpha: 0.5, scale: 1 })
-    }
-    applyIdle()
-
-    let tl = null
-    return function replay() {
-      if (tl) { tl.kill(); tl = null }
-      gsap.killTweensOf([spark, seed, glow, ...spokes])
-
-      /* START: just the seed dot, spokes collapsed into the center, group small + pre-rotated */
-      gsap.set(spark, { svgOrigin: "50 50", scale: 0.6, rotation: -12 })
-      spokes.forEach((sp, i) => gsap.set(sp, { svgOrigin: "50 50", scaleY: 0, autoAlpha: 0, rotation: angles[i] }))
-      gsap.set(seed, { svgOrigin: "50 50", scale: 1, autoAlpha: 1 })
-      gsap.set(glow, { autoAlpha: 0, scale: 0.5 })
-
-      tl = gsap.timeline()
-      /* seed shrinks as the spokes take over the mark */
-      tl.to(seed, { scale: 0.55, duration: 0.34, ease: "power2.out" }, 0.04)
-      /* spokes draw OUTWARD from the seed, random-stagger bloom */
-      tl.to(spokes, {
-        scaleY: 1, autoAlpha: 1, duration: 0.42, ease: "expo.out",
-        stagger: { each: 0.018, from: "random" }
-      }, 0)
-      /* whole mark scales up + counter-rotates to settle, concurrently */
-      tl.to(spark, { scale: 1, rotation: 0, duration: 0.5, ease: "power3.out" }, 0)
-      /* a soft brand glow blooms behind, then eases to its resting level */
-      tl.to(glow, { autoAlpha: 0.7, scale: 1.08, duration: 0.4, ease: "power3.out" }, 0.05)
-      tl.to(glow, { autoAlpha: 0.5, scale: 1, duration: 0.5, ease: "sine.inOut" }, 0.45)
-
-      /* hold the formed mark, then snap back to the idle (bloomed) resting state */
-      tl.add(applyIdle, 1.6)
-      return tl
-    }
-  }
-},
 
   {
   id: "goal-active-timer-badge", isNew: true, cat: "UI", display: "Accelerated Live Timer Badge",
@@ -3000,132 +2927,109 @@ window.LUMIERE_EFFECTS = [
   {
     id: "lasso-twirl-throw-capture", isNew: true, cat: "Motion", display: "Lasso Twirl, Throw & Capture",
     source: ["claude-code-agent-view"],
-    desc: "The cowboy mascot twirls a gold pixel rope, throws it as an orthogonal staircase line, and drags each scattered card across the canvas to dock onto a dashboard slot as a list row. From the Claude Code agent-view lasso set-piece.",
+    desc: "A pixel cowboy critter twirls a gold lasso overhead, throws it to rope a floating session card, then reels the catch into a captured-sessions list. From the Claude Code agent-view lasso set-piece.",
     html: `<div class='vp-stage ltt-stage'>
-      <svg class='ltt-svg' viewBox='0 0 360 240' preserveAspectRatio='none' data-ltt-svg aria-hidden='true'>
-        <polyline class='ltt-rope' data-ltt-rope points='80,86 80,86' />
-        <ellipse class='ltt-loop' data-ltt-loop cx='88' cy='40' rx='22' ry='13' />
+      <div class='ltt-list' data-ltt-list>
+        <div class='ltt-list-hd'><span class='ltt-hd-ic'>&#9678;</span> captured</div>
+        <div class='ltt-slot'><span class='ltt-rdot'></span><span class='ltt-rname'>auth-refactor</span><span class='ltt-rel'>3m</span></div>
+        <div class='ltt-slot ltt-slot-pending' data-ltt-slot1></div>
+      </div>
+      <div class='ltt-card' data-ltt-card><span class='ltt-cdot'></span><span class='ltt-cname'>flaky-test</span><span class='ltt-cel'>12s</span></div>
+      <svg class='ltt-svg' viewBox='0 0 360 240' preserveAspectRatio='none' aria-hidden='true'>
+        <path class='ltt-rope' data-ltt-rope fill='none' stroke='#c9962e' stroke-width='2.5' stroke-linecap='round'></path>
       </svg>
-      <div class='ltt-mascot' data-ltt-mascot aria-hidden='true'>
-        <div class='ltt-hat'></div>
-        <div class='ltt-brim'></div>
-        <div class='ltt-body'>
-          <div class='ltt-eye l'></div>
-          <div class='ltt-eye r'></div>
-        </div>
-        <div class='ltt-arm' data-ltt-arm></div>
-        <div class='ltt-foot l'></div>
-        <div class='ltt-foot r'></div>
-      </div>
-      <div class='ltt-dash' data-ltt-dash>
-        <div class='ltt-dash-hd'><span class='ltt-dash-glyph'>&#9678;</span> sessions</div>
-        <div class='ltt-slots'>
-          <div class='ltt-slot' data-ltt-slot='0'></div>
-          <div class='ltt-slot' data-ltt-slot='1'></div>
-        </div>
-      </div>
-      <div class='ltt-card' data-ltt-card='0' style='left:205px;top:62px'>
-        <span class='ltt-dot'></span><span class='ltt-c-name'>auth-refactor</span><span class='ltt-c-el'>3m</span>
-      </div>
-      <div class='ltt-card' data-ltt-card='1' style='left:205px;top:92px'>
-        <span class='ltt-dot'></span><span class='ltt-c-name'>flaky-test</span><span class='ltt-c-el'>12s</span>
+      <div class='ltt-loop' data-ltt-loop></div>
+      <div class='ltt-cowboy'>
+        <svg viewBox='0 0 54 66' shape-rendering='crispEdges' aria-hidden='true'>
+          <ellipse cx='27' cy='63' rx='15' ry='2.4' fill='#1a1714' opacity='0.12'></ellipse>
+          <rect x='10' y='9'  width='34' height='4'  fill='#5a3d26'></rect>
+          <rect x='16' y='3'  width='22' height='7'  fill='#6b4a2e'></rect>
+          <rect x='16' y='3'  width='22' height='2'  fill='#7d5836'></rect>
+          <rect x='15' y='15' width='24' height='26' fill='#C15B3C'></rect>
+          <rect x='15' y='15' width='24' height='3'  fill='#cf6a48'></rect>
+          <rect x='9'  y='23' width='6'  height='11' fill='#A84C30'></rect>
+          <rect x='39' y='9'  width='6'  height='15' fill='#A84C30'></rect>
+          <rect x='18' y='41' width='6'  height='8'  fill='#A84C30'></rect>
+          <rect x='30' y='41' width='6'  height='8'  fill='#A84C30'></rect>
+          <rect x='20' y='23' width='5'  height='6'  fill='#1A1A1A'></rect>
+          <rect x='29' y='23' width='5'  height='6'  fill='#1A1A1A'></rect>
+        </svg>
       </div>
     </div>`,
     init(card) {
-      const loop  = card.querySelector("[data-ltt-loop]")
-      const rope  = card.querySelector("[data-ltt-rope]")
-      const arm   = card.querySelector("[data-ltt-arm]")
-      const cards = [card.querySelector("[data-ltt-card='0']"), card.querySelector("[data-ltt-card='1']")]
-      const slots = [card.querySelector("[data-ltt-slot='0']"), card.querySelector("[data-ltt-slot='1']")]
+      const loop   = card.querySelector("[data-ltt-loop]")
+      const rope   = card.querySelector("[data-ltt-rope]")
+      const cardEl = card.querySelector("[data-ltt-card]")
+      const slot1  = card.querySelector("[data-ltt-slot1]")
 
-      // arm-tip emission point in SVG coords (above the raised arm)
-      const ARM = { x: 80, y: 86 }
-      // SCATTER = translate offset FROM each card's docked slot home OUT to its scattered
-      // launch spot on the canvas. Docked rest = translate (0,0) sitting over the slot.
-      const SCATTER = [
-        { x: -55, y: -22, rot: 7,  sx: 1 },
-        { x: -87, y: 58,  rot: -9, sx: 1 }
-      ]
-      // dock targets (where the rope lands) in SVG coords: the scattered card centers
-      const TGT = [ { x: 212, y: 52 }, { x: 180, y: 162 } ]
+      // anchor points in viewport (SVG 1:1) coords
+      const HAND  = { x: 71, y: 152 }   // cowboy's raised hand
+      const OVER  = { x: 82, y: 56 }    // lasso idle, twirling overhead
+      const CARDC = { x: 212, y: 115 }  // floating session card centre
+      const DOCK  = { x: 280, y: 88 }   // pending slot centre (reel target)
 
-      // build an orthogonal pixel-staircase polyline from arm tip to a target
-      const staircase = (t) => {
-        const midX = ARM.x + (t.x - ARM.x) * 0.55
-        return `${ARM.x},${ARM.y} ${midX},${ARM.y} ${midX},${t.y} ${t.x},${t.y}`
+      gsap.set(loop, { xPercent: -50, yPercent: -50 })
+
+      // one proxy drives the loop centre + size + the rope path together (scrub-safe)
+      const lp = { x: OVER.x, y: OVER.y, w: 38, h: 20, a: 1 }
+      const drawRope = () => {
+        const mx = (HAND.x + lp.x) / 2
+        // control point at the chord midpoint + a little gravity sag, so the rope
+        // arcs naturally between hand and loop instead of being pinned below both.
+        const my = (HAND.y + lp.y) / 2 + 14
+        rope.setAttribute("d", "M" + HAND.x + " " + HAND.y + " Q" + mx.toFixed(1) + " " + my.toFixed(1) + " " + lp.x.toFixed(1) + " " + lp.y.toFixed(1))
       }
-      const ropeLen = () => (rope.getTotalLength ? rope.getTotalLength() : 320)
-
-      const applyIdle = () => {
-        // CONTENTFUL REST: both cards docked onto their dashboard slots as rows,
-        // slots filled, loop coiled twirling at the arm. Never blank.
-        cards.forEach((c) => {
-          c.classList.add("docked")
-          gsap.set(c, { x: 0, y: 0, rotation: 0, scale: 1, autoAlpha: 1, transformOrigin: "50% 50%" })
-        })
-        slots.forEach(s => s.classList.add("filled"))
-        gsap.set(rope, { autoAlpha: 0, strokeDasharray: 600, strokeDashoffset: 600 })
-        gsap.set(loop, { autoAlpha: 1, rotation: 0, scaleX: 1, scaleY: 1, transformOrigin: "88px 78px" })
-        gsap.set(arm, { rotation: -22, transformOrigin: "20% 90%" })
+      const syncLoop = () => {
+        gsap.set(loop, { x: lp.x, y: lp.y, width: lp.w, height: lp.h, autoAlpha: lp.a })
+        drawRope()
       }
-      applyIdle()
+
+      // continuous overhead twirl (standalone -> spins at rest too)
+      const twirl = gsap.to(loop, { rotation: "+=360", duration: 1.4, ease: "none", repeat: -1 })
+
+      const fillSlot = () => {
+        slot1.className = "ltt-slot"
+        slot1.innerHTML = "<span class='ltt-rdot'></span><span class='ltt-rname'>flaky-test</span><span class='ltt-rel'>12s</span>"
+      }
+      const emptySlot = () => {
+        slot1.className = "ltt-slot ltt-slot-pending"
+        slot1.innerHTML = ""
+      }
+
+      // CONTENTFUL REST: the catch is already roped in -> list full, no floating card, lasso twirling
+      const applyRest = () => {
+        lp.x = OVER.x; lp.y = OVER.y; lp.w = 38; lp.h = 20; lp.a = 1; syncLoop()
+        gsap.set(cardEl, { autoAlpha: 0, x: 0, y: 0, scale: 1 })
+        fillSlot()
+      }
+      applyRest()
 
       let tl = null
       return function replay() {
-        if (tl) { tl.kill(); tl = null }
-        gsap.killTweensOf([loop, rope, arm, ...cards])
-
-        // START state: cards scattered (un-docked) across the canvas, loop twirling, dash empty
-        cards.forEach((c, i) => {
-          c.classList.remove("docked")
-          gsap.set(c, { x: SCATTER[i].x, y: SCATTER[i].y, rotation: SCATTER[i].rot, scale: SCATTER[i].sx, autoAlpha: 1, transformOrigin: "50% 50%" })
-        })
-        slots.forEach(s => s.classList.remove("filled"))
-        gsap.set(rope, { autoAlpha: 0 })
-        gsap.set(loop, { autoAlpha: 1, rotation: 0, scaleX: 1, scaleY: 1, transformOrigin: "88px 78px" })
-        gsap.set(arm, { rotation: -22, transformOrigin: "20% 90%" })
+        if (tl) tl.kill()
+        gsap.killTweensOf(cardEl)
+        // reset to BEFORE the catch: card floating, slot pending, lasso overhead
+        lp.x = OVER.x; lp.y = OVER.y; lp.w = 38; lp.h = 20; lp.a = 1; syncLoop()
+        gsap.set(cardEl, { autoAlpha: 1, x: 0, y: 0, scale: 1, rotation: 0, transformOrigin: "50% 50%" })
+        emptySlot()
 
         tl = gsap.timeline()
-
-        // segment helper: twirl (squashing revolutions to read as a side-on rope loop)
-        const lassoTwirl = (at, revs) => {
-          // orbit + a scaleX squash to a thin side-on line, twice per rev
-          tl.to(loop, { rotation: "+=" + (360 * revs), duration: 0.7 * revs, ease: "none" }, at)
-          tl.to(loop, { scaleX: 0.18, scaleY: 1.12, duration: 0.35, ease: "sine.inOut", yoyo: true, repeat: (revs * 2) - 1 }, at)
-        }
-
-        const throwAndCapture = (at, i) => {
-          const t = TGT[i]
-          // un-loop: loop fades as the rope un-coils
-          tl.to(loop, { autoAlpha: 0, scaleX: 0.4, duration: 0.12, ease: "power2.in" }, at)
-          // THROW: redraw the staircase to this target, then draw the line out
-          tl.add(() => {
-            rope.setAttribute("points", staircase(t))
-            const L = ropeLen()
-            gsap.set(rope, { autoAlpha: 1, strokeDasharray: L, strokeDashoffset: L })
-            gsap.to(rope, { strokeDashoffset: 0, duration: 0.3, ease: "power3.out" })
-          }, at + 0.08)
-          // DWELL on the captured card (tiny tug)
-          tl.to(cards[i], { rotation: SCATTER[i].rot * 0.4, duration: 0.1, ease: "power1.out" }, at + 0.42)
-          // PULL: rope retracts (re-draw offset) while the card drags to its docked slot home, shrinking + de-rotating
-          tl.add(() => {
-            const L = ropeLen()
-            gsap.to(rope, { strokeDashoffset: L, duration: 0.6, ease: "power2.inOut" })
-          }, at + 0.52)
-          tl.to(cards[i], { x: 0, y: 0, rotation: 0, scale: 1, duration: 0.6, ease: "power2.inOut" }, at + 0.52)
-          // on dock: latch the row + tick the slot fill
-          tl.add(() => { cards[i].classList.add("docked"); slots[i].classList.add("filled") }, at + 1.08)
-          // re-coil the loop for the next throw
-          tl.set(loop, { autoAlpha: 1, scaleX: 1, scaleY: 1 }, at + 1.14)
-        }
-
-        lassoTwirl(0.2, 2)        // 0.2 -> 1.6
-        throwAndCapture(1.7, 0)   // 1.7 -> ~2.84
-        lassoTwirl(2.95, 1)       // brief re-twirl
-        throwAndCapture(3.75, 1)  // 3.75 -> ~4.89
-        // settle into the resting twirl, then re-arm idle
-        lassoTwirl(5.0, 1)
-        tl.add(applyIdle, 5.75)
+        // 1) THROW: the loop opens and sails out to ring the card; rope trails from the hand
+        tl.to(lp, { x: CARDC.x, y: CARDC.y, w: 134, h: 42, duration: 0.5, ease: "power2.out", onUpdate: syncLoop }, 0.45)
+        // 2) CINCH: the loop snaps tight around the card; card hops as it's caught
+        tl.to(lp, { w: 122, h: 34, duration: 0.16, ease: "power3.inOut", onUpdate: syncLoop }, 0.98)
+        tl.to(cardEl, { y: -4, duration: 0.12, ease: "power2.out" }, 0.98)
+        tl.to(cardEl, { y: 0, duration: 0.14, ease: "power2.in" }, 1.10)
+        // 3) REEL: the catch is dragged toward the list, shrinking as it goes
+        tl.to(lp, { x: DOCK.x, y: DOCK.y, w: 76, h: 28, duration: 0.52, ease: "power2.inOut", onUpdate: syncLoop }, 1.4)
+        tl.to(cardEl, { x: DOCK.x - CARDC.x, y: DOCK.y - CARDC.y, scale: 0.6, duration: 0.52, ease: "power2.inOut" }, 1.4)
+        // 4) DOCK: card lands in the slot (which fills), loop slips off + flies back overhead to twirl
+        tl.add(() => { fillSlot(); gsap.set(cardEl, { autoAlpha: 0 }) }, 1.92)
+        tl.to(lp, { autoAlpha: 0, duration: 0.1, onUpdate: syncLoop }, 1.92)
+        tl.add(() => { lp.x = OVER.x; lp.y = OVER.y; lp.w = 38; lp.h = 20; syncLoop() }, 2.04)
+        tl.to(lp, { autoAlpha: 1, duration: 0.2, onUpdate: syncLoop }, 2.06)
+        // settle on the captured rest state
+        tl.to({}, { duration: 0.9 })
         return tl
       }
     }
@@ -3164,8 +3068,11 @@ window.LUMIERE_EFFECTS = [
         { x:  0.85, y: -0.8, r:  8 },
         { x:  0.2, y:  1.0,  r: -5 }
       ]
-      const reach = { 1: 132, 2: 88, 3: 52 }
+      const reach = { 1: 96, 2: 88, 3: 52 }
       const tilt = [-3, 4, -2, 3, -1]
+      // hoisted so replay can kill the prior run + its live-counter tween
+      const ctr = { up: 1180, pct: 1.9 }
+      let tl = null
       // dispersed (resting) state: cards parked at the edges framing an empty center
       const place = () => cards.forEach((c, i) => {
         const d = dirs[i], depth = +c.dataset.depth, dist = reach[depth]
@@ -3179,8 +3086,9 @@ window.LUMIERE_EFFECTS = [
       const setPct = (v) => { if (pctEl) pctEl.textContent = "+" + v.toFixed(1) + "%" }
       place(); setUp(1284); setPct(2.7)
       return () => {
+        if (tl) tl.kill()
         gsap.killTweensOf(cards)
-        const ctr = { up: 1180, pct: 1.9 }
+        gsap.killTweensOf(ctr)
         // collapse to an overlapping center collage, then disperse outward with parallax
         cards.forEach((c, i) => gsap.set(c, {
           x: 0, y: 0, rotation: tilt[i],
@@ -3188,7 +3096,7 @@ window.LUMIERE_EFFECTS = [
         }))
         gsap.set(ctr, { up: 1180, pct: 1.9 })
         setUp(1180); setPct(1.9)
-        const tl = gsap.timeline()
+        tl = gsap.timeline()
         cards.forEach((c, i) => {
           const d = dirs[i], depth = +c.dataset.depth, dist = reach[depth]
           tl.to(c, {
@@ -3510,7 +3418,7 @@ window.LUMIERE_EFFECTS = [
   html: `<div class='psv-stage'>
     <div class='psv-block'>
       <div class='psv-line' data-psv-line>
-        <span class='psv-g' data-psv-g>·</span><span class='psv-verb' data-psv-verb>Julienning…</span>
+        <span class='psv-g'><svg class='psv-spin' data-psv-spin viewBox='0 0 24 24' width='13' height='13' aria-hidden='true'><path d='M12 1.4 L13.9 10.1 L22.6 12 L13.9 13.9 L12 22.6 L10.1 13.9 L1.4 12 L10.1 10.1 Z' fill='#c8674f'/></svg></span><span class='psv-verb' data-psv-verb>Julienning…</span>
         <span class='psv-meta' data-psv-meta>(4s · ↑2.1k tokens)</span>
       </div>
       <div class='psv-result' data-psv-result>
@@ -3522,55 +3430,40 @@ window.LUMIERE_EFFECTS = [
   init(card) {
     const line = card.querySelector("[data-psv-line]")
     const result = card.querySelector("[data-psv-result]")
-    const g = card.querySelector("[data-psv-g]")
+    const spin = card.querySelector("[data-psv-spin]")
     const meta = card.querySelector("[data-psv-meta]")
-    const glyphs = ["·", "✛", "✳", "✶"]
-    let glyphTl = null
     const counter = { s: 0, tok: 0 }
     let timers = []
     const renderMeta = () => {
       meta.textContent = "(" + Math.round(counter.s) + "s · ↑" + (counter.tok / 1000).toFixed(1) + "k tokens)"
     }
-    /* contentful resting state: mid-spin look */
+    /* the coral spark spins continuously, even at rest, so the card always reads as
+       a live "working" spinner. Standalone tween (not a child of any replay timeline)
+       so it survives across replays and never needs re-arming. */
+    gsap.to(spin, { rotation: 360, duration: 2.2, ease: "none", repeat: -1, transformOrigin: "50% 50%" })
+    /* contentful resting state: mid-task look, spark turning */
     const restMid = () => {
       gsap.set(line, { autoAlpha: 1 })
       gsap.set(result, { autoAlpha: 0, y: 4 })
-      g.textContent = glyphs[1]
-      g.style.color = "#c8674f"
       counter.s = 4; counter.tok = 2100; renderMeta()
     }
     restMid()
     const stopAll = () => {
-      if (glyphTl) { glyphTl.kill(); glyphTl = null }
-      gsap.killTweensOf([counter, g, line, result])
+      gsap.killTweensOf([counter, line, result])
       timers.forEach(t => clearTimeout(t)); timers = []
     }
     const runCycle = () => {
       /* self-clean each cycle so setTimeout handles + tweens never accumulate (re-replay + idle-loop safe) */
       timers.forEach(t => clearTimeout(t)); timers = []
-      if (glyphTl) { glyphTl.kill(); glyphTl = null }
       gsap.killTweensOf(counter)
       /* reset to fresh spin */
       gsap.set(line, { autoAlpha: 1 })
       gsap.set(result, { autoAlpha: 0, y: 4 })
       counter.s = 0; counter.tok = 0; renderMeta()
-      let gi = 0
-      g.textContent = glyphs[0]; g.style.color = "#c8674f"
-      /* instant glyph swap on each repeat + subtle terracotta shimmer */
-      glyphTl = gsap.timeline({ repeat: -1, repeatDelay: 0 })
-      glyphTl.to({}, {
-        duration: 0.16, ease: "none",
-        onRepeat() {
-          gi = (gi + 1) % glyphs.length
-          g.textContent = glyphs[gi]
-          gsap.fromTo(g, { color: "#d96a4a" }, { color: "#c8674f", duration: 0.16, ease: "sine.out" })
-        }
-      })
       /* live counters climb linearly while active */
       gsap.to(counter, { s: 7, tok: 4900, duration: 3.4, ease: "none", onUpdate: renderMeta })
       /* instant completion swap: spinner line out, result line in */
       timers.push(setTimeout(() => {
-        if (glyphTl) { glyphTl.kill(); glyphTl = null }
         renderMeta()
         gsap.set(line, { autoAlpha: 0 })
         gsap.fromTo(result, { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.42, ease: "back.out(1.7)" })
@@ -3717,7 +3610,7 @@ window.LUMIERE_EFFECTS = [
                 <div class='ssd-app'><span class='ssd-app-glyph'>&#10022;</span></div>
                 <div class='ssd-banner-body'>
                   <div class='ssd-banner-title'>Claude Code</div>
-                  <div class='ssd-banner-msg'>Deploy finished &middot; tests green</div>
+                  <div class='ssd-banner-msg'>Deploy finished, tests green</div>
                 </div>
               </div>
             </div>
@@ -3884,8 +3777,10 @@ window.LUMIERE_EFFECTS = [
     const bob = gsap.to(body, {
       y: -3, duration: 0.75, ease: "sine.inOut", yoyo: true, repeat: -1
     })
+    let tl = null
 
     return function replay() {
+      if (tl) tl.kill()
       gsap.killTweensOf([rig, body, arm, bulb])
       bob.kill()
 
@@ -3895,7 +3790,7 @@ window.LUMIERE_EFFECTS = [
       gsap.set(bulb, { transformOrigin: "32px 56px", scale: 0, autoAlpha: 0 })
       setPose("front")
 
-      const tl = gsap.timeline()
+      tl = gsap.timeline()
 
       // idle bob lives inside the replay so the audit harness scrubs it too.
       // FINITE repeat (6 half-cycles * 0.75s = 4.5s) spans the whole content so the
@@ -3956,8 +3851,8 @@ window.LUMIERE_EFFECTS = [
       <svg class='lbp-mascot' viewBox='0 0 16 16' shape-rendering='crispEdges' aria-hidden='true'>
         <rect class='lbp-arm lbp-arm-l' x='1' y='8' width='2' height='3' fill='#A84C30'/>
         <rect class='lbp-arm lbp-arm-r' x='13' y='8' width='2' height='3' fill='#A84C30'/>
-        <rect x='3' y='4' width='10' height='9' rx='2' fill='#C9785C'/>
-        <rect x='3' y='3' width='10' height='3' rx='1' fill='#D38A6B'/>
+        <rect x='3' y='4' width='10' height='9' fill='#C15B3C'/>
+        <rect x='3' y='4' width='10' height='2' fill='#cf6a48'/>
         <g class='lbp-eyes'>
           <rect x='5' y='6' width='2' height='2' fill='#1A1A1A'/>
           <rect x='9' y='6' width='2' height='2' fill='#1A1A1A'/>
@@ -4106,8 +4001,8 @@ window.LUMIERE_EFFECTS = [
     function rest() {
       // resting state: tab B active, body B visible (per build_spec)
       activate(tabB, tabA)
-      gsap.set(bodyA, { autoAlpha: 0 })
-      gsap.set(bodyB, { autoAlpha: 1 })
+      gsap.set(bodyA, { autoAlpha: 0, y: 0 })
+      gsap.set(bodyB, { autoAlpha: 1, y: 0 })
     }
     rest()
     // re-place once layout settles / fonts load so the underline lands exactly
@@ -4120,8 +4015,8 @@ window.LUMIERE_EFFECTS = [
       gsap.killTweensOf([tabA, tabB, underline, bodyA, bodyB])
       // reset to the OTHER tab (A) active so the switch to B is the visible beat
       activate(tabA, tabB)
-      gsap.set(bodyA, { autoAlpha: 1 })
-      gsap.set(bodyB, { autoAlpha: 0 })
+      gsap.set(bodyA, { autoAlpha: 1, y: 0 })
+      gsap.set(bodyB, { autoAlpha: 0, y: 0 })
 
       tl = gsap.timeline({ defaults: { ease: "power2.out" } })
       // hold on session A so the viewer registers it
@@ -4131,9 +4026,9 @@ window.LUMIERE_EFFECTS = [
       tl.to(tabB, { backgroundColor: ACTIVE_BG, color: ACTIVE_INK, fontWeight: 700, duration: 0.15 }, "switch")
       // accent underline slides under the newly active tab
       tl.to(underline, { x: tabB.offsetLeft, width: tabB.offsetWidth, duration: 0.16, ease: "power2.inOut" }, "switch")
-      // body hard-swaps instantly mid-crossfade — the tab transition masks the replace
-      tl.set(bodyA, { autoAlpha: 0 }, "switch+=0.07")
-      tl.set(bodyB, { autoAlpha: 1 }, "switch+=0.07")
+      // body cross-fades with a soft micro-slide as the tab flips (outgoing lifts, incoming rises in)
+      tl.to(bodyA, { autoAlpha: 0, y: -5, duration: 0.16, ease: "power2.in" }, "switch+=0.02")
+      tl.fromTo(bodyB, { autoAlpha: 0, y: 7 }, { autoAlpha: 1, y: 0, duration: 0.24, ease: "power2.out" }, "switch+=0.1")
       // rest on session B
       tl.to({}, { duration: 0.5 })
       return tl
@@ -4141,23 +4036,37 @@ window.LUMIERE_EFFECTS = [
   }
 },
 
-  {
+    {
   id: "globe-rotate-flightpaths", isNew: true, cat: "Data Viz", display: "Dotted Globe with Flight-Path Arcs",
   source: ["code-w-claude-conf"],
-  desc: "A stipple globe rotates inside a circular clip over a diagonal-hatch ocean while terracotta great-circle arcs draw between pinned city chips that drop in pin-first. From the Code w/ Claude conference poster.",
+  desc: "A shaded 3D globe rotates: a sweeping meridian wireframe over latitude rings and drifting continents, with terracotta great-circle arcs drawing between pinned city chips that drop in pin-first. From the Code w/ Claude conference poster.",
   html: `<div class='grf-stage'>
     <div class='grf-frame'>
       <svg class='grf-svg' viewBox='0 0 200 200' data-grf-svg>
         <defs>
           <clipPath id='grf-disc'><circle cx='100' cy='100' r='82'/></clipPath>
-          <pattern id='grf-hatch' width='7' height='7' patternUnits='userSpaceOnUse' patternTransform='rotate(45)'>
-            <line x1='0' y1='0' x2='0' y2='7' stroke='#2d2a22' stroke-width='0.7' stroke-opacity='0.32'/>
-          </pattern>
+          <radialGradient id='grf-sphere' cx='37%' cy='30%' r='78%'>
+            <stop offset='0%' stop-color='#edeada'/>
+            <stop offset='52%' stop-color='#d8d5c0'/>
+            <stop offset='100%' stop-color='#b6b39c'/>
+          </radialGradient>
+          <radialGradient id='grf-vig' cx='50%' cy='50%' r='50%'>
+            <stop offset='68%' stop-color='#1a1610' stop-opacity='0'/>
+            <stop offset='100%' stop-color='#1a1610' stop-opacity='0.32'/>
+          </radialGradient>
         </defs>
         <g clip-path='url(#grf-disc)'>
-          <rect x='18' y='18' width='164' height='164' fill='#dcdcc9'/>
-          <rect x='18' y='18' width='164' height='164' fill='url(#grf-hatch)'/>
+          <circle cx='100' cy='100' r='82' fill='url(#grf-sphere)'/>
           <g class='grf-land' data-grf-land></g>
+          <g class='grf-grat'>
+            <ellipse class='grf-par' cx='100' cy='100' rx='82' ry='16'/>
+            <ellipse class='grf-par' cx='100' cy='62'  rx='71' ry='12'/>
+            <ellipse class='grf-par' cx='100' cy='138' rx='71' ry='12'/>
+            <ellipse class='grf-par' cx='100' cy='34'  rx='45' ry='7'/>
+            <ellipse class='grf-par' cx='100' cy='166' rx='45' ry='7'/>
+            <g class='grf-mers' data-grf-mers></g>
+          </g>
+          <circle cx='100' cy='100' r='82' fill='url(#grf-vig)'/>
         </g>
         <circle class='grf-rim' cx='100' cy='100' r='82'/>
         <g class='grf-arcs' data-grf-arcs>
@@ -4165,15 +4074,15 @@ window.LUMIERE_EFFECTS = [
           <path class='grf-arc' data-grf-arc d='M 150 92 Q 132 138 92 142'/>
         </g>
         <g class='grf-cities' data-grf-cities>
-          <g class='grf-city' data-grf-city style='--gx:58px;--gy:118px'>
+          <g class='grf-city' data-grf-city>
             <line class='grf-drop' x1='58' y1='118' x2='58' y2='100'/>
             <rect class='grf-pin' x='55.5' y='115.5' width='5' height='5' rx='1'/>
           </g>
-          <g class='grf-city' data-grf-city style='--gx:150px;--gy:92px'>
+          <g class='grf-city' data-grf-city>
             <line class='grf-drop' x1='150' y1='92' x2='150' y2='74'/>
             <rect class='grf-pin' x='147.5' y='89.5' width='5' height='5' rx='1'/>
           </g>
-          <g class='grf-city' data-grf-city style='--gx:92px;--gy:142px'>
+          <g class='grf-city' data-grf-city>
             <line class='grf-drop' x1='92' y1='142' x2='92' y2='124'/>
             <rect class='grf-pin' x='89.5' y='139.5' width='5' height='5' rx='1'/>
           </g>
@@ -4187,55 +4096,70 @@ window.LUMIERE_EFFECTS = [
   init(card) {
     const NS = "http://www.w3.org/2000/svg"
     const landG = card.querySelector("[data-grf-land]")
-    const arcs = Array.from(card.querySelectorAll("[data-grf-arc]"))
-    const pins = Array.from(card.querySelectorAll(".grf-pin"))
+    const merG  = card.querySelector("[data-grf-mers]")
+    const arcs  = Array.from(card.querySelectorAll("[data-grf-arc]"))
+    const pins  = Array.from(card.querySelectorAll(".grf-pin"))
     const drops = Array.from(card.querySelectorAll(".grf-drop"))
     const chips = Array.from(card.querySelectorAll("[data-grf-chip]"))
 
-    // Build a 200-wide stipple tile of landmass-ish dot clusters, duplicated at +200 for a seamless scroll loop.
+    // continents: soft terracotta dot-clusters in latitude bands, duplicated at +200 for a seamless scroll
     if (!landG.childNodes.length) {
       const TILE = 200
-      // pseudo-random but deterministic dot field across the tile band (y 22..178)
       let seed = 7
       const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280 }
       const dots = []
-      for (let i = 0; i < 130; i++) {
-        // bias dots into a few horizontal landmass bands so it reads as continents, not noise
-        const band = [44, 72, 100, 128, 156][Math.floor(rnd() * 5)]
+      for (let i = 0; i < 96; i++) {
+        const band = [52, 84, 116, 148][Math.floor(rnd() * 4)]
         const x = rnd() * TILE
-        const y = band + (rnd() - 0.5) * 30
-        if (y < 24 || y > 176) continue
-        dots.push({ x, y, r: 1.1 + rnd() * 0.7 })
+        const y = band + (rnd() - 0.5) * 26
+        if (y < 30 || y > 170) continue
+        dots.push({ x, y, r: 1.2 + rnd() * 1.1 })
       }
-      const paint = (xOff) => {
-        dots.forEach(d => {
-          const c = document.createElementNS(NS, "circle")
-          c.setAttribute("cx", String(d.x + xOff))
-          c.setAttribute("cy", String(d.y))
-          c.setAttribute("r", String(d.r))
-          c.setAttribute("fill", "#2d2a22")
-          c.setAttribute("fill-opacity", "0.82")
-          landG.appendChild(c)
-        })
-      }
+      const paint = (xOff) => dots.forEach(d => {
+        const c = document.createElementNS(NS, "circle")
+        c.setAttribute("cx", String(d.x + xOff)); c.setAttribute("cy", String(d.y)); c.setAttribute("r", String(d.r))
+        c.setAttribute("fill", "#8a5a3e"); c.setAttribute("fill-opacity", "0.5")
+        landG.appendChild(c)
+      })
       paint(0); paint(200)
     }
 
+    // meridian wireframe: ellipses sharing the poles, rx swept by a phase proxy -> reads as rotation
+    const MER = 6
+    const mers = []
+    for (let j = 0; j < MER; j++) {
+      const e = document.createElementNS(NS, "ellipse")
+      e.setAttribute("cx", "100"); e.setAttribute("cy", "100"); e.setAttribute("ry", "82")
+      e.setAttribute("class", "grf-mer")
+      merG.appendChild(e); mers.push(e)
+    }
+    const phase = { v: 0 }
+    const drawMers = () => {
+      for (let j = 0; j < MER; j++) {
+        const c = Math.cos(phase.v + j * Math.PI / MER)
+        mers[j].setAttribute("rx", (82 * Math.abs(c)).toFixed(1))
+        mers[j].setAttribute("stroke-opacity", (0.06 + 0.2 * Math.abs(c)).toFixed(3))
+      }
+    }
+    drawMers()
+
     const arcLens = arcs.map(a => (a.getTotalLength ? a.getTotalLength() : 120))
 
-    // Resting state: globe mid-rotation, arcs drawn, pins seated, chips placed.
+    // resting state: globe mid-rotation, arcs drawn, pins seated, chips placed
     gsap.set(landG, { x: 0 })
     arcs.forEach((a, i) => gsap.set(a, { strokeDasharray: arcLens[i], strokeDashoffset: 0, autoAlpha: 1 }))
     gsap.set(pins, { y: 0, autoAlpha: 1 })
-    gsap.set(drops, { autoAlpha: 0.55, scaleY: 1, transformOrigin: "top" })
+    gsap.set(drops, { autoAlpha: 0.5, scaleY: 1, transformOrigin: "top" })
     gsap.set(chips, { autoAlpha: 1, y: 0, scale: 1 })
 
-    // Ambient, always-on globe rotation (linear, seamless). Kept alive across replays.
-    let spin = null
+    // ambient rotation: meridians sweep + continents drift, in lockstep, kept alive across replays
+    let spinM = null, spinL = null
     const startSpin = () => {
-      if (spin) spin.kill()
-      gsap.set(landG, { x: 0 })
-      spin = gsap.to(landG, { x: -200, duration: 16, ease: "none", repeat: -1 })
+      if (spinM) spinM.kill()
+      if (spinL) spinL.kill()
+      phase.v = 0; gsap.set(landG, { x: 0 })
+      spinM = gsap.to(phase, { v: Math.PI, duration: 9, ease: "none", repeat: -1, onUpdate: drawMers })
+      spinL = gsap.to(landG, { x: -200, duration: 18, ease: "none", repeat: -1 })
     }
     startSpin()
 
@@ -4245,21 +4169,18 @@ window.LUMIERE_EFFECTS = [
       gsap.killTweensOf([...arcs, ...pins, ...drops, ...chips])
       startSpin()
 
-      // Hidden start: arcs undrawn, pins above + invisible, chips tucked + hidden.
       arcs.forEach((a, i) => gsap.set(a, { strokeDasharray: arcLens[i], strokeDashoffset: arcLens[i], autoAlpha: 1 }))
       gsap.set(pins, { y: -11, autoAlpha: 0 })
       gsap.set(drops, { autoAlpha: 0, scaleY: 0, transformOrigin: "top" })
       gsap.set(chips, { autoAlpha: 0, y: -8, scale: 0.85 })
 
       tl = gsap.timeline()
-      // Pins drop in, city by city, with a slight overshoot.
       pins.forEach((pin, i) => {
         const at = 0.35 + i * 0.3
         tl.to(pin, { y: 0, autoAlpha: 1, duration: 0.32, ease: "back.out(1.6)" }, at)
-        tl.to(drops[i], { scaleY: 1, autoAlpha: 0.55, duration: 0.22, ease: "power2.out" }, at + 0.12)
+        tl.to(drops[i], { scaleY: 1, autoAlpha: 0.5, duration: 0.22, ease: "power2.out" }, at + 0.12)
         tl.to(chips[i], { y: 0, scale: 1, autoAlpha: 1, duration: 0.34, ease: "back.out(1.5)" }, at + 0.16)
       })
-      // Great-circle arcs draw between the seated cities, bowing upward.
       arcs.forEach((a, i) => {
         tl.to(a, { strokeDashoffset: 0, duration: 0.55, ease: "power2.out" }, 0.95 + i * 0.4)
       })
@@ -4449,7 +4370,7 @@ window.LUMIERE_EFFECTS = [
       gsap.set(jewel, { scale: 1, autoAlpha: 1, transformOrigin: '50% 50%' })
       gsap.set(ink,   { strokeDasharray: len, strokeDashoffset: 0 })
       gsap.set(guide, { strokeDasharray: len, strokeDashoffset: 0 })
-      gsap.set(nib,   { autoAlpha: 0 })
+      gsap.set(nib,   { autoAlpha: 0, scale: 1, transformOrigin: '50% 50%' })
       nibAt(len)
     }
     applyDrawn()
@@ -4463,7 +4384,7 @@ window.LUMIERE_EFFECTS = [
       gsap.set(jewel, { scale: 0, autoAlpha: 0, transformOrigin: '50% 50%' })
       gsap.set(ink,   { strokeDasharray: len, strokeDashoffset: len })
       gsap.set(guide, { strokeDasharray: len, strokeDashoffset: len })
-      gsap.set(nib,   { autoAlpha: 0 })
+      gsap.set(nib,   { autoAlpha: 0, scale: 1, transformOrigin: '50% 50%' })
       nibAt(0)
 
       const prog = { v: 0 }
@@ -4558,15 +4479,20 @@ window.LUMIERE_EFFECTS = [
         const t = Math.min(1, dist / FOCUS_R)
         const scale = lerp(1.0, 0.86, t)
         const opacity = lerp(1.0, 0.34, t)
-        // colour: dark ink in focus -> muted gray at the edges
-        const bg = t < 0.5 ? "#E8C7BC" : "#F0E0D8"
+        // smoothstep the focus falloff so colour/bg/dot glide continuously (no stepped
+        // thresholds snapping as a chip crosses the band) -- crisp centre, soft tails.
+        const te = t * t * (3 - 2 * t)
+        const mix = (a, b) => Math.round(a + (b - a) * te)
         c.style.opacity = opacity
         c.style.transform = "scale(" + scale.toFixed(3) + ")"
-        c.style.background = bg
-        c.style.color = t < 0.45 ? "#15140F" : "#9C968B"
-        c.style.borderColor = t < 0.4 ? "rgba(21,20,15,0.28)" : "rgba(21,20,15,0)"
-        c.style.fontWeight = t < 0.4 ? 600 : 500
-        dots[i].style.background = t < 0.45 ? "#CF6F57" : "#C9C2B8"
+        // bg: focus #E8C7BC -> edge #F0E0D8
+        c.style.background = "rgb(" + mix(232, 240) + "," + mix(199, 224) + "," + mix(188, 216) + ")"
+        // text: ink #15140F -> muted gray #9C968B
+        c.style.color = "rgb(" + mix(21, 156) + "," + mix(20, 150) + "," + mix(15, 139) + ")"
+        c.style.borderColor = "rgba(21,20,15," + (0.3 * (1 - te)).toFixed(3) + ")"
+        c.style.fontWeight = te < 0.5 ? 600 : 500
+        // dot: coral #CF6F57 -> gray #C9C2B8
+        dots[i].style.background = "rgb(" + mix(207, 201) + "," + mix(111, 194) + "," + mix(87, 184) + ")"
       }
     }
 
@@ -4753,7 +4679,7 @@ window.LUMIERE_EFFECTS = [
   source: ["claude-financial-services"],
   desc: "Hovering an inline file citation highlights it pink and pops a source-trace card with a mini table where the cited row glows in the brand accent. Claude for Financial Services provenance/grounding moment.",
   html: `<div class='stc-stage'>
-    <div class='stc-prose'>Q1 EBITDA rose to <span class='stc-val'>$4.1M</span>, per <span class='stc-cite' data-stc-cite>fy25-q1.pdf p.6</span>.</div>
+    <div class='stc-prose'>Q1 EBITDA rose to <span class='stc-val'>$4.1M</span>, per <span class='stc-cite' data-stc-cite>fy25-q1.pdf&nbsp;p.6</span></div>
     <div class='stc-pop' data-stc-pop>
       <div class='stc-pop-head'>
         <span class='stc-doc-ic'><svg viewBox='0 0 12 14'><path d='M2 0.5h5L10.5 4v9a0.5 0.5 0 0 1-0.5 0.5H2a0.5 0.5 0 0 1-0.5-0.5V1a0.5 0.5 0 0 1 0.5-0.5z'/><path d='M7 0.5V4h3.5'/></svg></span>
@@ -4826,16 +4752,20 @@ window.LUMIERE_EFFECTS = [
       ]
 
       const PH = 112          // plot height in px (baseline at bottom)
-      const MAXV = 12         // value -> px scale headroom (10.9 max running top)
-      const k = PH / MAXV
+      // Zoomed y-range: a non-zero floor so the small deltas (0.4-1.9) read as real
+      // stepped bars instead of slivers crushed against a 0-baseline. Anchors floor here.
+      const BASE = 5.0        // y-floor (below both anchors 8.2 / 9.9)
+      const TOP  = 11.8       // y-ceiling (above the 10.9 running peak + value-label headroom)
+      const k = PH / (TOP - BASE)
       const n = data.length
 
       // Build bars + value labels + connectors as absolutely-positioned nodes.
       let barsHTML = ""
       data.forEach((d, i) => {
         const leftPct = (i + 0.5) / n * 100
-        const bottomPx = d.lo * k
-        const hPx = Math.max((d.hi - d.lo) * k, 2)
+        const barLo = Math.max(d.lo, BASE)         // anchors (lo:0) floor at the zoomed BASE
+        const bottomPx = (barLo - BASE) * k
+        const hPx = Math.max((d.hi - barLo) * k, 2)
         const cls = "wbc-bar wbc-" + d.type
         const sign = d.type === "inc" ? "+" : (d.type === "dec" ? "−" : "")
         const absv = Math.abs(d.val).toFixed(1)
@@ -4849,12 +4779,12 @@ window.LUMIERE_EFFECTS = [
       // Connectors: thin dashed line at each running-total level between bar i and i+1.
       let connHTML = ""
       for (let i = 0; i < n - 1; i++) {
-        const level = data[i].hi              // running total after bar i
+        const level = data[i].type === "dec" ? data[i].lo : data[i].hi  // running total carried into next bar
         const lA = (i + 0.5) / n * 100
         const lB = (i + 1.5) / n * 100
         const widthPct = lB - lA
         connHTML +=
-          "<div class='wbc-conn' data-wbc-conn style='left:" + lA + "%;width:" + widthPct + "%;bottom:" + (level * k) + "px'></div>"
+          "<div class='wbc-conn' data-wbc-conn style='left:" + lA + "%;width:" + widthPct + "%;bottom:" + ((level - BASE) * k) + "px'></div>"
       }
 
       plot.style.height = PH + "px"
@@ -4996,8 +4926,7 @@ window.LUMIERE_EFFECTS = [
       <div class='qrb-card' data-qrb-card data-qrb-out='ok'>
         <div class='qrb-card-top'><span class='qrb-name'>Acme Corp</span>
           <span class='qrb-badge' data-qrb-badge>
-            <span class='qrb-bdot'></span>
-            <span class='qrb-blabel qrb-bq' data-qrb-q>QUEUED</span>
+            <span class='qrb-blabel qrb-bq' data-qrb-q><span class='qrb-bdot'></span>QUEUED</span>
             <span class='qrb-blabel qrb-br' data-qrb-r><span class='qrb-glyph'>&#10003;</span>COMPLETE</span>
           </span>
         </div>
@@ -5007,8 +4936,7 @@ window.LUMIERE_EFFECTS = [
       <div class='qrb-card' data-qrb-card data-qrb-out='ok'>
         <div class='qrb-card-top'><span class='qrb-name'>Northwind</span>
           <span class='qrb-badge' data-qrb-badge>
-            <span class='qrb-bdot'></span>
-            <span class='qrb-blabel qrb-bq' data-qrb-q>QUEUED</span>
+            <span class='qrb-blabel qrb-bq' data-qrb-q><span class='qrb-bdot'></span>QUEUED</span>
             <span class='qrb-blabel qrb-br' data-qrb-r><span class='qrb-glyph'>&#10003;</span>COMPLETE</span>
           </span>
         </div>
@@ -5018,8 +4946,7 @@ window.LUMIERE_EFFECTS = [
       <div class='qrb-card' data-qrb-card data-qrb-out='flag'>
         <div class='qrb-card-top'><span class='qrb-name'>Globex Ltd</span>
           <span class='qrb-badge' data-qrb-badge>
-            <span class='qrb-bdot'></span>
-            <span class='qrb-blabel qrb-bq' data-qrb-q>QUEUED</span>
+            <span class='qrb-blabel qrb-bq' data-qrb-q><span class='qrb-bdot'></span>QUEUED</span>
             <span class='qrb-blabel qrb-rf' data-qrb-f><span class='qrb-glyph'>!</span>NEEDS REVIEW</span>
           </span>
         </div>
@@ -5029,8 +4956,7 @@ window.LUMIERE_EFFECTS = [
       <div class='qrb-card' data-qrb-card data-qrb-out='ok'>
         <div class='qrb-card-top'><span class='qrb-name'>Initech</span>
           <span class='qrb-badge' data-qrb-badge>
-            <span class='qrb-bdot'></span>
-            <span class='qrb-blabel qrb-bq' data-qrb-q>QUEUED</span>
+            <span class='qrb-blabel qrb-bq' data-qrb-q><span class='qrb-bdot'></span>QUEUED</span>
             <span class='qrb-blabel qrb-br' data-qrb-r><span class='qrb-glyph'>&#10003;</span>COMPLETE</span>
           </span>
         </div>
@@ -5045,7 +4971,6 @@ window.LUMIERE_EFFECTS = [
       card: c,
       flagged: c.getAttribute("data-qrb-out") === "flag",
       badge: c.querySelector("[data-qrb-badge]"),
-      dot: c.querySelector(".qrb-bdot"),
       q: c.querySelector("[data-qrb-q]"),
       r: c.querySelector("[data-qrb-q] ~ .qrb-br") || c.querySelector("[data-qrb-r]"),
       f: c.querySelector("[data-qrb-f]"),
@@ -5053,7 +4978,7 @@ window.LUMIERE_EFFECTS = [
       alert: c.querySelector("[data-qrb-alert]"),
       open: c.querySelector("[data-qrb-open]")
     }))
-    const GREEN = "#73D9AA", CORAL = "#CF6F57", MUTED = "#9C968B"
+    const CORAL = "#CF6F57"
 
     // resting / resolved state (contentful): everything resolved
     const applyResolved = () => {
@@ -5061,7 +4986,6 @@ window.LUMIERE_EFFECTS = [
         gsap.set(it.q, { autoAlpha: 0 })
         gsap.set([it.r, it.f].filter(Boolean), { autoAlpha: 1 })
         gsap.set(it.badge, { scale: 1 })
-        gsap.set(it.dot, { backgroundColor: it.flagged ? CORAL : GREEN })
         gsap.set(it.metrics, { autoAlpha: 1, y: 0 })
         if (it.flagged) {
           gsap.set(it.card, { boxShadow: "0 0 0 1.5px " + CORAL, borderColor: CORAL })
@@ -5075,13 +4999,12 @@ window.LUMIERE_EFFECTS = [
     applyResolved()
 
     return () => {
-      gsap.killTweensOf(items.flatMap(it => [it.card, it.badge, it.dot, it.q, it.r, it.f, it.metrics, it.alert, it.open].filter(Boolean)))
+      gsap.killTweensOf(items.flatMap(it => [it.card, it.badge, it.q, it.r, it.f, it.metrics, it.alert, it.open].filter(Boolean)))
       // reset to QUEUED
       items.forEach(it => {
         gsap.set(it.q, { autoAlpha: 1 })
         gsap.set([it.r, it.f].filter(Boolean), { autoAlpha: 0 })
         gsap.set(it.badge, { scale: 1 })
-        gsap.set(it.dot, { backgroundColor: MUTED })
         gsap.set(it.metrics, { autoAlpha: 0, y: 4 })
         gsap.set(it.card, { boxShadow: "0 0 0 0px rgba(207,111,87,0)", borderColor: "rgba(21,20,15,0.08)" })
         gsap.set([it.alert, it.open], { autoAlpha: 0, y: 4 })
@@ -5091,7 +5014,6 @@ window.LUMIERE_EFFECTS = [
         const t = 0.5 + i * 0.15
         // badge pop + recolor
         tl.to(it.badge, { scale: 1.12, duration: 0.12, ease: "back.out(3)" }, t)
-        tl.to(it.dot, { backgroundColor: it.flagged ? CORAL : GREEN, duration: 0.12 }, t)
         // label crossfade QUEUED -> resolved
         tl.to(it.q, { autoAlpha: 0, duration: 0.1 }, t)
         tl.to(it.flagged ? it.f : it.r, { autoAlpha: 1, duration: 0.16 }, t + 0.04)
@@ -5151,10 +5073,11 @@ window.LUMIERE_EFFECTS = [
       pieces.push({
         el: p,
         seedX: i,
-        // spread biased so center is dense, tails reach the card edges
-        launchX: lerp(-150, 150, r1) * (0.5 + r1 * 0.5),
-        launchY: lerp(-118, -42, r2),
-        fall: lerp(210, 280, r3),
+        // symmetric, center-dense: cube-ish falloff keeps the core tight, tails reach the card edges
+        launchX: Math.sign(r1 * 2 - 1) * Math.pow(Math.abs(r1 * 2 - 1), 1.4) * 150,
+        // origin sits at card center (top:44%); eruption apex lands just below the top edge, in frame
+        launchY: lerp(-90, -38, r2),
+        fall: lerp(205, 280, r3),
         spin0: lerp(0, 360, r1),
         spinDrift: (r2 > 0.5 ? 1 : -1) * lerp(160, 420, r3),
         sway: (r1 > 0.5 ? 1 : -1) * lerp(14, 46, r2),

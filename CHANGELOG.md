@@ -2,6 +2,32 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.14.1] - 2026-06-02
+
+### Changed
+
+- **Mascot unification**: every mascot-bearing effect now uses one canonical sharp-pixel sprite (coral body, lit top stripe, dark limb-nubs and eyes). `pixel-mascot-idle-bob`, `wand-sparkle-burst`, `mascot-prop-equip`, `mascot-celebration-hop`, `lightbulb-idea-pop`, and the `lasso-twirl-throw-capture` cowboy were re-skinned to match `mascot-pose-turn`, replacing the prior mix of rounded-blob and flat critters.
+- **`lasso-twirl-throw-capture` rebuilt**: the broken orthogonal-staircase rope is gone. A pixel cowboy now twirls a gold loop overhead, throws it to ring a floating session card, and reels the catch into a "captured" list, settling on a populated rest state.
+- **`globe-rotate-flightpaths` rebuilt** to read as a true 3D sphere: radial shading, an edge vignette, latitude rings, and a sweeping meridian wireframe (rotation), with drifting continents under the city chips and flight arcs.
+- **`tab-switch-bodyswap`**: body content now cross-fades with a micro-slide instead of a hard cut.
+
+### Fixed
+
+- `confetti-burst` erupted above the frame and skewed right; it now bursts from the success check, fans symmetrically in-frame, and rains down over the modal.
+- `status-badge-resolve` (Queued-to-Resolved): the status glyph no longer overlaps the COMPLETE / NEEDS-REVIEW labels (dot is the queued indicator, glyph the resolved one).
+- `waterfall-bridge-chart`: decrease-bar connectors now carry the running total (no longer float above the next bar), and the chart uses a zoomed baseline so the small deltas read as proper steps instead of slivers.
+- `card-tilt-disperse`: dispersed cards stay fully in-frame; replay no longer leaks the live-counter tween.
+- `focus-band-carousel`: removed the stray full-width line and replaced the stepped dimming with a smooth color gradient.
+- `split-screen-diptych`: the phone notification is no longer cut off (widened phone, full two-line message).
+- `source-citation-popover`: dropped the orphaned trailing period; filename + page stay on one chip.
+- `tab-switch-bodyswap` underline now sits exactly under the active tab (removed a CSS/translate double-offset).
+- `mascot-pose-turn` / `hand-drawn-stroke-construct`: replay-safety (kill the prior timeline; reset the drawing nib's scale).
+- `playful-spinner-verb`: the leading glyph is now a coral spark that spins continuously (previously a static dot at rest).
+
+### Removed
+
+- `spark-mark-bloom` (the Claude spark-mark bloom) removed; library 80 -> 79 effects.
+
 ## [0.14.0] - 2026-05-31
 
 ### Added
