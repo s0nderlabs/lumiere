@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Pop Entry · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.bub{
+    font-family:'Outfit',sans-serif;font-size:12px;
+    padding:8px 14px;border-radius:14px;line-height:1.3;max-width:80%;
+    box-shadow:0 6px 18px -14px rgba(0,0,0,0.4);
+  }
+.bub.mine{background:var(--ink);color:var(--cream);align-self:flex-end;border-bottom-right-radius:5px}
+.bub.theirs{background:var(--paper-2);color:var(--ink);align-self:flex-start;border-bottom-left-radius:5px;border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="pop-entry"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'>
+      <div style='display:flex;flex-direction:column;gap:8px;width:65%'>
+        <div class='bub theirs' data-pop>need a quick audit</div>
+        <div class='bub mine' data-pop>on it</div>
+        <div class='bub theirs' data-pop>3 findings · 1 critical</div>
+        <div class='bub mine' data-pop>send the proof</div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "pop-entry",
+  "display": "Pop Entry",
+  "cat": "UI",
+  "source": [
+    "claude-code-goal"
+  ],
+  "desc": "Y-lift from below with quick opacity-in. For small elements arriving in sequence (chat bubbles, toasts).",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const bubs = card.querySelectorAll("[data-pop]")
+      gsap.set(bubs, { opacity: 1, y: 0, scale: 1 })
+      return () => {
+        gsap.killTweensOf(bubs)
+        gsap.set(bubs, { opacity: 0, y: 14, scale: 0.92 })
+        gsap.to(bubs, {
+          opacity: 1, y: 0, scale: 1,
+          duration: 0.42, ease: "back.out(1.6)",
+          stagger: 0.42, delay: 0.3
+        })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

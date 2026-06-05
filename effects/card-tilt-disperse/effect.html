@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Card Tilt Disperse · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.ctd-stage{position:absolute;inset:0;overflow:hidden;background:#C2D1C0;background-image:radial-gradient(circle,rgba(26,26,26,0.06) 1px,transparent 1px);background-size:16px 16px}
+.ctd-card{position:absolute;background:#1A1A1A;border-radius:11px;padding:9px 12px;font-family:'Outfit',sans-serif;box-shadow:0 10px 24px -10px rgba(26,26,26,0.45);border:1px solid rgba(255,255,255,0.06);will-change:transform,opacity}
+.ctd-lbl{font-size:8px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:#8FA38C;margin-bottom:3px}
+.ctd-val{font-family:'Geist Mono',monospace;font-size:15px;font-weight:600;color:#E8EDE6;font-variant-numeric:tabular-nums}
+.ctd-val.ctd-pct{color:#6FA36F}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="card-tilt-disperse"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='ctd-stage'>
+      <div class='ctd-card' data-ctd data-depth='1' style='left:32%;top:34%;width:96px;z-index:6'>
+        <div class='ctd-lbl'>Sessions</div><div class='ctd-val ctd-up'>1,284</div>
+      </div>
+      <div class='ctd-card' data-ctd data-depth='1' style='left:44%;top:48%;width:104px;z-index:5'>
+        <div class='ctd-lbl'>Throughput</div><div class='ctd-val ctd-pct'>+2.7%</div>
+      </div>
+      <div class='ctd-card' data-ctd data-depth='2' style='left:30%;top:50%;width:84px;z-index:4'>
+        <div class='ctd-lbl'>Queue</div><div class='ctd-val'>17</div>
+      </div>
+      <div class='ctd-card' data-ctd data-depth='2' style='left:50%;top:32%;width:80px;z-index:3'>
+        <div class='ctd-lbl'>Agents</div><div class='ctd-val'>6</div>
+      </div>
+      <div class='ctd-card' data-ctd data-depth='3' style='left:40%;top:40%;width:76px;z-index:2'>
+        <div class='ctd-lbl'>Tokens</div><div class='ctd-val'>48k</div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "card-tilt-disperse",
+  "display": "Card Tilt Disperse",
+  "cat": "Layer",
+  "isNew": true,
+  "source": [
+    "claude-code-agent-view"
+  ],
+  "desc": "An overlapping collage of tilted cards slides outward to the frame edges with depth-weighted parallax (foreground travels farther, gains more spin) while live counters keep ticking, clearing center stage. Inverse of parallax-card-collage from the Claude Code agent-view trailer.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const cards = card.querySelectorAll("[data-ctd]")
+      const upEl = card.querySelector(".ctd-up")
+      const pctEl = card.querySelector(".ctd-pct")
+      // direction unit vectors point from center toward each card's nearest edge
+      const dirs = [
+        { x: -1.0, y: -0.55, r: -11 },
+        { x:  1.0, y:  0.45, r:  9 },
+        { x: -0.9, y:  0.7,  r: -7 },
+        { x:  0.85, y: -0.8, r:  8 },
+        { x:  0.2, y:  1.0,  r: -5 }
+      ]
+      const reach = { 1: 96, 2: 88, 3: 52 }
+      const tilt = [-3, 4, -2, 3, -1]
+      // hoisted so replay can kill the prior run + its live-counter tween
+      const ctr = { up: 1180, pct: 1.9 }
+      let tl = null
+      // dispersed (resting) state: cards parked at the edges framing an empty center
+      const place = () => cards.forEach((c, i) => {
+        const d = dirs[i], depth = +c.dataset.depth, dist = reach[depth]
+        gsap.set(c, {
+          x: d.x * dist, y: d.y * dist,
+          rotation: d.r, scale: depth === 1 ? 1 : depth === 2 ? 0.9 : 0.8,
+          opacity: depth === 3 ? 0.72 : 1
+        })
+      })
+      const setUp = (v) => { if (upEl) upEl.textContent = Math.round(v).toLocaleString("en-US") }
+      const setPct = (v) => { if (pctEl) pctEl.textContent = "+" + v.toFixed(1) + "%" }
+      place(); setUp(1284); setPct(2.7)
+      return () => {
+        if (tl) tl.kill()
+        gsap.killTweensOf(cards)
+        gsap.killTweensOf(ctr)
+        // collapse to an overlapping center collage, then disperse outward with parallax
+        cards.forEach((c, i) => gsap.set(c, {
+          x: 0, y: 0, rotation: tilt[i],
+          scale: +c.dataset.depth === 1 ? 0.98 : 0.92, opacity: 1
+        }))
+        gsap.set(ctr, { up: 1180, pct: 1.9 })
+        setUp(1180); setPct(1.9)
+        tl = gsap.timeline()
+        cards.forEach((c, i) => {
+          const d = dirs[i], depth = +c.dataset.depth, dist = reach[depth]
+          tl.to(c, {
+            x: d.x * dist, y: d.y * dist,
+            rotation: d.r,
+            scale: depth === 1 ? 1 : depth === 2 ? 0.9 : 0.8,
+            opacity: depth === 3 ? 0.72 : 1,
+            duration: 1.5 - depth * 0.12,
+            ease: "power2.inOut"
+          }, 0.4 + i * 0.05)
+        })
+        // live counters keep ticking through the disperse (scrub-safe via onUpdate)
+        tl.to(ctr, {
+          up: 1284, pct: 2.7, duration: 1.4, ease: "power1.out",
+          onUpdate: () => { setUp(ctr.up); setPct(ctr.pct) }
+        }, 0.4)
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Caret + Typing · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.search-pill{
+    display:flex;align-items:center;gap:10px;
+    background:var(--paper);border:1.5px solid var(--line-strong);border-radius:999px;
+    padding:13px 22px;width:300px;
+    font-family:'Outfit',sans-serif;font-size:15px;color:var(--ink);
+    letter-spacing:-0.005em;
+    box-shadow:0 8px 18px -10px rgba(0,0,0,0.22);
+  }
+html.theme-dark .search-pill{box-shadow:0 8px 18px -10px rgba(0,0,0,0.55)}
+.search-pill .search-ic{width:15px;height:15px;color:var(--ink-3);flex-shrink:0}
+.search-pill .typed{min-height:18px;display:inline}
+.search-pill .caret-block{
+    width:2px;height:17px;background:var(--ink);display:inline-block;
+    border-radius:1px;flex-shrink:0;opacity:0.7;
+    margin-left:-8px;
+    animation:caretBlink 1s steps(1) infinite 2s;
+  }
+@keyframes caretBlink{0%,49%{opacity:0.7}50%,100%{opacity:0}}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="caret-typing"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'><div class='search-pill'>
+      <svg class='search-ic' viewBox='0 0 16 16' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'>
+        <circle cx='7' cy='7' r='4.6'/><path d='M10.4 10.4l3.4 3.4'/>
+      </svg>
+      <span class='typed' data-ct-cmd>audit the storage proof contract</span>
+      <span class='caret-block' data-ct-caret></span>
+    </div></div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "caret-typing",
+  "display": "Caret + Typing",
+  "cat": "UI",
+  "source": [
+    "claude-code-goal",
+    "claude-code-agent-view",
+    "claude-code-ultrareview",
+    "claude-code-fast-mode"
+  ],
+  "desc": "Per-char display flip in a search pill. Same stable-layout technique as typewriter-flip but in a search/prompt context.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const cmd = card.querySelector("[data-ct-cmd]")
+      const caret = card.querySelector("[data-ct-caret]")
+      const TEXT = cmd.textContent
+      const STEP = 0.065
+
+      /* split into per-char spans once (same pattern as typewriter-flip) */
+      cmd.innerHTML = ""
+      TEXT.split("").forEach(c => {
+        const s = document.createElement("span")
+        s.className = "ct-ch"
+        s.textContent = c === " " ? " " : c
+        s.style.display = "inline-block"
+        cmd.appendChild(s)
+      })
+      const chars = cmd.querySelectorAll(".ct-ch")
+
+      /* idle: all chars visible + caret */
+      chars.forEach(c => gsap.set(c, { display: "inline-block" }))
+      gsap.set(caret, { opacity: 0.7 })
+
+      let tl = null
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+        chars.forEach(c => gsap.set(c, { display: "none" }))
+        gsap.set(caret, { opacity: 0.7 })
+
+        tl = gsap.timeline({ delay: 0.3 })
+        chars.forEach((c, i) => {
+          tl.set(c, { display: "inline-block" }, 0.15 + i * STEP)
+        })
+        const done = 0.15 + chars.length * STEP + 0.2
+        tl.to(caret, { opacity: 0, duration: 0.25, ease: "power1.out" }, done)
+        tl.set(caret, { opacity: 0.7 }, done + 0.7)
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

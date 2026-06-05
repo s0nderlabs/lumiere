@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Inline Word Stream · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.iws-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:#fff;overflow:hidden}
+.iws-phrase{font-family:'Outfit',sans-serif;font-size:28px;font-weight:800;color:#000;line-height:1.3;letter-spacing:-0.02em;white-space:nowrap;will-change:transform}
+.iws-w,.iws-chat,.iws-gpt,.iws-gpt .iws-c{display:inline-block}
+.iws-chat{margin-left:0.22em}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="inline-word-stream"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='iws-stage'><div class='iws-phrase' data-iws-phrase><span class='iws-w' data-iws-with>With</span><span class='iws-chat' data-iws-chat>Chat</span><span class='iws-gpt'><span class='iws-c'>G</span><span class='iws-c'>P</span><span class='iws-c'>T</span></span></div></div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "inline-word-stream",
+  "display": "Inline Word Stream",
+  "cat": "Text",
+  "isNew": true,
+  "source": [
+    "claude-code-fast-mode",
+    "chatgpt-personal-finance"
+  ],
+  "desc": "\"With\" reveals centered, then the whole wordmark glides left on one eased settle while \"Chat\" reveals as a whole word and \"GPT\" types in per-character. Continuous decelerating motion, no jitter. ChatGPT finance video opening title.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const stage = card.querySelector(".iws-stage")
+      const phrase = card.querySelector("[data-iws-phrase]")
+      const withEl = card.querySelector("[data-iws-with]")
+      const chatEl = card.querySelector("[data-iws-chat]")
+      const gptChars = Array.from(card.querySelectorAll(".iws-gpt .iws-c"))
+
+      // Every glyph sits in the FINAL layout at all times; reveals are opacity and the
+      // whole phrase glides on one eased transform, so there is never a reflow
+      // (no jitter) and the motion is a single continuous decelerating settle.
+      // startX = shift the phrase right so "With" alone reads centred.
+      let startX = 0
+      function measure() {
+        const prevX = Number(gsap.getProperty(phrase, "x")) || 0
+        gsap.set(phrase, { x: 0 })
+        const sr = stage.getBoundingClientRect()
+        const wr = withEl.getBoundingClientRect()
+        if (sr.width === 0 || wr.width === 0) { gsap.set(phrase, { x: prevX }); return }
+        startX = (sr.left + sr.width / 2) - (wr.left + wr.width / 2)
+        gsap.set(phrase, { x: prevX })
+      }
+      function applyIdle() {
+        gsap.set(phrase, { x: 0 })
+        gsap.set([withEl, chatEl, ...gptChars], { opacity: 1 })
+      }
+      measure(); applyIdle()
+      requestAnimationFrame(() => { measure(); applyIdle() })
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measure(); applyIdle() })
+
+      let tl = null
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+        measure()
+        gsap.set(withEl, { opacity: 0 })
+        gsap.set([chatEl, ...gptChars], { opacity: 0 })
+        gsap.set(phrase, { x: startX })
+
+        tl = gsap.timeline()
+        // "With" reveals, centred, holds a beat
+        tl.to(withEl, { opacity: 1, duration: 0.22, ease: "power2.out" }, 0.06)
+        // ONE continuous decelerating glide from With-centred to final-centred
+        tl.to(phrase, { x: 0, duration: 0.72, ease: "power3.out" }, 0.46)
+        // reveals layered along the glide: "Chat" whole, then "GPT" per character
+        tl.to(chatEl, { opacity: 1, duration: 0.16, ease: "power2.out" }, 0.52)
+        tl.to(gptChars[0], { opacity: 1, duration: 0.1, ease: "power2.out" }, 0.7)
+        tl.to(gptChars[1], { opacity: 1, duration: 0.1, ease: "power2.out" }, 0.82)
+        tl.to(gptChars[2], { opacity: 1, duration: 0.1, ease: "power2.out" }, 0.94)
+        // hold the settled wordmark, then return to rest
+        tl.to({}, { duration: 1.0 }, 1.7)
+        tl.add(applyIdle, 2.7)
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

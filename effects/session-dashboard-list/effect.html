@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Live Session Dashboard List · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.sdl-board{
+  width:100%;
+  background:var(--paper);
+  border:1px solid var(--line);
+  border-radius:14px;
+  box-shadow:var(--shadow-card);
+  padding:9px 11px 8px;
+  font-family:'Inter','Outfit',system-ui,sans-serif;
+}
+.sdl-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:5px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--line);
+}
+.sdl-board-title{
+  font-size:11px;
+  font-weight:650;
+  color:var(--ink);
+  letter-spacing:-0.01em;
+}
+.sdl-tally{display:flex;gap:5px}
+.sdl-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:2px 6px 2px 5px;
+  border-radius:999px;
+  font-size:9px;
+  font-weight:600;
+  background:var(--paper-2);
+  color:var(--ink-2);
+}
+.sdl-pill b{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)}
+.sdl-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--ink-3);
+  flex:0 0 auto;
+}
+.sdl-pill-need .sdl-dot{background:#d17b8a}
+.sdl-pill-work .sdl-dot{background:#d6a93e}
+.sdl-pill-done .sdl-dot{background:var(--proof-green)}
+.sdl-canvas{position:relative;height:148px;overflow:hidden}
+.sdl-glabel{
+  position:absolute;
+  left:0;right:0;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:8.5px;
+  font-weight:600;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+.sdl-glabel span{line-height:1}
+.sdl-glabel-need .sdl-dot{background:#d17b8a}
+.sdl-glabel-work .sdl-dot{background:#d6a93e}
+.sdl-glabel-done .sdl-dot{background:var(--proof-green)}
+.sdl-row{
+  position:absolute;
+  left:0;right:0;
+  height:16px;
+  display:grid;
+  grid-template-columns:11px 84px 1fr 26px;
+  align-items:center;
+  column-gap:7px;
+  padding:0 2px;
+}
+.sdl-glyph{
+  width:8px;height:8px;border-radius:50%;
+  border:1.5px solid var(--ink-4);
+  background:transparent;
+  justify-self:center;
+}
+.sdl-row.is-need .sdl-glyph{border-color:#d17b8a;background:#d17b8a}
+.sdl-row.is-work .sdl-glyph{border-color:#d6a93e;background:transparent}
+.sdl-row.is-done .sdl-glyph{border-color:var(--proof-green);background:var(--proof-green)}
+.sdl-name{
+  font-size:10px;
+  font-weight:600;
+  color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-family:'Geist Mono','Outfit',monospace;
+}
+.sdl-row.is-done .sdl-name{color:var(--ink-2)}
+.sdl-sum{
+  font-size:9px;
+  font-weight:500;
+  color:var(--ink-3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.sdl-el{
+  font-size:8.5px;
+  font-weight:600;
+  color:var(--ink-3);
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+.sdl-row.is-need .sdl-el{color:#d17b8a}
+.sdl-row.is-need{background:rgba(209,123,138,0.10);border-radius:7px}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="session-dashboard-list"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'>
+    <div class='sdl-board' data-sdl-board>
+      <div class='sdl-head'>
+        <span class='sdl-board-title'>Sessions</span>
+        <span class='sdl-tally'>
+          <span class='sdl-pill sdl-pill-need'><i class='sdl-dot'></i><b data-sdl-c-need>0</b></span>
+          <span class='sdl-pill sdl-pill-work'><i class='sdl-dot'></i><b data-sdl-c-work>5</b></span>
+          <span class='sdl-pill sdl-pill-done'><i class='sdl-dot'></i><b data-sdl-c-done>0</b></span>
+        </span>
+      </div>
+      <div class='sdl-canvas' data-sdl-canvas></div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "session-dashboard-list",
+  "display": "Live Session Dashboard List",
+  "cat": "Data Viz",
+  "isNew": true,
+  "source": [
+    "claude-code-agent-view"
+  ],
+  "desc": "Grouped status list (Needs input / Working / Completed) where rows latch in then live-reorder between groups -- one promotes up to needs-input, the rest drain green to completed -- with a header tally ticking in lockstep. Claude Code agent-view session board.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const canvas = card.querySelector("[data-sdl-canvas]")
+    const cNeed = card.querySelector("[data-sdl-c-need]")
+    const cWork = card.querySelector("[data-sdl-c-work]")
+    const cDone = card.querySelector("[data-sdl-c-done]")
+
+    // Group geometry within the canvas (px). Three stacked sections.
+    // Scaled to fit the live ~360x240 card (vp-stage inner height ~196px).
+    const GROUPS = ["need", "work", "done"]
+    const GLABEL = { need: "Needs input", work: "Working", done: "Completed" }
+    const ROW_H = 18       // row pitch
+    const HDR_H = 13       // group-label band height
+    const GAP   = 4        // gap above each group label
+
+    // Five sessions. start: every row begins in "work".
+    const data = [
+      { name: "auth-refactor",  sum: "running tests",      el: "2m" },
+      { name: "payments-sync",  sum: "needs a decision",   el: "3m" },
+      { name: "docs-pass",      sum: "writing changelog",  el: "1m" },
+      { name: "lint-sweep",     sum: "fixing failures",    el: "4m" },
+      { name: "deploy-stage",   sum: "verifying build",    el: "6m" }
+    ]
+
+    // Build group-label bands + rows once.
+    canvas.innerHTML = ""
+    const labelEls = {}
+    GROUPS.forEach(g => {
+      const lab = document.createElement("div")
+      lab.className = "sdl-glabel sdl-glabel-" + g
+      lab.innerHTML = "<i class='sdl-dot'></i><span>" + GLABEL[g] + "</span>"
+      canvas.appendChild(lab)
+      labelEls[g] = lab
+    })
+    const rowEls = data.map((d) => {
+      const r = document.createElement("div")
+      r.className = "sdl-row"
+      r.innerHTML =
+        "<span class='sdl-glyph'></span>" +
+        "<span class='sdl-name'>" + d.name + "</span>" +
+        "<span class='sdl-sum'>" + d.sum + "</span>" +
+        "<span class='sdl-el'>" + d.el + "</span>"
+      canvas.appendChild(r)
+      return r
+    })
+
+    // ---- state model: which group each row is in + render order ----
+    function emptyState() { return { need: [], work: [0, 1, 2, 3, 4], done: [] } }
+    function snapState(s) { return { need: s.need.slice(), work: s.work.slice(), done: s.done.slice() } }
+
+    // Compute each element's absolute `top` from a group->row-index map.
+    function layout(state, apply) {
+      const tops = { rows: {}, labels: {} }
+      let y = 0
+      GROUPS.forEach(g => {
+        const ids = state[g]
+        tops.labels[g] = y + GAP
+        y += GAP + HDR_H
+        ids.forEach(id => { tops.rows[id] = y; y += ROW_H })
+        y += 2
+      })
+      if (apply) {
+        GROUPS.forEach(g => gsap.set(labelEls[g], { top: tops.labels[g] }))
+        rowEls.forEach((r, id) => gsap.set(r, { top: tops.rows[id] }))
+      }
+      return tops
+    }
+
+    // group membership -> glyph color class on each row
+    function paint(state) {
+      const grpOf = {}
+      GROUPS.forEach(g => state[g].forEach(id => { grpOf[id] = g }))
+      rowEls.forEach((r, id) => {
+        r.classList.remove("is-need", "is-work", "is-done")
+        r.classList.add("is-" + grpOf[id])
+      })
+    }
+    function setTally(state) {
+      cNeed.textContent = String(state.need.length)
+      cWork.textContent = String(state.work.length)
+      cDone.textContent = String(state.done.length)
+    }
+
+    // ---- RESTING STATE: the drained board, mostly green ----
+    const restState = { need: [1], work: [], done: [0, 2, 3, 4] }
+    layout(restState, true)
+    paint(restState)
+    setTally(restState)
+    gsap.set(rowEls, { opacity: 1, x: 0 })
+    GROUPS.forEach(g => gsap.set(labelEls[g], { opacity: 1 }))
+
+    let tl = null
+
+    return function replay() {
+      if (tl) { tl.kill(); tl = null }
+      gsap.killTweensOf(rowEls)
+      gsap.killTweensOf(Object.values(labelEls))
+
+      // 1) Reset to the opening state: everyone Working, rows hidden.
+      const state = emptyState()
+      layout(state, true)
+      paint(state)
+      setTally(state)
+      gsap.set(rowEls, { opacity: 0, x: -10 })
+      GROUPS.forEach(g => gsap.set(labelEls[g], { opacity: g === "work" ? 1 : 0.32 }))
+
+      tl = gsap.timeline()
+
+      // 2) Rows latch in, top -> bottom.
+      rowEls.forEach((r, i) => {
+        tl.to(r, { opacity: 1, x: 0, duration: 0.34, ease: "power2.out" }, 0.15 + i * 0.11)
+      })
+
+      // Helper: move one row to a new group and re-flow neighbours (FLIP via top tween).
+      function reflow(at, mutate, dur) {
+        // capture current tops, mutate state, compute next tops, tween the deltas
+        const before = layout(state, false)
+        mutate(state)
+        const after = layout(state, false)
+        // snapshot the post-mutation membership so the deferred paint/tally
+        // call fires THIS step's values (not the final state) when the
+        // timeline reaches `at` -- keeps the tally ticking in lockstep and
+        // stays correct on reverse-scrub.
+        const snap = snapState(state)
+        // labels
+        GROUPS.forEach(g => {
+          if (before.labels[g] !== after.labels[g])
+            tl.to(labelEls[g], { top: after.labels[g], duration: dur, ease: "power2.inOut" }, at)
+          tl.to(labelEls[g], { opacity: state[g].length ? 1 : 0.32, duration: 0.25 }, at)
+        })
+        // rows
+        rowEls.forEach((r, id) => {
+          if (before.rows[id] !== after.rows[id])
+            tl.to(r, { top: after.rows[id], duration: dur, ease: "power2.inOut" }, at)
+        })
+        tl.call(() => { paint(snap); setTally(snap) }, null, at + dur * 0.45)
+      }
+
+      // 3) payments-sync PROMOTES up into Needs-input (magenta glyph).
+      reflow(1.05, s => {
+        s.work = s.work.filter(id => id !== 1)
+        s.need.unshift(1)
+      }, 0.42)
+      // accent flash on the promoted row's glyph (already-visible element)
+      tl.fromTo(rowEls[1].querySelector(".sdl-glyph"),
+        { scale: 1 }, { scale: 1.5, duration: 0.16, ease: "back.out(3)", yoyo: true, repeat: 1 }, 1.30)
+
+      // 4) DRAIN cascade: remaining Working rows demote to Completed (turn green), staggered.
+      const drainOrder = [0, 2, 3, 4]
+      drainOrder.forEach((id, k) => {
+        reflow(1.75 + k * 0.45, s => {
+          s.work = s.work.filter(x => x !== id)
+          s.done.push(id)
+        }, 0.40)
+      })
+
+      // 5) settle hold so the drained board is readable.
+      tl.to({}, { duration: 1.4 })
+
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

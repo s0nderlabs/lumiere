@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Focus-Band Chip Carousel · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.fbc-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#EFEFE5;background-image:radial-gradient(circle, rgba(21,20,15,0.05) 1px, transparent 1px);background-size:16px 16px;font-family:'Outfit',sans-serif}
+.fbc-viewport{position:relative;width:74%;height:100%;overflow:hidden}
+.fbc-track{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;gap:8px;will-change:transform}
+.fbc-chip{display:flex;align-items:center;gap:8px;height:22px;padding:0 13px;border-radius:999px;border:1px solid rgba(21,20,15,0);font-size:10.5px;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#F0E0D8;color:#9C968B}
+.fbc-chip-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;background:#C9C2B8}
+.fbc-chip-label{overflow:hidden;text-overflow:ellipsis}
+.fbc-band{position:absolute;left:-4px;right:-4px;top:50%;height:30px;transform:translateY(-50%);border-radius:9px;background:radial-gradient(ellipse 72% 130% at 50% 50%, rgba(207,111,87,0.08), transparent 76%);pointer-events:none}
+.fbc-fade{position:absolute;left:0;right:0;height:64px;pointer-events:none;z-index:2}
+.fbc-fade-top{top:0;background:linear-gradient(#EFEFE5, rgba(239,239,229,0))}
+.fbc-fade-bot{bottom:0;background:linear-gradient(rgba(239,239,229,0), #EFEFE5)}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="focus-band-carousel"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='fbc-stage'>
+    <div class='fbc-viewport' data-fbc-vp>
+      <div class='fbc-track' data-fbc-track></div>
+      <div class='fbc-band' data-fbc-band aria-hidden='true'></div>
+      <div class='fbc-fade fbc-fade-top' aria-hidden='true'></div>
+      <div class='fbc-fade fbc-fade-bot' aria-hidden='true'></div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "focus-band-carousel",
+  "display": "Focus-Band Chip Carousel",
+  "cat": "UI",
+  "isNew": true,
+  "source": [
+    "claude-financial-services"
+  ],
+  "desc": "A column of rounded pill chips scrolls steadily upward through a fixed central focus band that darkens, scales up and outlines whichever chip is centered while the rest fade gray (Claude for Financial Services template menu).",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const track = card.querySelector("[data-fbc-track]")
+
+    // Agent-template menu items, from the Claude for Financial Services reference
+    // (the vertical pill column that scrolls through the focus band, 0:11.3-0:14.5).
+    const items = [
+      "Earnings call summary",
+      "DCF valuation model",
+      "10-K risk extraction",
+      "Comp set screener",
+      "Portfolio rebalance",
+      "Credit memo draft",
+      "M&A target scan",
+      "Covenant compliance"
+    ]
+    const N = items.length
+
+    // Geometry (px). The track is duplicated (2 sets) for a seamless loop; the
+    // focus band sits at the viewport vertical centre.
+    const STRIDE = 30           // chip height + gap, one step of travel
+    const VP_H = 240            // viewport height (full card)
+    const CENTER = VP_H / 2     // focus-band centre line
+    const FOCUS_R = STRIDE * 1.05   // distance from centre at which a chip is "fully out of focus"
+
+    // Build two identical chip sets back-to-back so the loop wraps invisibly.
+    track.innerHTML = ([...items, ...items]).map((label, i) =>
+      "<div class='fbc-chip' data-fbc-chip><span class='fbc-chip-dot'></span>" +
+      "<span class='fbc-chip-label'>" + label + "</span></div>"
+    ).join("")
+    const chips = track.querySelectorAll("[data-fbc-chip]")
+    const dots = Array.from(chips, c => c.querySelector(".fbc-chip-dot"))  // cache once; style() runs per animation tick
+
+    // The track's natural layout places chip k's centre at (k*STRIDE + STRIDE/2)
+    // measured from the track top. We translate the track so that, at scroll s,
+    // chip k's centre lands at: chipTop(k) - s. BASE biases the column up by half
+    // its set so the viewport is FULL above AND below the band at rest (not a
+    // half-empty bottom-anchored column), with chip floor(N/2) centred and lit.
+    const SET_H = N * STRIDE
+    const BASE = CENTER - STRIDE / 2 - (Math.floor(N / 2) * STRIDE)
+
+    const lerp = (a, b, t) => a + (b - a) * t
+
+    // Deterministic per-frame styling: derive everything from the scroll value `s`
+    // so the effect is fully scrub-safe under timeline.time(t).
+    function style(s) {
+      // wrap scroll into one set so the duplicated chips cover the gap seamlessly
+      const wrapped = ((s % SET_H) + SET_H) % SET_H
+      track.style.transform = "translate3d(0," + (BASE - wrapped) + "px,0)"
+      for (let i = 0; i < chips.length; i++) {
+        const c = chips[i]
+        const centreY = (i * STRIDE + STRIDE / 2) + (BASE - wrapped)
+        const dist = Math.abs(centreY - CENTER)
+        // t: 0 at band centre, 1 at the focus radius and beyond
+        const t = Math.min(1, dist / FOCUS_R)
+        const scale = lerp(1.0, 0.86, t)
+        const opacity = lerp(1.0, 0.34, t)
+        // smoothstep the focus falloff so colour/bg/dot glide continuously (no stepped
+        // thresholds snapping as a chip crosses the band) -- crisp centre, soft tails.
+        const te = t * t * (3 - 2 * t)
+        const mix = (a, b) => Math.round(a + (b - a) * te)
+        c.style.opacity = opacity
+        c.style.transform = "scale(" + scale.toFixed(3) + ")"
+        // bg: focus #E8C7BC -> edge #F0E0D8
+        c.style.background = "rgb(" + mix(232, 240) + "," + mix(199, 224) + "," + mix(188, 216) + ")"
+        // text: ink #15140F -> muted gray #9C968B
+        c.style.color = "rgb(" + mix(21, 156) + "," + mix(20, 150) + "," + mix(15, 139) + ")"
+        c.style.borderColor = "rgba(21,20,15," + (0.3 * (1 - te)).toFixed(3) + ")"
+        c.style.fontWeight = te < 0.5 ? 600 : 500
+        // dot: coral #CF6F57 -> gray #C9C2B8
+        dots[i].style.background = "rgb(" + mix(207, 201) + "," + mix(111, 194) + "," + mix(87, 184) + ")"
+      }
+    }
+
+    // Idle / resting state: column fills the viewport with one chip centred and lit.
+    style(0)
+
+    let tl = null
+    return function replay() {
+      if (tl) { tl.kill(); tl = null }
+      const proxy = { v: 0 }
+      tl = gsap.timeline({ repeat: -1 })
+      // Steady upward marquee: advance exactly one full set per cycle so it loops
+      // seamlessly. Linear cadence is intentional (a continuous scroll, not a move).
+      tl.to(proxy, {
+        v: SET_H,
+        duration: N * 0.45,   // ~0.45s per chip advance
+        ease: "none",
+        onUpdate: () => style(proxy.v)
+      })
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

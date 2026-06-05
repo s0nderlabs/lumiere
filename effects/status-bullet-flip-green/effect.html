@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Status Bullet Flip to Green · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.sbg-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#1a1714;padding:16px 20px}
+.sbg-log{display:flex;flex-direction:column;gap:11px;width:88%;font-family:'Geist Mono',monospace}
+.sbg-step{display:flex;flex-direction:column;gap:2px}
+.sbg-line{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:0.01em}
+.sbg-bullet{width:9px;height:9px;border-radius:50%;border:2px solid #8a8378;background:rgba(0,0,0,0);box-sizing:border-box;flex-shrink:0;will-change:transform}
+.sbg-label{font-weight:700;color:#3a352c}
+.sbg-args{color:#6f685d;font-size:10px}
+.sbg-result{font-size:9.5px;color:#5ec27a;padding-left:17px;letter-spacing:0.02em;will-change:transform,opacity}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="status-bullet-flip-green"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='sbg-stage'>
+    <div class='sbg-log'>
+      <div class='sbg-step' data-sbg>
+        <div class='sbg-line'><span class='sbg-bullet' data-sbg-b></span><span class='sbg-label' data-sbg-l>Bash</span><span class='sbg-args'>(bun test)</span></div>
+        <div class='sbg-result' data-sbg-r>└ 24 passed · 0 failed</div>
+      </div>
+      <div class='sbg-step' data-sbg>
+        <div class='sbg-line'><span class='sbg-bullet' data-sbg-b></span><span class='sbg-label' data-sbg-l>PushNotification</span><span class='sbg-args'>(build ok)</span></div>
+        <div class='sbg-result' data-sbg-r>└ delivered to device</div>
+      </div>
+      <div class='sbg-step' data-sbg>
+        <div class='sbg-line'><span class='sbg-bullet' data-sbg-b></span><span class='sbg-label' data-sbg-l>Goal</span><span class='sbg-args'>(/goal active)</span></div>
+        <div class='sbg-result' data-sbg-r>└ goal achieved</div>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "status-bullet-flip-green",
+  "display": "Status Bullet Flip to Green",
+  "cat": "UI",
+  "isNew": true,
+  "source": [
+    "claude-code-push-notifications",
+    "claude-code-goal",
+    "claude-financial-services"
+  ],
+  "desc": "Tool-step bullets flip from a dim hollow dot to a solid green dot with a back.out pop, the line steps to forest green, and a '└ passed' result latches in. Claude Code's per-step success tell.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const steps   = card.querySelectorAll("[data-sbg]")
+    const bullets = card.querySelectorAll("[data-sbg-b]")
+    const labels  = card.querySelectorAll("[data-sbg-l]")
+    const results = card.querySelectorAll("[data-sbg-r]")
+    const GRAY = "#8a8378", GREEN = "#5ec27a"
+    /* resting (contentful): all steps latched green, results revealed */
+    gsap.set(bullets, { backgroundColor: GREEN, borderColor: GREEN, scale: 1 })
+    gsap.set(labels,  { color: GREEN })
+    gsap.set(results, { autoAlpha: 1, y: 0 })
+    return () => {
+      gsap.killTweensOf([...bullets, ...labels, ...results])
+      /* reset to pending: hollow gray bullets, neutral labels, hidden results */
+      gsap.set(bullets, { backgroundColor: "rgba(0,0,0,0)", borderColor: GRAY, scale: 1 })
+      gsap.set(labels,  { color: "#3a352c" })
+      gsap.set(results, { autoAlpha: 0, y: 6 })
+      const tl = gsap.timeline({ delay: 0.4 })
+      steps.forEach((s, i) => {
+        const at = i * 0.7
+        tl.to(bullets[i], { backgroundColor: GREEN, borderColor: GREEN, scale: 1.28, duration: 0.12, ease: "back.out(2)" }, at)
+          .to(bullets[i], { scale: 1, duration: 0.1, ease: "power2.out" }, at + 0.12)
+          .to(labels[i],  { color: GREEN, duration: 0.18, ease: "power1.out" }, at)
+          .to(results[i], { autoAlpha: 1, y: 0, duration: 0.25, ease: "power2.out" }, at + 0.14)
+      })
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

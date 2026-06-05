@@ -66,7 +66,7 @@ cleanExpiredSessions(SESSIONS_DIR, DEFAULTS.session_max_age_days)
 cleanExpiredDownloads(DEFAULTS.downloads_max_age_days)
 
 // 4. Build server + register tools
-const server = new McpServer({ name: "lumiere", version: "0.14.1" })
+const server = new McpServer({ name: "lumiere", version: "0.15.0" })
 registerInspect(server)
 registerAnalyze(server)
 registerWatch(server)

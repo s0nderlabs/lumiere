@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Cross Dissolve · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.scene-mock{
+    position:absolute;inset:0;
+    background:var(--paper);border:1px solid var(--line);border-radius:12px;
+    padding:18px 22px;
+    display:flex;flex-direction:column;justify-content:space-between;
+    box-shadow:0 12px 28px -22px rgba(0,0,0,0.4);
+  }
+.scene-mock.scene-warm{background:var(--cream-warm);border-color:var(--line-strong)}
+html.theme-dark .scene-mock.scene-warm{background:#2a2419}
+.scene-tag{
+    font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.18em;
+    color:var(--ink-3);
+  }
+.scene-body{
+    font-family:'Outfit',sans-serif;font-size:16px;color:var(--ink);font-weight:400;letter-spacing:-0.01em;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="cross-dissolve"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'>
+      <div style='position:relative;width:80%;height:170px'>
+        <div data-a class='scene-mock scene-a'>
+          <div class='scene-tag'>scene 01</div>
+          <div class='scene-body'>› terminal awaits input</div>
+        </div>
+        <div data-b class='scene-mock scene-b' style='opacity:0'>
+          <div class='scene-tag'>scene 02</div>
+          <div class='scene-body'>↳ dashboard reveal</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "cross-dissolve",
+  "display": "Cross Dissolve",
+  "cat": "Camera",
+  "source": [
+    "claude-code-goal",
+    "claude-code-ultrareview",
+    "claude-financial-services"
+  ],
+  "desc": "Two scenes overlap with opposite opacity tweens. Soft transition between equal-weight beats.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const a = card.querySelector("[data-a]")
+      const b = card.querySelector("[data-b]")
+      gsap.set(a, { opacity: 1 })
+      gsap.set(b, { opacity: 0 })
+      return () => {
+        gsap.killTweensOf([a, b])
+        gsap.set(a, { opacity: 1 })
+        gsap.set(b, { opacity: 0 })
+        const tl = gsap.timeline()
+        /* slow the overlap so the cross IS the moment, not a quick swap */
+        tl.to(a, { opacity: 0, duration: 0.7, ease: "sine.inOut" }, 0.7)
+        tl.to(b, { opacity: 1, duration: 0.7, ease: "sine.inOut" }, 0.7)
+        tl.to(b, { opacity: 0, duration: 0.7, ease: "sine.inOut" }, "+=1.5")
+        tl.to(a, { opacity: 1, duration: 0.7, ease: "sine.inOut" }, "<")
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

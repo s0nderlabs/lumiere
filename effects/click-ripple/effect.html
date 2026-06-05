@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Click Ripple · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.cursor-svg{position:absolute;pointer-events:none}
+.cursor-svg path{fill:var(--cream);stroke:var(--ink);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
+.ripple-host{position:relative;width:80px;height:80px}
+.ripple-host{position:relative;width:120px;height:60px;display:grid;place-items:center}
+.click-target{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    background:var(--paper-2);border:1px solid var(--line-strong);border-radius:8px;
+    padding:7px 18px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;color:var(--ink);
+    letter-spacing:-0.005em;
+    box-shadow:0 6px 16px -10px rgba(0,0,0,0.4);
+  }
+.cursor-ripple{
+    position:absolute;left:50%;top:50%;width:60px;height:60px;
+    border:none;border-radius:50%;opacity:0;
+    background:rgba(16,15,9,0.08);
+    transform:translate(-50%,-50%) scale(0.4);
+    margin:0;
+    pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="click-ripple"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'><div class='ripple-host'>
+      <div class='click-target'>tap</div>
+      <svg class='cursor-svg' viewBox='0 0 56 64' data-rip-cur style='position:absolute;width:34px;height:38px;left:15%;top:18%;opacity:1'>
+        <path d='M 6 4 C 7 2.6, 9.5 2.4, 10.8 3.6 L 41.5 28 C 43.4 29.5, 43 32.5, 40.6 33.3 L 27.3 37.5 C 26.2 37.85, 25.4 38.7, 25.1 39.8 L 21.2 50.4 C 20.3 53, 16.5 53.1, 15.5 50.5 L 5 8.8 C 4.6 7.3, 5 5.4, 6 4 Z'/>
+      </svg>
+      <div class='cursor-ripple' data-rip></div>
+    </div></div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "click-ripple",
+  "display": "Click Ripple",
+  "cat": "UI",
+  "source": [
+    "claude-code-fast-mode"
+  ],
+  "desc": "Cursor glides to target, clicks (scale press), radial ring expands and fades at impact. Full click sequence.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const r = card.querySelector("[data-rip]")
+      const cur = card.querySelector("[data-rip-cur]")
+      const tgt = card.querySelector(".click-target")
+      gsap.set(r, { opacity: 0, scale: 1 })
+      gsap.set(cur, { left: "15%", top: "18%", scale: 1 })
+      return () => {
+        gsap.killTweensOf([r, cur])
+        gsap.set(r, { opacity: 0, scale: 0.4 })
+        gsap.set(cur, { left: "15%", top: "18%", scale: 1 })
+        const tl = gsap.timeline()
+        /* cursor glides to target center */
+        tl.to(cur, { left: "42%", top: "38%", duration: 0.8, ease: "power3.inOut" }, 0.2)
+        /* click press */
+        tl.to(cur, { scale: 0.82, duration: 0.08, ease: "power2.in" }, 1.05)
+        tl.to(cur, { scale: 1, duration: 0.15, ease: "power3.out" }, 1.13)
+        /* ripple fires on click */
+        tl.fromTo(r, { scale: 0.4, opacity: 0.9 }, { scale: 3.2, opacity: 0, duration: 0.5, ease: "power2.out" }, 1.08)
+        /* cursor returns */
+        tl.to(cur, { left: "15%", top: "18%", duration: 0.7, ease: "power2.inOut" }, 1.9)
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

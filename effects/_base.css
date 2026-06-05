@@ -1,0 +1,100 @@
+/* ============================================================
+   lumiere effects - shared base (tokens + stage chrome)
+   Tokens are copied VERBATIM from dashboard/index.html so a
+   standalone effect renders pixel-identical to its dashboard
+   card. If the dashboard palette changes, change it here too.
+   ============================================================ */
+
+@font-face {
+  font-family: 'CalSans';
+  src: url('_fonts/CalSans-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+*,*::before,*::after{box-sizing:border-box}
+
+/* ============================================================
+   PALETTE - anima tokens (light + dark) [verbatim from dashboard]
+   ============================================================ */
+:root, html.theme-light{
+  --cream:#f9f8f6;
+  --cream-deep:#f2f1ee;
+  --paper:#fbfbf9;
+  --paper-2:#f3f1ec;
+  --cream-warm:#f0e8d6;
+  --ink:#100f09;
+  --ink-2:#525251;
+  --ink-3:#8b8b88;
+  --ink-4:#b8b6b1;
+  --line:rgba(16, 15, 9, 0.09);
+  --line-strong:rgba(16, 15, 9, 0.20);
+  --vp-bg:#f3f1ec;
+  --shadow-card:0 20px 50px -30px rgba(50,35,22,0.28);
+  --shadow-pill:0 2px 6px -3px rgba(16,15,9,0.12);
+  --noise-alpha:0.42;
+  --proof-green:#2e9b66;
+  --signal-blue:#3a7ad0;
+}
+html.theme-dark{
+  --cream:#0e0d0a;
+  --cream-deep:#161410;
+  --paper:#14120e;
+  --paper-2:#1f1c14;
+  --cream-warm:#1f1c14;
+  --ink:#efece3;
+  --ink-2:#a8a59e;
+  --ink-3:#6f6c65;
+  --ink-4:#4a4842;
+  --line:rgba(239, 236, 227, 0.10);
+  --line-strong:rgba(239, 236, 227, 0.22);
+  --vp-bg:#0a0907;
+  --shadow-card:0 20px 50px -30px rgba(0,0,0,0.7);
+  --shadow-pill:0 8px 18px -10px rgba(0,0,0,0.45);
+  --noise-alpha:0.18;
+  --proof-green:#5fcc88;
+  --signal-blue:#7cb4f0;
+}
+
+/* ============================================================
+   BASE - matches dashboard body so inherited font/color/
+   smoothing render identically inside the stage
+   ============================================================ */
+html,body{
+  margin:0;padding:0;
+  background:var(--cream);color:var(--ink);
+  font-family:'Outfit',system-ui,sans-serif;
+  font-feature-settings:"ss01";
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ============================================================
+   STAGE CHROME - standalone mount
+   #fit centers + scales the card to the window (contain).
+   .viewport is verbatim dashboard card viewport styling; the
+   runtime sets its width/height from data-stage-* attributes.
+   ============================================================ */
+#fit{
+  position:fixed;inset:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.card-sim{
+  position:relative;
+  /* simulate the dashboard card backdrop so the viewport's rounded
+     corners reveal the same color they do inside a real card
+     (no radius of its own: it must fill the corner arcs squarely) */
+  background:var(--paper);
+}
+.card-sim .viewport{
+  position:relative;
+  background:var(--vp-bg);
+  border-radius:14px;
+  overflow:hidden;
+}
+.card-sim.chrome-flat{background:transparent;border-radius:0}
+.card-sim.chrome-flat .viewport{border-radius:0}
+
+/* embedded in the dashboard (iframe): full-bleed fluid stage, identical
+   to the old dashboard card viewport (the iframe IS the viewport) */
+html.embedded body{background:var(--vp-bg)}
+html.embedded #fit{position:fixed;inset:0;display:block;transform:none}
+html.embedded .card-sim{width:100%;height:100%;background:var(--vp-bg)}
+html.embedded .card-sim .viewport{width:100%;height:100%;border-radius:0}

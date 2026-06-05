@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Typewriter Flip · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.tf-stage{
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    padding:16px;
+  }
+.tf-terminal{
+    width:100%;height:100%;
+    display:flex;flex-direction:column;
+    background:#1c1b18;
+    border:1px solid rgba(249,248,246,0.06);
+    border-radius:10px;
+    box-shadow:
+      0 18px 44px -28px rgba(16,15,9,0.55),
+      0 4px 14px -8px rgba(16,15,9,0.30);
+    overflow:hidden;
+    font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+.tf-chrome{
+    position:relative;
+    display:flex;align-items:center;gap:6px;
+    padding:8px 11px;
+    background:#252420;
+    border-bottom:1px solid rgba(249,248,246,0.05);
+    flex-shrink:0;
+  }
+.tf-light{
+    width:9px;height:9px;border-radius:50%;
+    display:inline-block;
+    border:0.5px solid rgba(0,0,0,0.30);
+  }
+.tf-red{background:#ff5f57}
+.tf-yellow{background:#febc2e}
+.tf-green{background:#28c840}
+.tf-title{
+    position:absolute;left:0;right:0;
+    text-align:center;
+    font-family:'Geist Mono',ui-monospace,Menlo,monospace;
+    font-size:10px;
+    color:#8c8a83;
+    letter-spacing:0.02em;
+    pointer-events:none;
+  }
+.tf-body{
+    flex:1;
+    padding:14px 14px 12px;
+    font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13px;
+    line-height:1.45;
+    color:#ece9e0;
+    white-space:nowrap;
+    overflow:hidden;
+  }
+.tf-line{
+    display:block;
+    letter-spacing:0;
+    font-feature-settings:"liga" 0;
+  }
+.tf-prompt{
+    color:#9bd17b;
+    font-weight:700;
+    margin-right:10px;
+    user-select:none;
+    letter-spacing:0;
+  }
+.tf-cmd{
+    color:#f3f0e6;
+    letter-spacing:0;
+  }
+.tf-cmd .tf-char{
+    display:none;
+    color:#f3f0e6;
+  }
+.tf-caret{
+    display:inline-block;
+    width:7px;height:14px;
+    background:#f3f0e6;
+    vertical-align:-3px;
+    margin-left:1px;
+    opacity:0;
+  }
+.tf-meta{
+    margin-top:10px;
+    color:#5d5b54;
+    font-size:11px;
+    opacity:0;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="typewriter-flip"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='tf-stage'>
+      <div class='tf-terminal' data-tf-root>
+        <div class='tf-chrome'>
+          <span class='tf-light tf-red'></span>
+          <span class='tf-light tf-yellow'></span>
+          <span class='tf-light tf-green'></span>
+          <span class='tf-title'>~/lumiere &middot; zsh</span>
+        </div>
+        <div class='tf-body'>
+          <div class='tf-line'>
+            <span class='tf-prompt'>&gt;</span><span class='tf-cmd' data-tf-cmd></span><span class='tf-caret' data-tf-caret></span>
+          </div>
+          <div class='tf-line tf-meta' data-tf-meta>~ lumiere &middot; ready</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "typewriter-flip",
+  "display": "Typewriter Flip",
+  "cat": "Text",
+  "source": [
+    "claude-code-agent-view",
+    "claude-code-push-notifications"
+  ],
+  "desc": "Per-character display flip from none to inline-block. Reverse-scrub safe. Best for CLI, code, anywhere layout stability matters. Real terminal scene with traffic lights + zsh title.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const cmd   = card.querySelector('[data-tf-cmd]')
+      const caret = card.querySelector('[data-tf-caret]')
+      const meta  = card.querySelector('[data-tf-meta]')
+      const TEXT  = 'bun add @s0nderlabs/lumiere'
+      const STEP  = 0.085
+
+      if (!cmd.dataset.split) {
+        cmd.innerHTML = TEXT.split('').map(c =>
+          `<span class="tf-char">${c === ' ' ? '&nbsp;' : c}</span>`
+        ).join('')
+        cmd.dataset.split = '1'
+      }
+      const chars = cmd.querySelectorAll('.tf-char')
+
+      chars.forEach(c => gsap.set(c, { display: 'inline-block' }))
+      gsap.set(caret, { opacity: 1 })
+      gsap.set(meta,  { opacity: 1 })
+
+      let tl = null
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+
+        chars.forEach(c => gsap.set(c, { display: 'none' }))
+        gsap.set(caret, { opacity: 1 })
+        gsap.set(meta,  { opacity: 0 })
+
+        const start = 0.18
+        tl = gsap.timeline()
+        chars.forEach((c, i) => {
+          tl.set(c, { display: 'inline-block' }, start + i * STEP)
+        })
+        const done = start + chars.length * STEP + 0.18
+        tl.to(caret, { opacity: 0, duration: 0.22, ease: 'power1.out' }, done)
+        tl.to(meta,  { opacity: 1, duration: 0.35, ease: 'power2.out' }, done + 0.10)
+        tl.set(caret, { opacity: 1 }, done + 0.22 + 0.55)
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

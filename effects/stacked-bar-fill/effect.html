@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Stacked Bar Fill · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.sbf-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;padding:14px 16px;gap:10px}
+.sbf-bar-wrap{width:85%;height:22px;border-radius:6px;background:#f0efed;overflow:hidden;display:flex}
+.sbf-seg{height:100%;min-width:0}
+.sbf-legend{display:flex;flex-wrap:wrap;gap:6px 12px;font-family:'Outfit',sans-serif;font-size:9px;color:#555;justify-content:center}
+.sbf-legend-item{display:flex;align-items:center;gap:4px}
+.sbf-legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="stacked-bar-fill"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='sbf-stage'>
+      <div style='font-family:Outfit,sans-serif;font-size:11px;font-weight:600;color:#222;width:85%;display:flex;justify-content:space-between'><span>Spending</span><span style='font-size:14px;font-weight:700'>$4,325</span></div>
+      <div class='sbf-bar-wrap' data-sbf-bar></div>
+      <div class='sbf-legend' data-sbf-legend></div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "stacked-bar-fill",
+  "display": "Stacked Bar Fill",
+  "cat": "Data Viz",
+  "isNew": true,
+  "source": [
+    "chatgpt-personal-finance"
+  ],
+  "desc": "Horizontal bar segments animate their widths sequentially with a green-to-blue color ramp. ChatGPT spending breakdown.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const bar = card.querySelector("[data-sbf-bar]")
+      const legend = card.querySelector("[data-sbf-legend]")
+      const data = [
+        { label: "Rent", pct: 47, color: "#1a5e3a" },
+        { label: "Groceries", pct: 18, color: "#2e9b66" },
+        { label: "Subs", pct: 13, color: "#5fcc88" },
+        { label: "Medical", pct: 4, color: "#a8e6cf" },
+        { label: "Misc", pct: 3, color: "#b0d4f1" },
+        { label: "Transit", pct: 9, color: "#4a90d9" },
+        { label: "Other", pct: 6, color: "#2563a0" }
+      ]
+      bar.innerHTML = data.map(d =>
+        `<div class='sbf-seg' data-sbf-seg style='background:${d.color}'></div>`
+      ).join("")
+      legend.innerHTML = data.map(d =>
+        `<div class='sbf-legend-item'><span class='sbf-legend-dot' style='background:${d.color}'></span>${d.label}</div>`
+      ).join("")
+      const segs = bar.querySelectorAll("[data-sbf-seg]")
+      gsap.set(segs, (i) => ({ width: data[i].pct + "%" }))
+      return () => {
+        gsap.killTweensOf(segs)
+        gsap.set(segs, { width: "0%" })
+        segs.forEach((s, i) => {
+          gsap.to(s, { width: data[i].pct + "%", duration: 0.5, ease: "power2.out", delay: 0.4 + i * 0.08 })
+        })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

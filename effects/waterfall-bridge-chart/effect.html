@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Waterfall Bridge Chart · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.wbc-card{width:100%;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-card);padding:13px 16px 11px;font-family:'Outfit','Inter',system-ui,sans-serif}
+.wbc-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;padding-bottom:7px;border-bottom:1px solid var(--line)}
+.wbc-title{font-size:12px;font-weight:650;color:var(--ink);letter-spacing:-0.01em}
+.wbc-sub{font-family:'Geist Mono',monospace;font-size:9px;font-weight:500;color:var(--ink-3);letter-spacing:0.02em}
+.wbc-plot{position:relative;width:100%}
+.wbc-bar{position:absolute;width:26px;transform:translateX(-50%);border-radius:3px}
+.wbc-val{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:'Geist Mono',monospace;font-size:9px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.wbc-bar.wbc-inc .wbc-val{color:#2e9b66}
+.wbc-bar.wbc-dec .wbc-val{color:#CF6F57}
+.wbc-bar.wbc-anchor .wbc-val{color:var(--ink)}
+.wbc-conn{position:absolute;height:1px;background:repeating-linear-gradient(90deg,var(--ink-4) 0 3px,transparent 3px 6px)}
+.wbc-axis{display:flex;margin-top:7px;padding-top:6px;border-top:1px solid var(--line)}
+.wbc-tick{flex:1;text-align:center;font-family:'Geist Mono',monospace;font-size:8.5px;font-weight:500;color:var(--ink-3);letter-spacing:0.02em}
+/* added by audit: missed by class-token matcher */
+.wbc-anchor{background:var(--ink);box-shadow:0 0 0 1px rgba(0,0,0,0.04)}
+.wbc-inc{background:#73D9AA}
+.wbc-dec{background:#E8A9A0}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="waterfall-bridge-chart"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'>
+  <div class='wbc-card' data-wbc-card>
+    <div class='wbc-head'>
+      <span class='wbc-title'>EBITDA bridge</span>
+      <span class='wbc-sub'>Q4 &rarr; Q1 &middot; $M</span>
+    </div>
+    <div class='wbc-plot' data-wbc-plot></div>
+    <div class='wbc-axis' data-wbc-axis></div>
+  </div>
+</div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "waterfall-bridge-chart",
+  "display": "Waterfall Bridge Chart",
+  "cat": "Data Viz",
+  "isNew": true,
+  "source": [
+    "claude-financial-services"
+  ],
+  "desc": "EBITDA bridge that draws bar-by-bar: a dark anchor, floating green gains and coral losses on running connectors, landing on the end anchor with values counting in. Claude for Financial Services agent templates.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const plot = card.querySelector("[data-wbc-plot]")
+      const axis = card.querySelector("[data-wbc-axis]")
+
+      // EBITDA bridge Q4 -> Q1: anchor, +gains, -losses, final anchor.
+      // 8.2 + 1.9 + 0.8 - 0.6 - 0.4 = 9.9
+      const data = [
+        { label: "Q4",   type: "anchor", lo: 0,    hi: 8.2,  val: 8.2 },
+        { label: "Rev",  type: "inc",    lo: 8.2,  hi: 10.1, val: 1.9 },
+        { label: "Save", type: "inc",    lo: 10.1, hi: 10.9, val: 0.8 },
+        { label: "Opex", type: "dec",    lo: 10.3, hi: 10.9, val: -0.6 },
+        { label: "FX",   type: "dec",    lo: 9.9,  hi: 10.3, val: -0.4 },
+        { label: "Q1",   type: "anchor", lo: 0,    hi: 9.9,  val: 9.9 }
+      ]
+
+      const PH = 112          // plot height in px (baseline at bottom)
+      // Zoomed y-range: a non-zero floor so the small deltas (0.4-1.9) read as real
+      // stepped bars instead of slivers crushed against a 0-baseline. Anchors floor here.
+      const BASE = 5.0        // y-floor (below both anchors 8.2 / 9.9)
+      const TOP  = 11.8       // y-ceiling (above the 10.9 running peak + value-label headroom)
+      const k = PH / (TOP - BASE)
+      const n = data.length
+
+      // Build bars + value labels + connectors as absolutely-positioned nodes.
+      let barsHTML = ""
+      data.forEach((d, i) => {
+        const leftPct = (i + 0.5) / n * 100
+        const barLo = Math.max(d.lo, BASE)         // anchors (lo:0) floor at the zoomed BASE
+        const bottomPx = (barLo - BASE) * k
+        const hPx = Math.max((d.hi - barLo) * k, 2)
+        const cls = "wbc-bar wbc-" + d.type
+        const sign = d.type === "inc" ? "+" : (d.type === "dec" ? "−" : "")
+        const absv = Math.abs(d.val).toFixed(1)
+        const lbl = d.type === "anchor" ? absv : sign + absv
+        barsHTML +=
+          "<div class='" + cls + "' data-wbc-bar style='left:" + leftPct + "%;bottom:" + bottomPx + "px;height:" + hPx + "px'>" +
+            "<span class='wbc-val' data-wbc-val style='bottom:" + (hPx + 3) + "px'>" + lbl + "</span>" +
+          "</div>"
+      })
+
+      // Connectors: thin dashed line at each running-total level between bar i and i+1.
+      let connHTML = ""
+      for (let i = 0; i < n - 1; i++) {
+        const level = data[i].type === "dec" ? data[i].lo : data[i].hi  // running total carried into next bar
+        const lA = (i + 0.5) / n * 100
+        const lB = (i + 1.5) / n * 100
+        const widthPct = lB - lA
+        connHTML +=
+          "<div class='wbc-conn' data-wbc-conn style='left:" + lA + "%;width:" + widthPct + "%;bottom:" + ((level - BASE) * k) + "px'></div>"
+      }
+
+      plot.style.height = PH + "px"
+      plot.innerHTML = connHTML + barsHTML
+      axis.innerHTML = data.map(d => "<span class='wbc-tick'>" + d.label + "</span>").join("")
+
+      const bars = plot.querySelectorAll("[data-wbc-bar]")
+      const vals = plot.querySelectorAll("[data-wbc-val]")
+      const conns = plot.querySelectorAll("[data-wbc-conn]")
+
+      // Resting state: fully drawn bridge, all labels + connectors visible.
+      gsap.set(bars, { scaleY: 1, autoAlpha: 1, transformOrigin: "bottom" })
+      gsap.set(vals, { autoAlpha: 1, y: 0 })
+      gsap.set(conns, { autoAlpha: 0.55, scaleX: 1, transformOrigin: "left" })
+
+      let tl = null
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+        gsap.killTweensOf([...bars, ...vals, ...conns])
+
+        // Hidden start: bars collapsed to baseline, labels + connectors gone.
+        gsap.set(bars, { scaleY: 0, autoAlpha: 1, transformOrigin: "bottom" })
+        gsap.set(vals, { autoAlpha: 0, y: 4 })
+        gsap.set(conns, { autoAlpha: 0, scaleX: 0, transformOrigin: "left" })
+
+        tl = gsap.timeline({ delay: 0.35 })
+        bars.forEach((bar, i) => {
+          const at = i * 0.16
+          tl.to(bar, { scaleY: 1, duration: 0.32, ease: "power2.out" }, at)
+          tl.to(vals[i], { autoAlpha: 1, y: 0, duration: 0.2, ease: "power2.out" }, at + 0.18)
+          // Connector from this bar to the next draws as the bar finishes.
+          if (i < conns.length) {
+            tl.to(conns[i], { autoAlpha: 0.55, scaleX: 1, duration: 0.22, ease: "power2.out" }, at + 0.2)
+          }
+        })
+        // Hold the completed bridge so it reads.
+        tl.to({}, { duration: 1.4 })
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

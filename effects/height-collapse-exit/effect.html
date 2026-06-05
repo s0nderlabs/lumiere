@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Swipe-to-Dismiss · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.status-line{
+    font-family:'Geist Mono',monospace;font-size:11px;color:var(--ink-2);
+    background:var(--paper);border:1px solid var(--line);
+    padding:8px 14px;border-radius:8px;
+    display:flex;justify-content:space-between;width:80%;max-width:280px;
+  }
+.status-line .v{color:var(--ink);font-weight:500}
+.status-k{color:var(--ink-3);font-family:'Geist Mono',monospace;font-size:11px}
+.status-line{transition:background .35s, border-color .35s}
+.status-line .v{transition:color .35s}
+.status-line.flash{
+    background:rgba(46,155,102,0.10);
+    border-color:rgba(46,155,102,0.45);
+  }
+html.theme-dark .status-line.flash{
+    background:rgba(95,204,136,0.15);
+    border-color:rgba(95,204,136,0.5);
+  }
+.status-line.flash .v{color:var(--proof-green)}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="height-collapse-exit"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'>
+      <div style='display:flex;flex-direction:column;gap:8px;width:75%;max-width:250px;overflow:hidden'>
+        <div class='status-line' style='border-radius:10px;padding:10px 14px'><span class='status-k'>specter</span><span class='v' style='color:var(--proof-green)'>deployed</span></div>
+        <div data-hc style='overflow:hidden'>
+          <div class='status-line' data-hc-inner style='border-radius:10px;padding:10px 14px'><span class='status-k'>auditor</span><span class='v' style='color:var(--signal-blue)'>syncing</span></div>
+        </div>
+        <div class='status-line' style='border-radius:10px;padding:10px 14px'><span class='status-k'>scout</span><span class='v'>queued</span></div>
+        <div class='status-line' style='border-radius:10px;padding:10px 14px'><span class='status-k'>oracle</span><span class='v'>queued</span></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "height-collapse-exit",
+  "display": "Swipe-to-Dismiss",
+  "cat": "UI",
+  "source": [
+    "claude-code-agent-view"
+  ],
+  "desc": "Row swipes right to exit, then the column collapses the gap. iOS-style list removal. Use for dismissable items, notification clearing, queue management.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const wrap = card.querySelector("[data-hc]")
+      const inner = card.querySelector("[data-hc-inner]")
+      const ROW_H = 38
+      const restore = () => {
+        gsap.set(inner, { x: 0, opacity: 1 })
+        gsap.set(wrap, { height: ROW_H, marginBottom: 0 })
+      }
+      restore()
+      return () => {
+        gsap.killTweensOf([inner, wrap])
+        restore()
+        const tl = gsap.timeline({ delay: 1.2 })
+        /* swipe the row right + fade */
+        tl.to(inner, { x: 300, opacity: 0, duration: 0.4, ease: "power3.in" })
+        /* collapse the wrapper height so rows below slide up */
+        tl.to(wrap, { height: 0, marginBottom: -8, duration: 0.35, ease: "power2.inOut" }, "-=0.1")
+        /* restore: expand wrapper, slide row back from left */
+        tl.set(inner, { x: -60, opacity: 0 }, "+=1.6")
+        tl.to(wrap, { height: ROW_H, marginBottom: 0, duration: 0.3, ease: "power2.out" })
+        tl.to(inner, { x: 0, opacity: 1, duration: 0.35, ease: "power2.out" }, "<+0.1")
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Value Flip · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.status-line{
+    font-family:'Geist Mono',monospace;font-size:11px;color:var(--ink-2);
+    background:var(--paper);border:1px solid var(--line);
+    padding:8px 14px;border-radius:8px;
+    display:flex;justify-content:space-between;width:80%;max-width:280px;
+  }
+.status-line .v{color:var(--ink);font-weight:500}
+.status-k{color:var(--ink-3);font-family:'Geist Mono',monospace;font-size:11px}
+.status-line{transition:background .35s, border-color .35s}
+.status-line .v{transition:color .35s}
+.status-line.flash{
+    background:rgba(46,155,102,0.10);
+    border-color:rgba(46,155,102,0.45);
+  }
+html.theme-dark .status-line.flash{
+    background:rgba(95,204,136,0.15);
+    border-color:rgba(95,204,136,0.5);
+  }
+.status-line.flash .v{color:var(--proof-green)}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="value-flip"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage' style='flex-direction:column;gap:8px'>
+      <div class='status-line'><span class='status-k'>balance · A</span><span class='v' data-sa>12.50</span></div>
+      <div class='status-line'><span class='status-k'>compute · A</span><span class='v' data-sc>14.20</span></div>
+      <div class='status-line'><span class='status-k'>balance · B</span><span class='v' data-aa>3.10</span></div>
+      <div class='status-line'><span class='status-k'>compute · B</span><span class='v' data-ac>8.10</span></div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "value-flip",
+  "display": "Value Flip",
+  "cat": "UI",
+  "source": [
+    "claude-code-goal",
+    "claude-code-agent-view",
+    "claude-code-ultrareview",
+    "claude-financial-services"
+  ],
+  "desc": "Values swap in place with a proof-green row flash that settles back to neutral. Use for statusline updates, ticker rolls, or any numeric that proves something changed.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const sa = card.querySelector("[data-sa]")
+      const sc = card.querySelector("[data-sc]")
+      const aa = card.querySelector("[data-aa]")
+      const ac = card.querySelector("[data-ac]")
+      const initial = ["12.50", "14.20", "3.10", "8.10"]
+      const after   = ["7.50",  "13.55", "8.10", "7.30"]
+      const els = [sa, sc, aa, ac]
+      const rows = els.map(el => el.parentElement)
+      function apply(vals) { els.forEach((el, i) => el.textContent = vals[i]) }
+      function flashRow(row) {
+        row.classList.add("flash")
+        setTimeout(() => row.classList.remove("flash"), 650)
+      }
+      apply(initial)
+      let timers = []
+      return () => {
+        timers.forEach(t => clearTimeout(t))
+        timers = []
+        rows.forEach(r => r.classList.remove("flash"))
+        apply(initial)
+        /* stagger: rows flip one at a time in varied (non-sequential) order */
+        const order1 = [2, 0, 3, 1]
+        const order2 = [1, 3, 0, 2]
+        const GAP = 380
+        order1.forEach((idx, step) => {
+          timers.push(setTimeout(() => {
+            els[idx].textContent = after[idx]
+            flashRow(rows[idx])
+          }, 800 + step * GAP))
+        })
+        order2.forEach((idx, step) => {
+          timers.push(setTimeout(() => {
+            els[idx].textContent = initial[idx]
+            flashRow(rows[idx])
+          }, 3400 + step * GAP))
+        })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Tool-Call Cascade · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.tool-pane{
+    width:80%;background:var(--paper-2);border:1px solid var(--line);
+    border-radius:12px;padding:14px 18px;
+  }
+.tool-row{font-family:'Geist Mono',monospace;font-size:11px;color:var(--ink);line-height:1.7;padding:1px 0;opacity:0}
+.tool-row .glyph{color:var(--proof-green)}
+.tool-row .name{color:var(--ink);margin-left:4px}
+.tool-row .args{color:var(--ink-3);margin-left:2px}
+.tool-row.res{color:var(--ink-2);padding-left:14px}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="tool-cascade"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'><div class='tool-pane'>
+      <div class='tool-row'><span class='glyph'>●</span> <span class='name'>web.search</span><span class='args'>("eip-7702")</span></div>
+      <div class='tool-row res'>└ 12 results</div>
+      <div class='tool-row'><span class='glyph'>●</span> <span class='name'>fetch</span><span class='args'>("ethereum.org")</span></div>
+      <div class='tool-row res'>└ 3.4 kb · cached</div>
+      <div class='tool-row'><span class='glyph'>●</span> <span class='name'>summarize</span><span class='args'>(tokens=420)</span></div>
+      <div class='tool-row res'>└ ok</div>
+    </div></div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "tool-cascade",
+  "display": "Tool-Call Cascade",
+  "cat": "UI",
+  "source": [
+    "claude-code-goal",
+    "claude-code-agent-view",
+    "claude-code-push-notifications",
+    "claude-code-ultrareview",
+    "claude-code-session-recaps",
+    "claude-financial-services"
+  ],
+  "desc": "Per-block staggered lift for agent logs, command output, anything emitting block-by-block.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const rows = card.querySelectorAll(".tool-row")
+      gsap.set(rows, { opacity: 1, y: 0 })
+      return () => {
+        gsap.killTweensOf(rows)
+        gsap.set(rows, { opacity: 1, y: 0 })
+        gsap.set(rows, { opacity: 0, y: 4 })
+        gsap.to(rows, { opacity: 1, y: 0, duration: 0.3, ease: "power2.out", stagger: 0.22, delay: 0.2 })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Status Cycle · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.sc-wrap {
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.sc-bubble {
+  align-self: flex-end;
+  max-width: 80%;
+  background: var(--cream-warm);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 14px 14px 4px 14px;
+  padding: 9px 14px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.sc-userline { white-space: nowrap; }
+.sc-statusrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 2px;
+}
+.sc-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  flex: 0 0 auto;
+}
+.sc-line {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sc-label {
+  position: relative;
+  z-index: 1;
+}
+.sc-chev {
+  position: relative;
+  z-index: 1;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-4);
+  transform: translateY(-0.5px);
+}
+.sc-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(
+    90deg,
+    rgba(249, 248, 246, 0) 0%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(249, 248, 246, 0) 100%
+  );
+  mix-blend-mode: overlay;
+  opacity: 0;
+}
+.sc-resp {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+  padding-left: 2px;
+}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="status-cycle"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'>
+  <div class='sc-wrap'>
+    <div class='sc-bubble'>
+      <div class='sc-userline'>Am I paying for subscriptions I don't need?</div>
+    </div>
+    <div class='sc-statusrow'>
+      <span class='sc-dot' data-sc-dot></span>
+      <span class='sc-line' data-sc-line>
+        <span class='sc-label' data-sc-label>Thought for 7s</span>
+        <span class='sc-chev' data-sc-chev>&rsaquo;</span>
+        <span class='sc-shimmer' data-sc-shimmer></span>
+      </span>
+    </div>
+    <div class='sc-resp' data-sc-resp>Here is a breakdown of your recurring charges.</div>
+  </div>
+</div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "status-cycle",
+  "display": "Status Cycle",
+  "cat": "Chat",
+  "isNew": true,
+  "source": [
+    "chatgpt-personal-finance"
+  ],
+  "desc": "Inline gray status line cycles Thinking, Querying, Received, Thought for Ns with a left-to-right shimmer band over the active labels. Final settled state is the collapsible Thought-for chevron. ChatGPT finance video reasoning indicator.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const line = card.querySelector("[data-sc-line]")
+      const label = card.querySelector("[data-sc-label]")
+      const chev = card.querySelector("[data-sc-chev]")
+      const shimmer = card.querySelector("[data-sc-shimmer]")
+      const dot = card.querySelector("[data-sc-dot]")
+      const resp = card.querySelector("[data-sc-resp]")
+
+      // The label sequence. The first three are transient reasoning states;
+      // the last is the final settled, collapsible "Thought for Ns" state.
+      // active=true means the shimmer band sweeps across the text while it shows.
+      const states = [
+        { text: "Thinking",                 chev: false, active: true,  hold: 0.7 },
+        { text: "Querying financial data",  chev: false, active: true,  hold: 0.9 },
+        { text: "Received financial data",  chev: false, active: false, hold: 0.7 },
+        { text: "Thought for 7s",           chev: true,  active: false, hold: 0.0 }
+      ]
+      const finalState = states[states.length - 1]
+
+      let tl = null
+      let shimmerTween = null
+      let dotTween = null
+
+      function stopShimmer() {
+        if (shimmerTween) { shimmerTween.kill(); shimmerTween = null }
+        gsap.set(shimmer, { opacity: 0, xPercent: 0 })
+      }
+      function startShimmer() {
+        stopShimmer()
+        // sweep the highlight band from off the left edge to off the right edge,
+        // looping forever while the active state is held.
+        gsap.set(shimmer, { opacity: 1, xPercent: -100 })
+        shimmerTween = gsap.to(shimmer, {
+          xPercent: 230,
+          duration: 0.9,
+          ease: "power1.inOut",
+          repeat: -1
+        })
+      }
+      function stopDot() {
+        if (dotTween) { dotTween.kill(); dotTween = null }
+      }
+      function startDotPulse() {
+        stopDot()
+        gsap.set(dot, { opacity: 1, scale: 1 })
+        dotTween = gsap.to(dot, {
+          opacity: 0.35,
+          scale: 0.7,
+          duration: 0.55,
+          ease: "sine.inOut",
+          repeat: -1,
+          yoyo: true
+        })
+      }
+
+      function applySettled() {
+        // resting state shown on first render and at end of replay
+        stopShimmer()
+        stopDot()
+        label.textContent = finalState.text
+        gsap.set(label, { opacity: 1 })
+        gsap.set(chev, { opacity: 1, display: "inline-block" })
+        gsap.set(dot, { opacity: 0, scale: 1 })
+        gsap.set(line, { opacity: 1 })
+        gsap.set(resp, { opacity: 1, y: 0 })
+      }
+
+      // IDLE: final settled "Thought for 7s >" state
+      applySettled()
+
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+        stopShimmer()
+        stopDot()
+
+        // reset to the very first reasoning state, response hidden
+        label.textContent = states[0].text
+        gsap.set(label, { opacity: 1 })
+        gsap.set(chev, { opacity: 0, display: "none" })
+        gsap.set(dot, { opacity: 1, scale: 1 })
+        gsap.set(line, { opacity: 0 })
+        gsap.set(resp, { opacity: 0, y: 6 })
+        gsap.set(shimmer, { opacity: 0, xPercent: -100 })
+
+        tl = gsap.timeline()
+
+        // line + dot fade in
+        tl.to(line, { opacity: 1, duration: 0.25, ease: "power2.out" }, 0)
+        tl.call(startDotPulse, null, 0)
+
+        let t = 0.25
+        states.forEach((st, i) => {
+          const isLast = i === states.length - 1
+          // when entering a new state (after the first), fade out old text, swap, fade in
+          if (i > 0) {
+            tl.to(label, { opacity: 0, duration: 0.15, ease: "power1.in" }, t)
+            tl.call(() => {
+              label.textContent = st.text
+              if (st.chev) { gsap.set(chev, { display: "inline-block", opacity: 0 }) }
+            }, null, t + 0.15)
+            tl.to(label, { opacity: 1, duration: 0.15, ease: "power1.out" }, t + 0.15)
+            if (st.chev) tl.to(chev, { opacity: 1, duration: 0.2, ease: "power2.out" }, t + 0.15)
+            t += 0.3
+          }
+          // toggle shimmer for this state
+          tl.call(st.active ? startShimmer : stopShimmer, null, t)
+          if (isLast) {
+            // settle: dot fades away, response appears
+            tl.call(stopDot, null, t)
+            tl.to(dot, { opacity: 0, duration: 0.3, ease: "power1.out" }, t)
+            tl.to(resp, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }, t + 0.1)
+          }
+          t += st.hold
+        })
+
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

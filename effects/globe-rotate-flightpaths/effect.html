@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Dotted Globe with Flight-Path Arcs · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.grf-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#15140f;padding:14px}
+.grf-stage::before{content:'';position:absolute;inset:0;background:radial-gradient(circle, #1d1b14 0%, #100f0b 78%);pointer-events:none}
+.grf-frame{position:relative;width:200px;height:200px;filter:drop-shadow(0 8px 22px rgba(0,0,0,0.5))}
+.grf-svg{width:200px;height:200px;display:block;shape-rendering:geometricPrecision}
+.grf-par{fill:none;stroke:#a8523c;stroke-width:0.7;stroke-opacity:0.22}
+.grf-mer{fill:none;stroke:#a8523c;stroke-width:0.7}
+.grf-rim{fill:none;stroke:#cc6b54;stroke-width:1.4;stroke-opacity:0.6}
+.grf-arc{fill:none;stroke:#cc6b54;stroke-width:1.6;stroke-linecap:round}
+.grf-pin{fill:#cc6b54;stroke:#ffffff;stroke-width:0.6}
+.grf-drop{stroke:#cc6b54;stroke-width:0.9;stroke-opacity:0.7}
+.grf-chip{position:absolute;transform:translate(-50%,-100%);font-family:'Geist Mono',monospace;font-size:8px;font-weight:600;letter-spacing:0.04em;color:#ffffff;background:#cc6b54;padding:2.5px 6px;border-radius:6px;line-height:1;white-space:nowrap;box-shadow:0 2px 5px rgba(0,0,0,0.35)}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="globe-rotate-flightpaths"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='grf-stage'>
+    <div class='grf-frame'>
+      <svg class='grf-svg' viewBox='0 0 200 200' data-grf-svg>
+        <defs>
+          <clipPath id='grf-disc'><circle cx='100' cy='100' r='82'/></clipPath>
+          <radialGradient id='grf-sphere' cx='37%' cy='30%' r='78%'>
+            <stop offset='0%' stop-color='#edeada'/>
+            <stop offset='52%' stop-color='#d8d5c0'/>
+            <stop offset='100%' stop-color='#b6b39c'/>
+          </radialGradient>
+          <radialGradient id='grf-vig' cx='50%' cy='50%' r='50%'>
+            <stop offset='68%' stop-color='#1a1610' stop-opacity='0'/>
+            <stop offset='100%' stop-color='#1a1610' stop-opacity='0.32'/>
+          </radialGradient>
+        </defs>
+        <g clip-path='url(#grf-disc)'>
+          <circle cx='100' cy='100' r='82' fill='url(#grf-sphere)'/>
+          <g class='grf-land' data-grf-land></g>
+          <g class='grf-grat'>
+            <ellipse class='grf-par' cx='100' cy='100' rx='82' ry='16'/>
+            <ellipse class='grf-par' cx='100' cy='62'  rx='71' ry='12'/>
+            <ellipse class='grf-par' cx='100' cy='138' rx='71' ry='12'/>
+            <ellipse class='grf-par' cx='100' cy='34'  rx='45' ry='7'/>
+            <ellipse class='grf-par' cx='100' cy='166' rx='45' ry='7'/>
+            <g class='grf-mers' data-grf-mers></g>
+          </g>
+          <circle cx='100' cy='100' r='82' fill='url(#grf-vig)'/>
+        </g>
+        <circle class='grf-rim' cx='100' cy='100' r='82'/>
+        <g class='grf-arcs' data-grf-arcs>
+          <path class='grf-arc' data-grf-arc d='M 58 118 Q 100 36 150 92'/>
+          <path class='grf-arc' data-grf-arc d='M 150 92 Q 132 138 92 142'/>
+        </g>
+        <g class='grf-cities' data-grf-cities>
+          <g class='grf-city' data-grf-city>
+            <line class='grf-drop' x1='58' y1='118' x2='58' y2='100'/>
+            <rect class='grf-pin' x='55.5' y='115.5' width='5' height='5' rx='1'/>
+          </g>
+          <g class='grf-city' data-grf-city>
+            <line class='grf-drop' x1='150' y1='92' x2='150' y2='74'/>
+            <rect class='grf-pin' x='147.5' y='89.5' width='5' height='5' rx='1'/>
+          </g>
+          <g class='grf-city' data-grf-city>
+            <line class='grf-drop' x1='92' y1='142' x2='92' y2='124'/>
+            <rect class='grf-pin' x='89.5' y='139.5' width='5' height='5' rx='1'/>
+          </g>
+        </g>
+      </svg>
+      <div class='grf-chip' data-grf-chip style='left:51px;top:88px'>SF</div>
+      <div class='grf-chip' data-grf-chip style='left:152px;top:60px'>LDN</div>
+      <div class='grf-chip' data-grf-chip style='left:84px;top:114px'>TYO</div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "globe-rotate-flightpaths",
+  "display": "Dotted Globe with Flight-Path Arcs",
+  "cat": "Data Viz",
+  "isNew": true,
+  "source": [
+    "code-w-claude-conf"
+  ],
+  "desc": "A shaded 3D globe rotates: a sweeping meridian wireframe over latitude rings and drifting continents, with terracotta great-circle arcs drawing between pinned city chips that drop in pin-first. From the Code w/ Claude conference poster.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const NS = "http://www.w3.org/2000/svg"
+    const landG = card.querySelector("[data-grf-land]")
+    const merG  = card.querySelector("[data-grf-mers]")
+    const arcs  = Array.from(card.querySelectorAll("[data-grf-arc]"))
+    const pins  = Array.from(card.querySelectorAll(".grf-pin"))
+    const drops = Array.from(card.querySelectorAll(".grf-drop"))
+    const chips = Array.from(card.querySelectorAll("[data-grf-chip]"))
+
+    // continents: soft terracotta dot-clusters in latitude bands, duplicated at +200 for a seamless scroll
+    if (!landG.childNodes.length) {
+      const TILE = 200
+      let seed = 7
+      const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280 }
+      const dots = []
+      for (let i = 0; i < 96; i++) {
+        const band = [52, 84, 116, 148][Math.floor(rnd() * 4)]
+        const x = rnd() * TILE
+        const y = band + (rnd() - 0.5) * 26
+        if (y < 30 || y > 170) continue
+        dots.push({ x, y, r: 1.2 + rnd() * 1.1 })
+      }
+      const paint = (xOff) => dots.forEach(d => {
+        const c = document.createElementNS(NS, "circle")
+        c.setAttribute("cx", String(d.x + xOff)); c.setAttribute("cy", String(d.y)); c.setAttribute("r", String(d.r))
+        c.setAttribute("fill", "#8a5a3e"); c.setAttribute("fill-opacity", "0.5")
+        landG.appendChild(c)
+      })
+      paint(0); paint(200)
+    }
+
+    // meridian wireframe: ellipses sharing the poles, rx swept by a phase proxy -> reads as rotation
+    const MER = 6
+    const mers = []
+    for (let j = 0; j < MER; j++) {
+      const e = document.createElementNS(NS, "ellipse")
+      e.setAttribute("cx", "100"); e.setAttribute("cy", "100"); e.setAttribute("ry", "82")
+      e.setAttribute("class", "grf-mer")
+      merG.appendChild(e); mers.push(e)
+    }
+    const phase = { v: 0 }
+    const drawMers = () => {
+      for (let j = 0; j < MER; j++) {
+        const c = Math.cos(phase.v + j * Math.PI / MER)
+        mers[j].setAttribute("rx", (82 * Math.abs(c)).toFixed(1))
+        mers[j].setAttribute("stroke-opacity", (0.06 + 0.2 * Math.abs(c)).toFixed(3))
+      }
+    }
+    drawMers()
+
+    const arcLens = arcs.map(a => (a.getTotalLength ? a.getTotalLength() : 120))
+
+    // resting state: globe mid-rotation, arcs drawn, pins seated, chips placed
+    gsap.set(landG, { x: 0 })
+    arcs.forEach((a, i) => gsap.set(a, { strokeDasharray: arcLens[i], strokeDashoffset: 0, autoAlpha: 1 }))
+    gsap.set(pins, { y: 0, autoAlpha: 1 })
+    gsap.set(drops, { autoAlpha: 0.5, scaleY: 1, transformOrigin: "top" })
+    gsap.set(chips, { autoAlpha: 1, y: 0, scale: 1 })
+
+    // ambient rotation: meridians sweep + continents drift, in lockstep, kept alive across replays
+    let spinM = null, spinL = null
+    const startSpin = () => {
+      if (spinM) spinM.kill()
+      if (spinL) spinL.kill()
+      phase.v = 0; gsap.set(landG, { x: 0 })
+      spinM = gsap.to(phase, { v: Math.PI, duration: 9, ease: "none", repeat: -1, onUpdate: drawMers })
+      spinL = gsap.to(landG, { x: -200, duration: 18, ease: "none", repeat: -1 })
+    }
+    startSpin()
+
+    let tl = null
+    return function replay() {
+      if (tl) { tl.kill(); tl = null }
+      gsap.killTweensOf([...arcs, ...pins, ...drops, ...chips])
+      startSpin()
+
+      arcs.forEach((a, i) => gsap.set(a, { strokeDasharray: arcLens[i], strokeDashoffset: arcLens[i], autoAlpha: 1 }))
+      gsap.set(pins, { y: -11, autoAlpha: 0 })
+      gsap.set(drops, { autoAlpha: 0, scaleY: 0, transformOrigin: "top" })
+      gsap.set(chips, { autoAlpha: 0, y: -8, scale: 0.85 })
+
+      tl = gsap.timeline()
+      pins.forEach((pin, i) => {
+        const at = 0.35 + i * 0.3
+        tl.to(pin, { y: 0, autoAlpha: 1, duration: 0.32, ease: "back.out(1.6)" }, at)
+        tl.to(drops[i], { scaleY: 1, autoAlpha: 0.5, duration: 0.22, ease: "power2.out" }, at + 0.12)
+        tl.to(chips[i], { y: 0, scale: 1, autoAlpha: 1, duration: 0.34, ease: "back.out(1.5)" }, at + 0.16)
+      })
+      arcs.forEach((a, i) => {
+        tl.to(a, { strokeDashoffset: 0, duration: 0.55, ease: "power2.out" }, 0.95 + i * 0.4)
+      })
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Agent Self-Check Line · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.ascl-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.ascl-pane{width:84%;background:#2B2B28;border:1px solid rgba(239,236,227,0.07);border-radius:12px;padding:11px 18px;box-shadow:0 14px 34px -22px rgba(0,0,0,0.6)}
+.ascl-row{font-family:'Geist Mono',monospace;font-size:11px;line-height:1.6;color:#E8E4DA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ascl-glyph{color:#5fcc88;font-size:9px;vertical-align:middle}
+.ascl-name{color:#E8E4DA;font-weight:700;margin-left:6px}
+.ascl-args{color:#7f7c74;margin-left:3px}
+.ascl-res{color:#9A958C;padding-left:14px;font-size:10.5px}
+.ascl-pass{color:#5fcc88}
+.ascl-check{padding-left:2px;font-weight:300}
+.ascl-hollow{color:#9A958C;font-size:9px;vertical-align:middle}
+.ascl-think{color:#9A958C;margin-left:6px;font-style:italic;font-weight:300}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="agent-selfcheck-line"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage ascl-stage'>
+    <div class='ascl-pane'>
+      <div class='ascl-row ascl-tool' data-ascl>
+        <span class='ascl-glyph'>●</span><span class='ascl-name'>Bash</span><span class='ascl-args'>(bun test)</span>
+      </div>
+      <div class='ascl-row ascl-res' data-ascl>└ 3 failing</div>
+      <div class='ascl-row ascl-check' data-ascl>
+        <span class='ascl-hollow'>○</span><span class='ascl-think'>Goal not yet met… continuing</span>
+      </div>
+      <div class='ascl-row ascl-tool' data-ascl>
+        <span class='ascl-glyph'>●</span><span class='ascl-name'>Edit</span><span class='ascl-args'>(parser.ts)</span>
+      </div>
+      <div class='ascl-row ascl-res' data-ascl>└ patched assertion</div>
+      <div class='ascl-row ascl-check' data-ascl>
+        <span class='ascl-hollow'>○</span><span class='ascl-think'>Goal not yet met… continuing</span>
+      </div>
+      <div class='ascl-row ascl-tool' data-ascl>
+        <span class='ascl-glyph'>●</span><span class='ascl-name'>Bash</span><span class='ascl-args'>(bun test)</span>
+      </div>
+      <div class='ascl-row ascl-res ascl-pass' data-ascl>└ all passing · goal achieved</div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "agent-selfcheck-line",
+  "display": "Agent Self-Check Line",
+  "cat": "Chat",
+  "isNew": true,
+  "source": [
+    "claude-code-goal"
+  ],
+  "desc": "A de-emphasized hollow-bullet inner-monologue row ('Goal not yet met... continuing') lifts in between bold tool-call cards, codifying the agentic-loop thinking beat. Claude Code /goal feature.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const rows = card.querySelectorAll("[data-ascl]")
+    const restOpacity = i => card.querySelectorAll("[data-ascl]")[i].classList.contains("ascl-check") ? 0.8 : 1
+    rows.forEach((r, i) => gsap.set(r, { opacity: restOpacity(i), y: 0 }))
+    return () => {
+      gsap.killTweensOf(rows)
+      const tl = gsap.timeline({ delay: 0.25 })
+      rows.forEach((r, i) => {
+        const target = r.classList.contains("ascl-check") ? 0.8 : 1
+        gsap.set(r, { opacity: 0, y: 8 })
+        tl.to(r, { opacity: target, y: 0, duration: 0.25, ease: "power2.out" }, i === 0 ? 0 : "+=0.18")
+      })
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

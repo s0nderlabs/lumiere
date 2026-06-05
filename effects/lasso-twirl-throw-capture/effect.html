@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Lasso Twirl, Throw & Capture · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.ltt-stage{
+    position:absolute;inset:0;overflow:hidden;
+    background:#EFEFE5;
+    background-image:radial-gradient(circle, rgba(21,20,15,0.05) 1px, transparent 1px);
+    background-size:16px 16px;
+    font-family:'Geist Mono','SFMono-Regular',monospace;
+  }
+.ltt-cowboy{
+    position:absolute;left:28px;bottom:30px;
+    width:54px;height:66px;z-index:3;
+    image-rendering:pixelated;
+  }
+.ltt-cowboy svg{display:block;width:100%;height:100%}
+.ltt-svg{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
+.ltt-loop{
+    position:absolute;left:0;top:0;
+    width:38px;height:20px;
+    border:3px solid #c9962e;border-radius:50%;
+    background:transparent;z-index:5;pointer-events:none;
+    will-change:transform,width,height;
+  }
+.ltt-card{
+    position:absolute;left:152px;top:100px;
+    width:120px;height:30px;box-sizing:border-box;
+    display:flex;align-items:center;gap:7px;padding:0 11px;
+    border-radius:9px;background:#fff;
+    border:1px solid rgba(21,20,15,0.1);
+    box-shadow:0 7px 18px -10px rgba(0,0,0,0.34);
+    z-index:4;will-change:transform,opacity;
+  }
+.ltt-cdot{width:6px;height:6px;border-radius:50%;background:#c9962e;flex-shrink:0}
+.ltt-cname{font-size:10px;font-weight:600;color:#15140F;white-space:nowrap}
+.ltt-cel{margin-left:auto;font-size:9px;color:#9C968B}
+.ltt-list{
+    position:absolute;right:16px;top:22px;width:128px;
+    background:#fff;border-radius:12px;
+    box-shadow:0 8px 22px -12px rgba(0,0,0,0.3);
+    padding:9px;z-index:1;
+  }
+.ltt-list-hd{
+    font-size:8px;letter-spacing:0.14em;text-transform:uppercase;color:#9C968B;
+    margin-bottom:7px;display:flex;align-items:center;gap:4px;
+  }
+.ltt-hd-ic{color:#c9962e;font-size:10px;line-height:1}
+.ltt-slot{
+    display:flex;align-items:center;gap:7px;height:24px;
+    border-radius:7px;padding:0 8px;background:#F5F2EC;margin-bottom:6px;
+  }
+.ltt-slot:last-child{margin-bottom:0}
+.ltt-slot-pending{background:transparent;border:1px dashed rgba(21,20,15,0.18)}
+.ltt-rdot{width:6px;height:6px;border-radius:50%;background:#73D9AA;flex-shrink:0}
+.ltt-rname{font-size:9.5px;font-weight:600;color:#15140F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ltt-rel{margin-left:auto;font-size:8.5px;color:#9C968B}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="lasso-twirl-throw-capture"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage ltt-stage'>
+      <div class='ltt-list' data-ltt-list>
+        <div class='ltt-list-hd'><span class='ltt-hd-ic'>&#9678;</span> captured</div>
+        <div class='ltt-slot'><span class='ltt-rdot'></span><span class='ltt-rname'>auth-refactor</span><span class='ltt-rel'>3m</span></div>
+        <div class='ltt-slot ltt-slot-pending' data-ltt-slot1></div>
+      </div>
+      <div class='ltt-card' data-ltt-card><span class='ltt-cdot'></span><span class='ltt-cname'>flaky-test</span><span class='ltt-cel'>12s</span></div>
+      <svg class='ltt-svg' viewBox='0 0 360 240' preserveAspectRatio='none' aria-hidden='true'>
+        <path class='ltt-rope' data-ltt-rope fill='none' stroke='#c9962e' stroke-width='2.5' stroke-linecap='round'></path>
+      </svg>
+      <div class='ltt-loop' data-ltt-loop></div>
+      <div class='ltt-cowboy'>
+        <svg viewBox='0 0 54 66' shape-rendering='crispEdges' aria-hidden='true'>
+          <ellipse cx='27' cy='63' rx='15' ry='2.4' fill='#1a1714' opacity='0.12'></ellipse>
+          <rect x='10' y='9'  width='34' height='4'  fill='#5a3d26'></rect>
+          <rect x='16' y='3'  width='22' height='7'  fill='#6b4a2e'></rect>
+          <rect x='16' y='3'  width='22' height='2'  fill='#7d5836'></rect>
+          <rect x='15' y='15' width='24' height='26' fill='#C15B3C'></rect>
+          <rect x='15' y='15' width='24' height='3'  fill='#cf6a48'></rect>
+          <rect x='9'  y='23' width='6'  height='11' fill='#A84C30'></rect>
+          <rect x='39' y='9'  width='6'  height='15' fill='#A84C30'></rect>
+          <rect x='18' y='41' width='6'  height='8'  fill='#A84C30'></rect>
+          <rect x='30' y='41' width='6'  height='8'  fill='#A84C30'></rect>
+          <rect x='20' y='23' width='5'  height='6'  fill='#1A1A1A'></rect>
+          <rect x='29' y='23' width='5'  height='6'  fill='#1A1A1A'></rect>
+        </svg>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "lasso-twirl-throw-capture",
+  "display": "Lasso Twirl, Throw & Capture",
+  "cat": "Motion",
+  "isNew": true,
+  "source": [
+    "claude-code-agent-view"
+  ],
+  "desc": "A pixel cowboy critter twirls a gold lasso overhead, throws it to rope a floating session card, then reels the catch into a captured-sessions list. From the Claude Code agent-view lasso set-piece.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const loop   = card.querySelector("[data-ltt-loop]")
+      const rope   = card.querySelector("[data-ltt-rope]")
+      const cardEl = card.querySelector("[data-ltt-card]")
+      const slot1  = card.querySelector("[data-ltt-slot1]")
+
+      // anchor points in viewport (SVG 1:1) coords
+      const HAND  = { x: 71, y: 152 }   // cowboy's raised hand
+      const OVER  = { x: 82, y: 56 }    // lasso idle, twirling overhead
+      const CARDC = { x: 212, y: 115 }  // floating session card centre
+      const DOCK  = { x: 280, y: 88 }   // pending slot centre (reel target)
+
+      gsap.set(loop, { xPercent: -50, yPercent: -50 })
+
+      // one proxy drives the loop centre + size + the rope path together (scrub-safe)
+      const lp = { x: OVER.x, y: OVER.y, w: 38, h: 20, a: 1 }
+      const drawRope = () => {
+        const mx = (HAND.x + lp.x) / 2
+        // control point at the chord midpoint + a little gravity sag, so the rope
+        // arcs naturally between hand and loop instead of being pinned below both.
+        const my = (HAND.y + lp.y) / 2 + 14
+        rope.setAttribute("d", "M" + HAND.x + " " + HAND.y + " Q" + mx.toFixed(1) + " " + my.toFixed(1) + " " + lp.x.toFixed(1) + " " + lp.y.toFixed(1))
+      }
+      const syncLoop = () => {
+        gsap.set(loop, { x: lp.x, y: lp.y, width: lp.w, height: lp.h, autoAlpha: lp.a })
+        drawRope()
+      }
+
+      // continuous overhead twirl (standalone -> spins at rest too)
+      const twirl = gsap.to(loop, { rotation: "+=360", duration: 1.4, ease: "none", repeat: -1 })
+
+      const fillSlot = () => {
+        slot1.className = "ltt-slot"
+        slot1.innerHTML = "<span class='ltt-rdot'></span><span class='ltt-rname'>flaky-test</span><span class='ltt-rel'>12s</span>"
+      }
+      const emptySlot = () => {
+        slot1.className = "ltt-slot ltt-slot-pending"
+        slot1.innerHTML = ""
+      }
+
+      // CONTENTFUL REST: the catch is already roped in -> list full, no floating card, lasso twirling
+      const applyRest = () => {
+        lp.x = OVER.x; lp.y = OVER.y; lp.w = 38; lp.h = 20; lp.a = 1; syncLoop()
+        gsap.set(cardEl, { autoAlpha: 0, x: 0, y: 0, scale: 1 })
+        fillSlot()
+      }
+      applyRest()
+
+      let tl = null
+      return function replay() {
+        if (tl) tl.kill()
+        gsap.killTweensOf(cardEl)
+        // reset to BEFORE the catch: card floating, slot pending, lasso overhead
+        lp.x = OVER.x; lp.y = OVER.y; lp.w = 38; lp.h = 20; lp.a = 1; syncLoop()
+        gsap.set(cardEl, { autoAlpha: 1, x: 0, y: 0, scale: 1, rotation: 0, transformOrigin: "50% 50%" })
+        emptySlot()
+
+        tl = gsap.timeline()
+        // 1) THROW: the loop opens and sails out to ring the card; rope trails from the hand
+        tl.to(lp, { x: CARDC.x, y: CARDC.y, w: 134, h: 42, duration: 0.5, ease: "power2.out", onUpdate: syncLoop }, 0.45)
+        // 2) CINCH: the loop snaps tight around the card; card hops as it's caught
+        tl.to(lp, { w: 122, h: 34, duration: 0.16, ease: "power3.inOut", onUpdate: syncLoop }, 0.98)
+        tl.to(cardEl, { y: -4, duration: 0.12, ease: "power2.out" }, 0.98)
+        tl.to(cardEl, { y: 0, duration: 0.14, ease: "power2.in" }, 1.10)
+        // 3) REEL: the catch is dragged toward the list, shrinking as it goes
+        tl.to(lp, { x: DOCK.x, y: DOCK.y, w: 76, h: 28, duration: 0.52, ease: "power2.inOut", onUpdate: syncLoop }, 1.4)
+        tl.to(cardEl, { x: DOCK.x - CARDC.x, y: DOCK.y - CARDC.y, scale: 0.6, duration: 0.52, ease: "power2.inOut" }, 1.4)
+        // 4) DOCK: card lands in the slot (which fills), loop slips off + flies back overhead to twirl
+        tl.add(() => { fillSlot(); gsap.set(cardEl, { autoAlpha: 0 }) }, 1.92)
+        tl.to(lp, { autoAlpha: 0, duration: 0.1, onUpdate: syncLoop }, 1.92)
+        tl.add(() => { lp.x = OVER.x; lp.y = OVER.y; lp.w = 38; lp.h = 20; syncLoop() }, 2.04)
+        tl.to(lp, { autoAlpha: 1, duration: 0.2, onUpdate: syncLoop }, 2.06)
+        // settle on the captured rest state
+        tl.to({}, { duration: 0.9 })
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

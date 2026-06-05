@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Accelerated Live Timer Badge · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.gtb-stage{position:absolute;inset:0;background:var(--paper);font-family:'Outfit',sans-serif}
+.gtb-pane{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;padding:0 26px;gap:5px}
+.gtb-line{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--ink-2)}
+.gtb-sub{font-family:'Geist Mono',monospace;font-size:10px;color:var(--ink-4);padding-left:18px;letter-spacing:-0.01em}
+.gtb-dot{width:8px;height:8px;border-radius:50%;background:#4A7FD4;box-shadow:0 0 0 4px rgba(74,127,212,0.14)}
+.gtb-done{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:#2e9b66;margin-top:8px}
+.gtb-tick{width:14px;height:14px;border-radius:50%;background:#2e9b66;position:relative;flex-shrink:0}
+.gtb-tick::after{content:"";position:absolute;left:4.5px;top:3px;width:3px;height:6px;border:1.6px solid #fff;border-top:none;border-left:none;transform:rotate(40deg)}
+.gtb-badge{position:absolute;right:14px;bottom:14px;display:flex;align-items:center;gap:7px;padding:6px 11px 6px 9px;background:rgba(74,127,212,0.10);border:1px solid rgba(74,127,212,0.24);border-radius:999px;backdrop-filter:blur(2px)}
+.gtb-glyph{position:relative;width:14px;height:14px;flex-shrink:0;display:inline-block}
+.gtb-ring,.gtb-ring2,.gtb-bull{position:absolute;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%)}
+.gtb-ring{width:14px;height:14px;border:1.5px solid #4A7FD4}
+.gtb-ring2{width:8px;height:8px;border:1.5px solid rgba(74,127,212,0.55)}
+.gtb-bull{width:3.5px;height:3.5px;background:#4A7FD4}
+.gtb-label{font-family:'Geist Mono',monospace;font-size:11px;font-weight:500;color:#4A7FD4;letter-spacing:-0.02em;white-space:nowrap}
+.gtb-paren{font-variant-numeric:tabular-nums}
+.gtb-t{display:inline-block;min-width:20px;text-align:left;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="goal-active-timer-badge"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='gtb-stage'>
+    <div class='gtb-pane'>
+      <div class='gtb-line'><span class='gtb-dot'></span>working on goal</div>
+      <div class='gtb-line gtb-sub'>auditing contract surface</div>
+      <div class='gtb-done' data-gtb-done><span class='gtb-tick'></span>goal achieved</div>
+    </div>
+    <div class='gtb-badge' data-gtb-badge>
+      <span class='gtb-glyph'><span class='gtb-ring'></span><span class='gtb-ring2'></span><span class='gtb-bull'></span></span>
+      <span class='gtb-label'>/goal active <span class='gtb-paren'>(<span class='gtb-t' data-gtb-t>0s</span>)</span></span>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "goal-active-timer-badge",
+  "display": "Accelerated Live Timer Badge",
+  "cat": "UI",
+  "isNew": true,
+  "source": [
+    "claude-code-goal"
+  ],
+  "desc": "Claude Code /goal status badge whose parenthesized timer climbs on an ease-in curve (seconds tick slow then race), switches Ns->Nm past a minute, then vanishes the instant the goal completes.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const badge = card.querySelector("[data-gtb-badge]")
+    const done = card.querySelector("[data-gtb-done]")
+    const t = card.querySelector("[data-gtb-t]")
+    const fmt = (v) => v < 60 ? Math.floor(v) + "s" : (v / 60).toFixed(0) + "m"
+    const proxy = { s: 0 }
+    // contentful resting state: badge mid-count, goal not yet achieved
+    proxy.s = 96
+    t.innerText = fmt(proxy.s)
+    gsap.set(badge, { autoAlpha: 1, scale: 1, y: 0 })
+    gsap.set(done, { autoAlpha: 0, y: 6 })
+    let tl = null
+    return () => {
+      if (tl) { tl.kill(); tl = null }
+      gsap.killTweensOf([proxy, badge, done])
+      proxy.s = 0
+      t.innerText = fmt(proxy.s)
+      gsap.set(badge, { autoAlpha: 1, scale: 1, y: 0 })
+      gsap.set(done, { autoAlpha: 0, y: 6 })
+      tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 })
+      // accelerating clock: power2.in makes early seconds crawl, later seconds race
+      tl.to(proxy, { s: 240, duration: 5.2, ease: "power2.in", onUpdate() { t.innerText = fmt(proxy.s) } }, 0.35)
+      // goal completes: badge pops slightly then is removed
+      tl.to(badge, { scale: 1.06, duration: 0.12, ease: "power2.out" })
+      tl.to(badge, { autoAlpha: 0, scale: 0.9, y: 4, duration: 0.2, ease: "power2.in" })
+      tl.to(done, { autoAlpha: 1, y: 0, duration: 0.4, ease: "expo.out" }, "-=0.08")
+      // reset for next loop cycle
+      tl.set(proxy, { s: 0 })
+      tl.set(t, { innerText: "0s" })
+      tl.to(done, { autoAlpha: 0, y: 6, duration: 0.25, ease: "power2.in" }, "+=0.5")
+      tl.set(badge, { autoAlpha: 1, scale: 1, y: 0 })
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

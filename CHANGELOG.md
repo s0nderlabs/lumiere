@@ -2,6 +2,30 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-06-05
+
+### Added
+
+- **Canonical effect library** (`effects/<id>/effect.html`): every one of the 79 effects is now a standalone, self-describing, video-ready file carrying its own meta JSON, verbatim CSS, and init code. One source of truth: the dashboard previews these exact files, verification harnesses scrub them, and the creation pipeline references them by path. Spec at `effects/FORMAT.md`; ordered manifest at `effects/index.json`.
+- **Shared effect runtime** (`effects/_runtime.js`): contentful rest-state mount, `LUMIERE_REPLAY`/`LUMIERE_PREPARE` (lazy HyperFrames-style `window.__timelines` registration), a portable postMessage bridge (replay/theme/prepare/seek), per-card init-error isolation, and an embedded full-bleed mode so dashboard iframes behave exactly like the old fluid card viewports.
+- **Vendored fonts** (`effects/_fonts/vendored.css`, OFL): Outfit 200-700 variable + Geist Mono 400/500 woff2, replacing the Google Fonts CDN link that qutebrowser silently blocks on `file://`.
+
+### Changed
+
+- **Dashboard cards are now iframes of the canonical effect files.** Metas are parsed from each file at boot, iframe srcs are cache-busted per load (manual `?v=` bumps gone), the theme toggle broadcasts into every frame, and cards lazy-load. Conversion verified zero-drift: a 79-agent code audit plus a frame-by-frame pixel pipeline (74/79 bit-identical; 5 documented benign artifacts), plus lumiere motion checks.
+- **`composer-commit` rebuilt faithful to its ChatGPT reference**: a centered composer holds, the commit is a hard swap, and the finished bubble rises into the top-right corner. Replaces the invented flight-morph.
+- **`chat-input-typing`**: the input bar is now fixed-width with text typing inside it (previously grew with the text).
+- Dashboard `index.html` slimmed from 3,082 to ~960 lines; per-effect CSS lives in the effect files.
+
+### Fixed
+
+- `morphing-node-graph` and `chat-conversation`: raw randomness replaced with the house seeded rng, restoring the determinism contract scrubbed rendering depends on.
+- Dashboard hardening from the seal review: meta strings escaped before card markup, boot failures and partially-failed effect loads surface visibly instead of silently, a replay double-fire race fixed, the postMessage handler only trusts the dashboard's own frames, and stale hardcoded sidebar counts removed.
+
+### Removed
+
+- `dashboard/effects.js` (5,134 lines) and `dashboard/vendor/gsap.min.js`, superseded by the canonical effect files and `effects/_vendor/`.
+
 ## [0.14.1] - 2026-06-02
 
 ### Changed

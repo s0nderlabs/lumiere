@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Click Press · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.cursor-svg{position:absolute;pointer-events:none}
+.cursor-svg path{fill:var(--cream);stroke:var(--ink);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
+.cursor-press{width:62px;height:70px;position:relative;left:auto;top:auto}
+.press-label{
+    font-family:'Geist Mono',monospace;font-size:11px;color:var(--ink-3);
+    text-transform:uppercase;letter-spacing:0.16em;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="click-press"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage' style='flex-direction:column;gap:14px;align-items:center'>
+      <svg class='cursor-svg cursor-press' viewBox='0 0 56 64' data-pc>
+        <path d='M 6 4 C 7 2.6, 9.5 2.4, 10.8 3.6 L 41.5 28 C 43.4 29.5, 43 32.5, 40.6 33.3 L 27.3 37.5 C 26.2 37.85, 25.4 38.7, 25.1 39.8 L 21.2 50.4 C 20.3 53, 16.5 53.1, 15.5 50.5 L 5 8.8 C 4.6 7.3, 5 5.4, 6 4 Z'/>
+      </svg>
+      <div class='press-label'>tap</div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "click-press",
+  "display": "Click Press",
+  "cat": "UI",
+  "source": [
+    "claude-financial-services"
+  ],
+  "desc": "Cursor scales down quickly then recovers. Physical-click feedback.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const c = card.querySelector("[data-pc]")
+      gsap.set(c, { scale: 1, transformOrigin: "50% 50%" })
+      return () => {
+        gsap.killTweensOf(c)
+        gsap.set(c, { scale: 1 })
+        const tl = gsap.timeline({ delay: 0.4 })
+        tl.to(c, { scale: 0.82, duration: 0.1, ease: "power2.in" })
+        tl.to(c, { scale: 1, duration: 0.18, ease: "power3.out" })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

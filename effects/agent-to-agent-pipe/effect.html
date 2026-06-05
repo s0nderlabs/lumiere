@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Agent-to-Agent Message Pipe · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.a2a-wrap{
+    width:90%;max-width:262px;display:flex;flex-direction:column;align-items:stretch;gap:16px;
+  }
+.a2a-pipe{
+    display:flex;align-items:center;gap:8px;
+  }
+.a2a-chip{
+    flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;
+    padding:5px 9px;border-radius:999px;
+    background:#CF6F57;color:#fff;
+    font-family:'Outfit',sans-serif;font-size:9.5px;font-weight:600;letter-spacing:-0.01em;
+    white-space:nowrap;box-shadow:0 4px 12px -7px rgba(207,111,87,0.7);
+  }
+.a2a-chip .a2a-mark{font-family:'Geist Mono',monospace;font-size:9px;opacity:0.92;line-height:1}
+.a2a-rail{
+    position:relative;flex:1 1 auto;height:14px;min-width:0;
+  }
+.a2a-track{
+    position:absolute;left:0;right:0;top:50%;height:2px;transform:translateY(-50%);
+    border-radius:2px;
+    background:repeating-linear-gradient(90deg,#CF6F57 0 5px,transparent 5px 10px);
+    opacity:0.42;
+  }
+.a2a-packet{
+    position:absolute;left:0;top:50%;width:7px;height:7px;margin-top:-3.5px;
+    border-radius:50%;background:#CF6F57;
+    box-shadow:0 0 0 3px var(--paper),0 0 7px 0 rgba(207,111,87,0.55);
+  }
+.a2a-quote{
+    display:flex;align-items:flex-start;gap:6px;
+    padding:8px 10px;border-radius:10px;
+    background:var(--paper-2);border:1px solid var(--line);
+  }
+.a2a-quote .a2a-q-mark{
+    flex:0 0 auto;color:#CF6F57;font-family:'Outfit',sans-serif;font-size:16px;font-weight:700;line-height:0.9;
+  }
+.a2a-quote .a2a-q-text{
+    font-family:'Geist Mono',monospace;font-size:9.5px;line-height:1.4;color:var(--ink-2);
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="agent-to-agent-pipe"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'>
+    <div class='a2a-wrap' data-a2a>
+      <div class='a2a-pipe'>
+        <div class='a2a-chip a2a-sender' data-a2a-chip>
+          <span class='a2a-mark'>✳</span><span class='a2a-name'>Research Agent</span>
+        </div>
+        <div class='a2a-rail' data-a2a-rail>
+          <span class='a2a-track'></span>
+          <span class='a2a-packet' data-a2a-packet></span>
+          <span class='a2a-packet' data-a2a-packet></span>
+          <span class='a2a-packet' data-a2a-packet></span>
+        </div>
+        <div class='a2a-chip a2a-receiver' data-a2a-chip>
+          <span class='a2a-mark'>✳</span><span class='a2a-name'>Analyst Agent</span>
+        </div>
+      </div>
+      <div class='a2a-quote' data-a2a-quote>
+        <span class='a2a-q-mark'>&ldquo;</span><span class='a2a-q-text'>Reconcile Q1 EBITDA against the source filing.</span>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "agent-to-agent-pipe",
+  "display": "Agent-to-Agent Message Pipe",
+  "cat": "Data Viz",
+  "isNew": true,
+  "source": [
+    "claude-financial-services"
+  ],
+  "desc": "Two labeled agent chips bookend a horizontal rail that draws open; coral packets stream sender-to-receiver while a quoted dispatch surfaces beneath. Claude for Financial Services agent handoff.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const wrap = card.querySelector("[data-a2a]")
+    const chips = card.querySelectorAll("[data-a2a-chip]")
+    const rail = card.querySelector("[data-a2a-rail]")
+    const packets = card.querySelectorAll("[data-a2a-packet]")
+    const quote = card.querySelector("[data-a2a-quote]")
+
+    // travel distance for a packet across the rail (rail width minus a small inset)
+    const railSpan = () => Math.max(0, rail.offsetWidth - 14)
+
+    let loop = null
+    let tl = null
+
+    // start the perpetual packet stream; packets march sender -> receiver, restaggered
+    function startLoop() {
+      if (loop) { loop.kill(); loop = null }
+      const span = railSpan()
+      loop = gsap.timeline({ repeat: -1 })
+      packets.forEach((p, i) => {
+        gsap.set(p, { x: 0, autoAlpha: 0, scale: 0.8 })
+        // each packet owns a 1.1s flight, offset so the rail always carries one in motion
+        loop.to(p, { autoAlpha: 1, scale: 1, duration: 0.12, ease: "power2.out" }, i * 0.42)
+        loop.to(p, { x: span, duration: 1.0, ease: "none" }, i * 0.42 + 0.04)
+        loop.to(p, { autoAlpha: 0, scale: 0.8, duration: 0.16, ease: "power1.in" }, i * 0.42 + 0.92)
+      })
+      loop.to({}, { duration: 0.42 }) // pad so the cadence stays even across the wrap
+    }
+
+    // resting state: chips seated, rail open, quote visible, stream alive (contentful)
+    gsap.set(chips, { autoAlpha: 1, x: 0, scale: 1 })
+    gsap.set(rail, { scaleX: 1, transformOrigin: "left center" })
+    gsap.set(quote, { autoAlpha: 1, y: 0 })
+    startLoop()
+
+    return function replay() {
+      if (tl) { tl.kill(); tl = null }
+      if (loop) { loop.kill(); loop = null }
+      gsap.killTweensOf([...chips, rail, quote, ...packets])
+
+      // hidden start
+      gsap.set(chips, { autoAlpha: 0, scale: 0.86 })
+      gsap.set(chips[0], { x: 14 })   // sender drifts in from the right
+      gsap.set(chips[1], { x: -14 })  // receiver drifts in from the left
+      gsap.set(rail, { scaleX: 0, transformOrigin: "left center" })
+      gsap.set(quote, { autoAlpha: 0, y: 8 })
+      gsap.set(packets, { autoAlpha: 0, x: 0, scale: 0.8 })
+
+      tl = gsap.timeline()
+      // chips converge onto the rail
+      tl.to(chips, { autoAlpha: 1, x: 0, scale: 1, duration: 0.3, ease: "back.out(1.5)", stagger: 0.1 }, 0.15)
+      // rail draws open left -> right
+      tl.to(rail, { scaleX: 1, duration: 0.4, ease: "power2.out" }, "-=0.18")
+      // quoted dispatch rises beneath
+      tl.to(quote, { autoAlpha: 1, y: 0, duration: 0.28, ease: "power2.out" }, "-=0.1")
+      // kick the perpetual packet stream once the rail is established
+      tl.add(() => startLoop(), ">-0.05")
+      // hold so the pipe reads as live
+      tl.to({}, { duration: 1.6 })
+
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

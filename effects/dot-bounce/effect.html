@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Dot Bounce · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.dots{
+    display:inline-flex;gap:6px;padding:10px 16px;
+    background:var(--paper-2);border:1px solid var(--line);border-radius:999px;
+  }
+.dots .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-2)}
+.dots-label{
+    font-family:'Geist Mono',monospace;font-size:11px;color:var(--ink-3);
+    text-transform:uppercase;letter-spacing:0.16em;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="dot-bounce"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage' style='flex-direction:column;gap:14px;align-items:center'>
+      <div class='dots' data-host>
+        <span class='dot' data-td='0'></span>
+        <span class='dot' data-td='1'></span>
+        <span class='dot' data-td='2'></span>
+      </div>
+      <div class='dots-label'>typing</div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "dot-bounce",
+  "display": "Dot Bounce",
+  "cat": "UI",
+  "source": [
+    "anima-launch"
+  ],
+  "desc": "Three dots yoyo with stagger. Standard in-progress indicator. Steady cadence so the rhythm reads at a glance.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const dots = card.querySelectorAll("[data-td]")
+      const animate = () => {
+        gsap.killTweensOf(dots)
+        gsap.set(dots, { y: 0 })
+        dots.forEach((d, i) => gsap.to(d, {
+          y: -4, duration: 0.4, ease: "sine.inOut",
+          repeat: -1, yoyo: true, delay: i * 0.15
+        }))
+      }
+      animate() /* idle = continuous bounce */
+      return animate
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

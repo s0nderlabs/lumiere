@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Dolly Zoom · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.dz-stage{
+    position:absolute;inset:0;
+    display:block;
+    background:var(--vp-bg);
+    overflow:hidden;
+  }
+.dz-mark{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    gap:8px;
+    will-change:opacity;
+    z-index:2;
+    pointer-events:none;
+  }
+.dz-word{
+    display:inline-flex;
+    font-family:'CalSans','Outfit',sans-serif;
+    font-weight:400;
+    font-size:62px;
+    line-height:0.95;
+    letter-spacing:-0.02em;
+    color:var(--ink);
+    will-change:transform;
+    transform-origin:38% 58%;
+    backface-visibility:hidden;
+  }
+.dz-word .dz-ch{display:inline-block;color:var(--ink)}
+.dz-word .dz-m{position:relative}
+.dz-tagline{
+    font-family:'Geist Mono','SFMono-Regular',monospace;
+    font-size:11px;
+    font-weight:500;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--ink-3);
+    will-change:opacity,transform;
+  }
+.dz-terminal{
+    position:absolute;
+    left:50%;top:50%;
+    width:300px;
+    transform:translate(-50%,-50%) scale(0.94);
+    background:var(--paper);
+    border:1px solid var(--line-strong);
+    border-radius:14px;
+    box-shadow:var(--shadow-card);
+    overflow:hidden;
+    opacity:0;
+    will-change:opacity,transform;
+    z-index:1;
+  }
+.dz-term-chrome{
+    display:flex;gap:6px;
+    padding:8px 12px;
+    background:var(--cream-deep);
+    border-bottom:1px solid var(--line);
+  }
+.dz-tl{
+    width:9px;height:9px;border-radius:50%;
+    background:var(--ink-4);
+    display:inline-block;
+  }
+.dz-tl.r{background:#e8736b}
+.dz-tl.y{background:#e6c66c}
+.dz-tl.g{background:#7ec48a}
+.dz-term-body{
+    padding:12px 14px 14px;
+    font-family:'Geist Mono','SFMono-Regular',monospace;
+    font-size:11px;
+    line-height:1.55;
+    color:var(--ink);
+  }
+.dz-term-line{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.dz-prompt{color:var(--ink-3);font-weight:500}
+.dz-cmd{color:var(--ink);font-weight:500}
+.dz-arg{color:var(--ink-2)}
+.dz-ok{color:var(--proof-green);font-weight:600;margin-left:auto}
+.dz-dim{color:var(--ink-2);font-size:10.5px;margin-top:4px}
+.dz-faint{color:var(--ink-3);font-size:10.5px}
+.dz-bullet{color:var(--ink-4);font-size:9px}
+.ssd-tl.r{background:#e8736b}
+.ssd-tl.y{background:#e6c66c}
+.ssd-tl.g{background:#7ec48a}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="dolly-zoom"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage dz-stage'>
+      <div class='dz-terminal' data-dz='terminal' aria-hidden='true'>
+        <div class='dz-term-chrome'>
+          <span class='dz-tl r'></span>
+          <span class='dz-tl y'></span>
+          <span class='dz-tl g'></span>
+        </div>
+        <div class='dz-term-body'>
+          <div class='dz-term-line'>
+            <span class='dz-prompt'>$</span>
+            <span class='dz-cmd'>lumiere</span>
+            <span class='dz-arg'>ready</span>
+            <span class='dz-ok'>&#10003;</span>
+          </div>
+          <div class='dz-term-line dz-dim'>
+            <span class='dz-bullet'>&#9655;</span>
+            <span>v0.11.5  &middot;  37 effects loaded</span>
+          </div>
+          <div class='dz-term-line dz-faint'>
+            <span class='dz-bullet'>&#9655;</span>
+            <span>cache hit  &middot;  ~/.lumiere/sessions</span>
+          </div>
+        </div>
+      </div>
+      <div class='dz-mark' data-dz='mark'>
+        <div class='dz-word' data-dz='word'>
+          <span class='dz-ch'>l</span><span class='dz-ch'>u</span><span class='dz-ch dz-m' data-dz='m'>m</span><span class='dz-ch'>i</span><span class='dz-ch'>e</span><span class='dz-ch'>r</span><span class='dz-ch'>e</span>
+        </div>
+        <div class='dz-tagline' data-dz='tagline'>ships today.</div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "dolly-zoom",
+  "display": "Dolly Zoom",
+  "cat": "Camera",
+  "source": [
+    "claude-code-agent-view",
+    "claude-code-push-notifications"
+  ],
+  "desc": "Camera dives through the wordmark's focal letter; the next scene emerges from the cream tunnel inside. Anima PRAGMA-style transition: scale 1 → 80 over 2.0s power4.inOut, transform-origin computed at runtime from the m letter's left-bowl bbox.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const mark     = card.querySelector('[data-dz="mark"]')
+      const word     = card.querySelector('[data-dz="word"]')
+      const mLetter  = card.querySelector('[data-dz="m"]')
+      const tagline  = card.querySelector('[data-dz="tagline"]')
+      const terminal = card.querySelector('[data-dz="terminal"]')
+
+      let computedOrigin = '38% 58%'
+
+      function recomputeOrigin() {
+        const wb = word.getBoundingClientRect()
+        const mb = mLetter.getBoundingClientRect()
+        if (wb.width === 0 || mb.width === 0) return
+        const cx = (mb.left + mb.width * 0.28 - wb.left) / wb.width
+        const cy = (mb.top  + mb.height * 0.62 - wb.top)  / wb.height
+        computedOrigin = (cx * 100).toFixed(2) + '% ' + (cy * 100).toFixed(2) + '%'
+      }
+
+      function applyIdle() {
+        gsap.set(mark,     { opacity: 1 })
+        gsap.set(word,     { scale: 1, transformOrigin: computedOrigin, force3D: true })
+        gsap.set(tagline,  { opacity: 1, y: 0 })
+        gsap.set(terminal, { opacity: 0, xPercent: -50, yPercent: -50, scale: 0.94 })
+      }
+      applyIdle()
+      requestAnimationFrame(() => { recomputeOrigin(); applyIdle() })
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => { recomputeOrigin(); applyIdle() })
+      }
+
+      let tl = null
+
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+        recomputeOrigin()
+        applyIdle()
+
+        tl = gsap.timeline({ defaults: { lazy: false, force3D: true } })
+        tl.from(tagline, { opacity: 0, y: 4, duration: 0.4, ease: 'power2.out' }, 0.05)
+        tl.to(word,    { scale: 80, duration: 2.0, ease: 'power4.inOut' }, 0.45)
+        tl.to(tagline, { opacity: 0, y: -6, duration: 0.45, ease: 'power2.in' }, 0.45)
+        tl.to(mark,    { opacity: 0, duration: 0.5, ease: 'power2.in' }, 1.7)
+        tl.to(terminal, { opacity: 1, duration: 0.5, ease: 'power2.out' }, 1.7)
+          .to(terminal, { scale: 1.0, duration: 0.6, ease: 'power3.out' }, 1.7)
+        tl.to({}, { duration: 1.1 }, 2.3)
+        tl.set(terminal, { opacity: 0, scale: 0.94, xPercent: -50, yPercent: -50 }, 3.5)
+        tl.set(word,     { scale: 1, transformOrigin: computedOrigin }, 3.5)
+        tl.set(mark,     { opacity: 1 }, 3.5)
+        tl.set(tagline,  { opacity: 1, y: 0 }, 3.5)
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

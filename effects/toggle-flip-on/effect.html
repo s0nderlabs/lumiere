@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Toggle Switch Flip-On · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.tfo-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.tfo-row{
+    display:flex;align-items:center;justify-content:space-between;gap:24px;
+    width:230px;padding:14px 16px;
+    background:var(--paper);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow-card);
+  }
+.tfo-meta{display:flex;flex-direction:column;gap:3px;text-align:left}
+.tfo-title{
+    font-family:'Outfit',sans-serif;font-size:14px;font-weight:600;color:var(--ink);
+    letter-spacing:-0.01em;line-height:1;
+  }
+.tfo-sub{
+    font-family:'Geist Mono',monospace;font-size:10px;color:var(--ink-3);
+    letter-spacing:0.02em;line-height:1;
+  }
+.tfo-toggle{position:relative;width:48px;height:28px;flex:0 0 auto;display:grid;place-items:center}
+.tfo-track{
+    position:absolute;inset:0;border-radius:999px;
+    background:#9a9aa0;
+  }
+.tfo-knob{
+    position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;
+    background:#ffffff;
+    box-shadow:0 1px 3px rgba(16,15,9,0.28),0 2px 6px -2px rgba(16,15,9,0.22);
+  }
+.tfo-ripple{
+    position:absolute;left:50%;top:50%;width:48px;height:48px;
+    margin:-24px 0 0 -24px;border-radius:50%;
+    background:rgba(59,158,255,0.30);
+    opacity:0;pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="toggle-flip-on"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='tfo-stage'>
+    <div class='tfo-row'>
+      <div class='tfo-meta'>
+        <div class='tfo-title'>Fast mode</div>
+        <div class='tfo-sub'>Opus 4.7 · 1M default</div>
+      </div>
+      <div class='tfo-toggle' data-tfo-toggle>
+        <div class='tfo-ripple' data-tfo-ripple></div>
+        <div class='tfo-track' data-tfo-track></div>
+        <div class='tfo-knob' data-tfo-knob></div>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "toggle-flip-on",
+  "display": "Toggle Switch Flip-On",
+  "cat": "UI",
+  "isNew": true,
+  "source": [
+    "claude-code-fast-mode"
+  ],
+  "desc": "iOS pill toggle flips OFF to ON: a click-ripple pulses, the knob slides across the track, and the track recolors gray to blue. Claude Code Fast mode settings switch.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const track = card.querySelector("[data-tfo-track]")
+    const knob = card.querySelector("[data-tfo-knob]")
+    const ripple = card.querySelector("[data-tfo-ripple]")
+    const OFF = "#9a9aa0"
+    const ON = "#3b9eff"
+    /* knob is 22px in a 48px track, left:3px at rest; x:20 lands a symmetric 3px right inset (matches build_spec x:20) */
+    const KNOB_X = 20
+    /* contentful rest: switched ON (track blue, knob right) */
+    gsap.set(track, { backgroundColor: ON })
+    gsap.set(knob, { x: KNOB_X })
+    gsap.set(ripple, { scale: 0.3, autoAlpha: 0 })
+    return function replay() {
+      gsap.killTweensOf([track, knob, ripple])
+      /* reset to OFF */
+      gsap.set(track, { backgroundColor: OFF })
+      gsap.set(knob, { x: 0 })
+      gsap.set(ripple, { scale: 0.3, autoAlpha: 0 })
+      const tl = gsap.timeline({ delay: 0.45 })
+      /* click-ripple impact feedback */
+      tl.to(ripple, { scale: 1.9, autoAlpha: 0.45, duration: 0.12, ease: "power2.out" })
+      tl.to(ripple, { autoAlpha: 0, duration: 0.22, ease: "power1.out" }, ">-0.02")
+      /* knob slide + track recolor, fired on the click beat */
+      tl.to(knob, { x: KNOB_X, duration: 0.17, ease: "power2.out" }, "<")
+      tl.to(track, { backgroundColor: ON, duration: 0.2, ease: "none" }, "<")
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

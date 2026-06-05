@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Auto-Scroll to Fit · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.scroll-frame{
+    width:80%;max-width:340px;height:200px;
+    background:var(--paper);border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;position:relative;
+  }
+.scroll-inner{
+    display:flex;flex-direction:column;gap:6px;padding:12px;
+    position:absolute;left:0;right:0;top:0;
+  }
+.row-line{
+    background:var(--paper-2);border:1px solid var(--line);border-radius:8px;
+    height:18px;font-family:'Geist Mono',monospace;font-size:10px;color:var(--ink-3);
+    padding:0 11px;display:flex;align-items:center;
+  }
+.row-line .dotcol{width:5px;height:5px;border-radius:50%;background:var(--ink-3);margin-right:8px}
+.row-line.now .dotcol{background:var(--ink)}
+.row-line.now{color:var(--ink)}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="auto-scroll-to-fit"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'><div class='scroll-frame'>
+      <div data-scroll class='scroll-inner'>
+        <div class='row-line'><span class='dotcol'></span>@init · ok</div>
+        <div class='row-line'><span class='dotcol'></span>@brain · loaded</div>
+        <div class='row-line'><span class='dotcol'></span>@ledger · synced</div>
+        <div class='row-line'><span class='dotcol'></span>@sigs · ok</div>
+        <div class='row-line'><span class='dotcol'></span>@subname · resolved</div>
+        <div class='row-line'><span class='dotcol'></span>@mint · ready</div>
+        <div class='row-line'><span class='dotcol'></span>@verify · pass</div>
+        <div class='row-line'><span class='dotcol'></span>@publish · ok</div>
+        <div class='row-line now'><span class='dotcol'></span>→ ready</div>
+      </div>
+    </div></div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "auto-scroll-to-fit",
+  "display": "Auto-Scroll to Fit",
+  "cat": "Camera",
+  "source": [
+    "claude-code-session-recaps"
+  ],
+  "desc": "Container scrolls so newest line stays in frame. Uses offsetTop so parent transforms can't corrupt it.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const s = card.querySelector("[data-scroll]")
+      gsap.set(s, { y: -78 })
+      return () => {
+        gsap.killTweensOf(s)
+        gsap.set(s, { y: 0 })
+        gsap.to(s, { y: -78, duration: 1.2, ease: "power2.out", delay: 0.3 })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

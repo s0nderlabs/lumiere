@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Per-Char Event Emit · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.pce-stage{
+    flex-direction:column;
+    gap:14px;
+    justify-content:center;
+    align-items:center;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 55%, rgba(46,155,102,0.04), transparent 70%),
+      var(--vp-bg);
+  }
+.pce-label{
+    font-family:'Geist Mono',monospace;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:0.22em;
+    color:var(--ink-3);
+  }
+.pce-tracker{
+    font-family:'Geist Mono',monospace;
+    font-size:16px;
+    font-weight:500;
+    color:var(--ink);
+    display:inline-flex;
+    align-items:center;
+    min-height:22px;
+    line-height:1;
+    letter-spacing:0.02em;
+  }
+.pce-word{white-space:pre;display:inline-block}
+.pce-word .pce-ch{
+    display:inline-block;
+    opacity:0;
+    transform:translateY(2px);
+  }
+.pce-word .pce-ch.on{
+    opacity:1;
+    transform:translateY(0);
+    transition:opacity .12s ease, transform .12s ease;
+  }
+.pce-track{
+    display:flex;gap:8px;flex-wrap:nowrap;
+    justify-content:center;align-items:center;
+  }
+.pce-tick{
+    width:9px;height:9px;
+    background:var(--ink-3);border-radius:50%;
+    opacity:0.22;
+    display:inline-block;
+    transition:transform .14s ease, opacity .14s ease, background .14s ease;
+  }
+.pce-tick[data-space="1"]{
+    width:5px;height:5px;
+    opacity:0.12;
+  }
+.pce-tick.fire{
+    background:var(--proof-green);
+    opacity:1;
+    transform:scale(1.4);
+  }
+.pce-counter{
+    font-family:'Geist Mono',monospace;
+    font-size:10px;color:var(--ink-3);
+    display:inline-flex;align-items:baseline;gap:5px;
+    letter-spacing:0.04em;
+  }
+.pce-counter-v{
+    color:var(--proof-green);
+    font-weight:600;font-size:11px;
+    min-width:14px;text-align:right;
+    display:inline-block;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="per-char-event-emit"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage pce-stage'>
+      <div class='pce-label'>events</div>
+      <div class='pce-tracker'>
+        <span class='pce-word' data-pce-word></span>
+      </div>
+      <div class='pce-track' data-pce-track></div>
+      <div class='pce-counter'>
+        <span class='pce-counter-v' data-pce-count>0</span><span class='pce-counter-l'>/12 fired</span>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "per-char-event-emit",
+  "display": "Per-Char Event Emit",
+  "cat": "Motion",
+  "source": [
+    "anima-launch"
+  ],
+  "desc": "Each typed character fires a discrete event indicator. Pair with audio clicks, glow flashes, or tick marks. Events LATCH so the cumulative event trail is visible at end. Mirrors anima's per-char emitClickAudio pattern (line 1928).",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const TEXT = "analyze beats"
+      const STEP = 0.105
+      const PRE_DELAY = 0.45
+
+      const wordEl   = card.querySelector("[data-pce-word]")
+      const trackEl  = card.querySelector("[data-pce-track]")
+      const countEl  = card.querySelector("[data-pce-count]")
+
+      wordEl.innerHTML = [...TEXT]
+        .map(ch => `<span class="pce-ch" data-space="${ch === " " ? 1 : 0}">${ch === " " ? "&nbsp;" : ch}</span>`)
+        .join("")
+      trackEl.innerHTML = [...TEXT]
+        .map(ch => `<span class="pce-tick" data-space="${ch === " " ? 1 : 0}"></span>`)
+        .join("")
+
+      const chars = wordEl.querySelectorAll(".pce-ch")
+      const ticks = trackEl.querySelectorAll(".pce-tick")
+      const nonSpaceCount = [...TEXT].filter(c => c !== " ").length
+
+      const setIdle = () => {
+        chars.forEach(c => c.classList.add("on"))
+        ticks.forEach((t, i) => {
+          if (TEXT[i] !== " ") t.classList.add("fire")
+          else t.classList.remove("fire")
+        })
+        countEl.textContent = String(nonSpaceCount)
+      }
+      const clearAll = () => {
+        chars.forEach(c => c.classList.remove("on"))
+        ticks.forEach(t => t.classList.remove("fire"))
+        countEl.textContent = "0"
+      }
+      setIdle()
+
+      let tl = null
+      const buildTimeline = () => {
+        if (tl) { tl.kill(); tl = null }
+        const t = gsap.timeline({ paused: true })
+        let fired = 0
+        ;[...TEXT].forEach((ch, i) => {
+          const at = PRE_DELAY + i * STEP
+          const charEl = chars[i]
+          const tickEl = ticks[i]
+          t.call(() => {
+            charEl.classList.add("on")
+            if (ch !== " ") {
+              tickEl.classList.add("fire")
+              fired += 1
+              countEl.textContent = String(fired)
+            }
+          }, [], at)
+        })
+        return t
+      }
+
+      return function replay() {
+        clearAll()
+        tl = buildTimeline()
+        tl.play(0)
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

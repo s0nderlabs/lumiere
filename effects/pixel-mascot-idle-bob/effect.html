@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Pixel Mascot Idle Bob · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.pmb-stage{
+    background:
+      radial-gradient(ellipse 60% 45% at 50% 60%, rgba(200,103,79,0.06), transparent 70%),
+      var(--vp-bg);
+  }
+.pmb-mascot{
+    width:104px;
+    height:98px;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+  }
+.pmb-svg{
+    width:100%;
+    height:100%;
+    overflow:visible;
+    shape-rendering:crispEdges;
+    image-rendering:pixelated;
+  }
+.pmb-svg .pmb-body{ fill:#C15B3C; }
+.pmb-svg .pmb-arm{ fill:#A84C30; }
+.pmb-svg .pmb-hl{ fill:#cf6a48; }
+.pmb-svg .pmb-legs rect{ fill:#A84C30; }
+.pmb-svg .pmb-eye{ fill:#1A1A1A; }
+.pmb-svg .pmb-slit{ fill:#1A1A1A; }
+.pmb-svg .pmb-shadow{ fill:#1a1714; opacity:0.12; }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="pixel-mascot-idle-bob"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage pmb-stage'>
+      <div class='pmb-mascot'>
+        <svg class='pmb-svg' viewBox='0 0 32 30' shape-rendering='crispEdges' aria-hidden='true'>
+          <!-- ground shadow (static, anchors the feet) -->
+          <ellipse class='pmb-shadow' cx='16' cy='28.6' rx='9' ry='1.6'></ellipse>
+          <!-- legs (static, never bob) -->
+          <g class='pmb-legs'>
+            <rect x='10' y='25' width='4' height='3.4'></rect>
+            <rect x='18' y='25' width='4' height='3.4'></rect>
+          </g>
+          <!-- bobbing group: body + arms + eyes (sharp pixel sprite, pose-turn family) -->
+          <g class='pmb-bob' data-pmb-bob>
+            <!-- arm nubs -->
+            <rect class='pmb-arm' x='3' y='13' width='3.5' height='6'></rect>
+            <rect class='pmb-arm' x='25.5' y='13' width='3.5' height='6'></rect>
+            <!-- body -->
+            <rect class='pmb-body' x='6' y='4' width='20' height='21'></rect>
+            <!-- lit top stripe (full width) -->
+            <rect class='pmb-hl' x='6' y='4' width='20' height='2.4'></rect>
+            <!-- eyes open (two square pixels) -->
+            <g class='pmb-eyes-open' data-pmb-open>
+              <rect class='pmb-eye' x='10.5' y='12' width='4' height='5'></rect>
+              <rect class='pmb-eye' x='17.5' y='12' width='4' height='5'></rect>
+            </g>
+            <!-- eyes closed (thin slits, hidden at rest) -->
+            <g class='pmb-eyes-closed' data-pmb-closed>
+              <rect class='pmb-slit' x='10.5' y='14.6' width='4' height='1.2'></rect>
+              <rect class='pmb-slit' x='17.5' y='14.6' width='4' height='1.2'></rect>
+            </g>
+          </g>
+        </svg>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "pixel-mascot-idle-bob",
+  "display": "Pixel Mascot Idle Bob",
+  "cat": "Motion",
+  "isNew": true,
+  "source": [
+    "claude-code-fast-mode",
+    "claude-code-goal",
+    "claude-code-agent-view",
+    "claude-code-push-notifications",
+    "claude-code-ultrareview",
+    "claude-code-session-recaps",
+    "code-w-claude-conf"
+  ],
+  "desc": "The terracotta pixel-art Claude critter idles: a continuous low-amplitude sine bob with feet anchored, discrete eye blinks, and occasional eye-look glances. The always-on liveliness sprite every other mascot effect layers onto, from the Claude Code launch clips.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const bob    = card.querySelector("[data-pmb-bob]")
+      const open   = card.querySelector("[data-pmb-open]")
+      const closed = card.querySelector("[data-pmb-closed]")
+
+      // discrete eye-state swaps (never smooth-tweened): blink = slits, open = squares
+      function setOpen() {
+        gsap.set(open,   { autoAlpha: 1 })
+        gsap.set(closed, { autoAlpha: 0 })
+      }
+      // discrete look glance: shift the open-eye pixels left/right, snap (no smooth tween)
+      function look(dx) {
+        gsap.set(open, { x: dx })
+      }
+
+      // RESTING STATE: mascot fully visible, eyes open + centered, body at neutral.
+      // This effect is an always-on liveliness layer, so init also starts the loop
+      // so the card is never inert. The loop is a single scrubbable repeat:-1 timeline.
+      gsap.set(bob, { y: 0, transformOrigin: "50% 100%" })
+      setOpen()
+      look(0)
+
+      let tl = null
+
+      function build() {
+        if (tl) { tl.kill(); tl = null }
+        gsap.killTweensOf([bob, open, closed])
+        gsap.set(bob, { y: 0, transformOrigin: "50% 100%" })
+        setOpen()
+        look(0)
+
+        // master loop: ~3.0s cycle, repeats forever. Bob is the only interpolated
+        // channel; blink + eye-look are discrete zero-duration tl.set() children so
+        // they SNAP (no smooth tween) per the mechanics AND reconstruct deterministically
+        // at any tl.time(t) (tl.set is scrubbable; tl.call callbacks are not).
+        tl = gsap.timeline({ repeat: -1 })
+
+        // continuous sine bob: down-then-up across the cycle, feet anchored
+        tl.to(bob, { y: -3, duration: 1.5, ease: "sine.inOut" }, 0)
+        tl.to(bob, { y: 0,  duration: 1.5, ease: "sine.inOut" }, 1.5)
+
+        // eye-look glance: drift right at top of the bob, hold, snap back to center
+        tl.set(open, { x: 1.4 }, 0.85)
+        tl.set(open, { x: 0   }, 1.65)
+
+        // blink #1 -- slits collapse for ~0.1s then reopen (snap swaps)
+        tl.set(open,   { autoAlpha: 0 }, 1.15)
+        tl.set(closed, { autoAlpha: 1 }, 1.15)
+        tl.set(open,   { autoAlpha: 1 }, 1.25)
+        tl.set(closed, { autoAlpha: 0 }, 1.25)
+
+        // blink #2 -- a second, later glance to the left + blink to feel alive
+        tl.set(open,   { x: -1.4 },      2.15)
+        tl.set(open,   { autoAlpha: 0 }, 2.45)
+        tl.set(closed, { autoAlpha: 1 }, 2.45)
+        tl.set(open,   { autoAlpha: 1 }, 2.55)
+        tl.set(closed, { autoAlpha: 0 }, 2.55)
+        tl.set(open,   { x: 0 },         2.85)
+
+        return tl
+      }
+
+      // kick off the idle loop immediately so the resting card is already alive
+      tl = build()
+
+      return function replay() {
+        return build()
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

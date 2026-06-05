@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Lightbulb Idea Pop · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.lbp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#15140f;background-image:radial-gradient(circle,#3a352c 1px,transparent 1px);background-size:16px 16px}
+.lbp-scene{position:relative;width:120px;height:148px;display:flex;align-items:flex-end;justify-content:center}
+.lbp-mascot{position:absolute;bottom:14px;left:50%;width:66px;height:66px;margin-left:-33px;image-rendering:pixelated;will-change:transform}
+.lbp-bulb{position:absolute;left:50%;top:8px;width:34px;height:45px;margin-left:-17px;overflow:visible;image-rendering:pixelated;will-change:transform,opacity;filter:drop-shadow(0 0 5px rgba(245,200,75,0.55))}
+.lbp-halo{fill:#F5C84B;opacity:0}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="lightbulb-idea-pop"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='lbp-stage'>
+    <div class='lbp-scene'>
+      <svg class='lbp-bulb' viewBox='0 0 12 16' shape-rendering='crispEdges' aria-hidden='true'>
+        <circle class='lbp-halo' cx='6' cy='6' r='8'/>
+        <rect x='3' y='1' width='6' height='2' fill='#F5C84B'/>
+        <rect x='2' y='2' width='8' height='6' fill='#F5C84B'/>
+        <rect x='3' y='8' width='6' height='2' fill='#F5C84B'/>
+        <rect x='3' y='2' width='2' height='3' fill='#FCE38A'/>
+        <rect x='4' y='10' width='4' height='1' fill='#B8B0A5'/>
+        <rect x='4' y='11' width='4' height='1' fill='#9A938A'/>
+        <rect x='4' y='12' width='4' height='1' fill='#B8B0A5'/>
+        <rect x='5' y='13' width='2' height='1' fill='#9A938A'/>
+      </svg>
+      <svg class='lbp-mascot' viewBox='0 0 16 16' shape-rendering='crispEdges' aria-hidden='true'>
+        <rect class='lbp-arm lbp-arm-l' x='1' y='8' width='2' height='3' fill='#A84C30'/>
+        <rect class='lbp-arm lbp-arm-r' x='13' y='8' width='2' height='3' fill='#A84C30'/>
+        <rect x='3' y='4' width='10' height='9' fill='#C15B3C'/>
+        <rect x='3' y='4' width='10' height='2' fill='#cf6a48'/>
+        <g class='lbp-eyes'>
+          <rect x='5' y='6' width='2' height='2' fill='#1A1A1A'/>
+          <rect x='9' y='6' width='2' height='2' fill='#1A1A1A'/>
+        </g>
+        <rect x='5' y='13' width='2' height='2' fill='#A84C30'/>
+        <rect x='9' y='13' width='2' height='2' fill='#A84C30'/>
+      </svg>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "lightbulb-idea-pop",
+  "display": "Lightbulb Idea Pop",
+  "cat": "Reveal",
+  "isNew": true,
+  "source": [
+    "claude-code-session-recaps"
+  ],
+  "desc": "A pixel-art lightbulb pops above the idle-bobbing Claude mascot with an overshoot, glows, then keys off and re-pops. Claude Code session-recaps aha beat.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const bulb = card.querySelector(".lbp-bulb")
+    const halo = card.querySelector(".lbp-halo")
+    const mascot = card.querySelector(".lbp-mascot")
+    const eyes = card.querySelector(".lbp-eyes")
+    const arms = card.querySelectorAll(".lbp-arm")
+    /* contentful rest: bulb lit + visible above a settled, looking-up mascot */
+    gsap.set(mascot, { y: 0, transformOrigin: "50% 100%" })
+    gsap.set(eyes, { y: -0.6 })
+    gsap.set(arms, { y: 0, rotation: 0 })
+    gsap.set(bulb, { scale: 1, autoAlpha: 1, transformOrigin: "50% 100%" })
+    gsap.set(halo, { opacity: 0.85, transformOrigin: "50% 50%" })
+    return () => {
+      gsap.killTweensOf([mascot, eyes, ...arms, bulb, halo])
+      gsap.set(mascot, { y: 0, transformOrigin: "50% 100%" })
+      gsap.set(eyes, { y: 0 })
+      gsap.set(arms, { y: 0, rotation: 0 })
+      gsap.set(bulb, { scale: 0, autoAlpha: 0, transformOrigin: "50% 100%" })
+      gsap.set(halo, { opacity: 0, transformOrigin: "50% 50%" })
+      const tl = gsap.timeline()
+      /* continuous head bob; bulb gets an identical synced bob so it rides the head in lockstep.
+         repeat:3 = 4 even iterations -> span 2.8s, lands back at y:0 (rest), no dead tail */
+      tl.to(mascot, { y: -2.4, duration: 0.7, ease: "sine.inOut", yoyo: true, repeat: 3 }, 0)
+      tl.to(bulb, { y: -2.4, duration: 0.7, ease: "sine.inOut", yoyo: true, repeat: 3 }, 0)
+      /* POP IN with overshoot + eyes glance up at the idea */
+      tl.to(bulb, { scale: 1, autoAlpha: 1, duration: 0.18, ease: "back.out(3)" }, 0.45)
+      tl.to(halo, { opacity: 0.85, duration: 0.22, ease: "power2.out" }, 0.45)
+      tl.to(eyes, { y: -0.6, duration: 0.16, ease: "power2.out" }, 0.42)
+      /* glow breathe while lit */
+      tl.to(halo, { opacity: 0.45, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 1 }, 0.7)
+      /* mascot turns front -> idea keys OFF */
+      tl.to(eyes, { y: 0, duration: 0.16, ease: "power2.in" }, 1.9)
+      tl.to(bulb, { scale: 0, autoAlpha: 0, duration: 0.14, ease: "power2.in" }, 1.9)
+      tl.to(halo, { opacity: 0, duration: 0.14, ease: "power2.in" }, 1.9)
+      /* returns to thinking pose -> RE-POP, lands lit (rest state) */
+      tl.to(eyes, { y: -0.6, duration: 0.16, ease: "power2.out" }, 2.45)
+      tl.to(bulb, { scale: 1, autoAlpha: 1, duration: 0.18, ease: "back.out(3)" }, 2.5)
+      tl.to(halo, { opacity: 0.85, duration: 0.22, ease: "power2.out" }, 2.5)
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

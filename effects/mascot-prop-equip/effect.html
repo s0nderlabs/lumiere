@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Mascot Prop Equip (swing/drop-on) · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.mpe-stage{
+    flex-direction:column;
+    background:
+      radial-gradient(ellipse 60% 46% at 50% 60%, rgba(201,120,92,0.06), transparent 72%),
+      var(--vp-bg);
+  }
+.mpe-floor{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+  }
+.mpe-mascot{
+    display:block;
+    overflow:visible;
+    image-rendering:pixelated;
+    filter:drop-shadow(0 4px 10px rgba(26,23,20,0.14));
+  }
+html.theme-dark .mpe-mascot{
+    filter:drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  }
+.mpe-shadow{
+    fill:#1a1714;
+    opacity:0.1;
+  }
+html.theme-dark .mpe-shadow{
+    fill:#000000;
+    opacity:0.28;
+  }
+.mpe-label{
+    font-family:'Geist Mono',monospace;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:0.24em;
+    color:var(--ink-3);
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="mascot-prop-equip"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage mpe-stage'>
+      <div class='mpe-floor'>
+        <svg class='mpe-mascot' data-mpe-mascot viewBox='0 0 100 100' width='118' height='118' aria-hidden='true' shape-rendering='crispEdges'>
+          <!-- ground shadow -->
+          <ellipse class='mpe-shadow' data-mpe-shadow cx='50' cy='90' rx='26' ry='5'></ellipse>
+
+          <!-- BODY (terracotta critter, sharp pixel sprite -- pose-turn family) -->
+          <g class='mpe-body' data-mpe-body>
+            <!-- legs -->
+            <rect x='38' y='78' width='8' height='10' fill='#A84C30'></rect>
+            <rect x='54' y='78' width='8' height='10' fill='#A84C30'></rect>
+            <!-- arm nubs -->
+            <rect class='mpe-arm mpe-arm-l' x='17' y='52' width='10' height='9' fill='#A84C30'></rect>
+            <rect class='mpe-arm mpe-arm-r' data-mpe-arm-r x='73' y='52' width='10' height='9' fill='#A84C30'></rect>
+            <!-- torso -->
+            <rect x='26' y='30' width='48' height='52' fill='#C15B3C'></rect>
+            <!-- lit top stripe -->
+            <rect x='26' y='30' width='48' height='6' fill='#cf6a48'></rect>
+            <!-- eyes -->
+            <rect class='mpe-eye' x='38' y='50' width='8' height='9' fill='#1A1A1A'></rect>
+            <rect class='mpe-eye' x='54' y='50' width='8' height='9' fill='#1A1A1A'></rect>
+          </g>
+
+          <!-- HEADPHONES (swing on, pivots near left cup) -->
+          <g class='mpe-phones' data-mpe-phones>
+            <!-- band arc over the crown -->
+            <path class='mpe-band' d='M22 38 Q50 6 78 38' fill='none' stroke='#2d5b8e' stroke-width='6' stroke-linecap='round'></path>
+            <!-- earcups -->
+            <rect x='17' y='34' width='13' height='17' rx='4' fill='#244c77'></rect>
+            <rect x='17' y='34' width='13' height='6' rx='3' fill='#3a6ea0' opacity='0.6'></rect>
+            <rect x='70' y='34' width='13' height='17' rx='4' fill='#244c77'></rect>
+            <rect x='70' y='34' width='13' height='6' rx='3' fill='#3a6ea0' opacity='0.6'></rect>
+          </g>
+
+          <!-- MAGNIFIER (drops on, into right hand) -->
+          <g class='mpe-glass' data-mpe-glass>
+            <!-- handle -->
+            <rect x='86' y='66' width='6' height='20' rx='3' fill='#2B2722' transform='rotate(38 89 76)'></rect>
+            <!-- lens rim -->
+            <circle cx='80' cy='58' r='13' fill='none' stroke='#4B3A9E' stroke-width='5'></circle>
+            <!-- glass -->
+            <circle cx='80' cy='58' r='10' fill='#6B5FD6' opacity='0.18'></circle>
+            <!-- glint -->
+            <rect x='74' y='51' width='6' height='3' rx='1.5' fill='#efefe5' opacity='0.7' transform='rotate(-38 77 52.5)'></rect>
+          </g>
+        </svg>
+        <div class='mpe-label'>equipped</div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "mascot-prop-equip",
+  "display": "Mascot Prop Equip (swing/drop-on)",
+  "cat": "Motion",
+  "isNew": true,
+  "source": [
+    "claude-code-fast-mode",
+    "claude-code-ultrareview",
+    "claude-code-agent-view",
+    "code-w-claude-conf"
+  ],
+  "desc": "The pixel Claude critter gets kitted out: headphones swing onto its crown pivoting at the left earcup, then a detective magnifier tumbles down and seats with an overshoot and a one-frame body squash. From the Claude Code launch clips.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const mascot = card.querySelector("[data-mpe-mascot]")
+      const body   = card.querySelector("[data-mpe-body]")
+      const phones = card.querySelector("[data-mpe-phones]")
+      const glass  = card.querySelector("[data-mpe-glass]")
+      const shadow = card.querySelector("[data-mpe-shadow]")
+      const armR   = card.querySelector("[data-mpe-arm-r]")
+
+      // SVG groups need fill-box so percentage / local transform-origins resolve to the group's own bounds
+      gsap.set([phones, glass, body], { transformBox: "fill-box" })
+
+      // contentful rest: fully kitted out, props seated, idle bob neutral
+      const applyRest = () => {
+        gsap.set(mascot, { y: 0 })
+        gsap.set(body,   { scaleX: 1, scaleY: 1, transformOrigin: "50% 100%" })
+        gsap.set(phones, { autoAlpha: 1, rotation: 0, transformOrigin: "22% 70%" })
+        gsap.set(glass,  { autoAlpha: 1, y: 0, rotation: 0, transformOrigin: "50% 0%" })
+        gsap.set(armR,   { y: 0 })
+        gsap.set(shadow, { scaleX: 1, transformOrigin: "50% 50%" })
+      }
+      applyRest()
+
+      return function replay() {
+        gsap.killTweensOf([mascot, body, phones, glass, armR, shadow])
+
+        // pre-entrance: bare mascot, props off
+        gsap.set(mascot, { y: 0 })
+        gsap.set(body,   { scaleX: 1, scaleY: 1, transformOrigin: "50% 100%" })
+        gsap.set(armR,   { y: 0 })
+        gsap.set(shadow, { scaleX: 1, transformOrigin: "50% 50%" })
+        gsap.set(phones, { autoAlpha: 0, rotation: -110, transformOrigin: "22% 70%" })
+        gsap.set(glass,  { autoAlpha: 0, y: -52, rotation: -40, transformOrigin: "50% 0%" })
+
+        const tl = gsap.timeline({ defaults: { ease: "none" } })
+
+        // (1) SWING-ON: headphones rotate onto the crown, pivoting near the left earcup, settle with overshoot
+        tl.to(phones, { autoAlpha: 1, duration: 0.04 }, 0.35)
+        tl.to(phones, { rotation: 0, duration: 0.26, ease: "back.out(1.6)" }, 0.39)
+        // little head dip as the band seats
+        tl.to(mascot, { y: 1.5, duration: 0.08, ease: "sine.out" }, 0.5)
+        tl.to(mascot, { y: 0, duration: 0.18, ease: "sine.inOut" }, 0.58)
+
+        // (2) DROP-ON: magnifier tumbles in from above, overshoots, settles into the right hand
+        tl.to(glass, { autoAlpha: 1, duration: 0.04 }, 0.82)
+        tl.to(glass, { y: 0, rotation: 0, duration: 0.32, ease: "back.out(2.2)" }, 0.86)
+        // right arm reaches up to catch it, then lowers
+        tl.to(armR,  { y: -4, duration: 0.14, ease: "power2.out" }, 0.86)
+        tl.to(armR,  { y: 0, duration: 0.22, ease: "power2.inOut" }, 1.04)
+
+        // one-frame body squash on the magnifier's impact (props squash with the body)
+        tl.to(body,   { scaleY: 0.9, scaleX: 1.09, duration: 0.07, ease: "power2.out" }, 1.12)
+        tl.to(shadow, { scaleX: 1.16, duration: 0.07, ease: "power2.out" }, 1.12)
+        tl.to(body,   { scaleY: 1, scaleX: 1, duration: 0.22, ease: "back.out(2)" }, 1.19)
+        tl.to(shadow, { scaleX: 1, duration: 0.22, ease: "back.out(2)" }, 1.19)
+
+        // settle the whole rig with a tiny breath
+        tl.to(mascot, { y: -1.5, duration: 0.32, ease: "sine.inOut" }, 1.42)
+        tl.to(mascot, { y: 0, duration: 0.32, ease: "sine.inOut" }, 1.74)
+
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

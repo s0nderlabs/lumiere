@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Mascot Sprite Pose-Turn · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.mpt-stage{
+    background:
+      radial-gradient(ellipse 60% 45% at 50% 62%, rgba(193,91,60,0.05), transparent 72%),
+      var(--vp-bg);
+  }
+.mpt-rig{
+    position:relative;
+    width:128px;height:128px;
+    display:flex;align-items:flex-end;justify-content:center;
+  }
+.mpt-body{
+    transform-origin:50% 100%;
+    will-change:transform;
+  }
+.mpt-svg{
+    display:block;
+    width:128px;height:128px;
+    image-rendering:pixelated;
+  }
+.mpt-floor{
+    position:absolute;left:50%;top:62%;
+    width:96px;height:14px;
+    transform:translate(-50%,0);
+    background:radial-gradient(ellipse 50% 50% at 50% 50%, rgba(10,9,7,0.45), transparent 70%);
+    border-radius:50%;
+    pointer-events:none;
+  }
+html.theme-dark .mpt-floor{
+    background:radial-gradient(ellipse 50% 50% at 50% 50%, rgba(0,0,0,0.55), transparent 70%);
+  }
+.mpt-sleepy-front{opacity:0;visibility:hidden}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="mascot-pose-turn"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage mpt-stage'>
+    <div class='mpt-floor'></div>
+    <div class='mpt-rig' data-mpt-rig>
+      <div class='mpt-body' data-mpt-body>
+        <svg class='mpt-svg' viewBox='0 0 64 64' shape-rendering='crispEdges' xmlns='http://www.w3.org/2000/svg'>
+          <!-- idea bulb, parented to the rig so it bobs with the head -->
+          <g class='mpt-bulb' data-mpt-bulb>
+            <rect x='28' y='2'  width='8' height='8' fill='#F5C84B'/>
+            <rect x='27' y='4'  width='1' height='4' fill='#F5C84B'/>
+            <rect x='36' y='4'  width='1' height='4' fill='#F5C84B'/>
+            <rect x='30' y='3'  width='2' height='2' fill='#FCE38A'/>
+            <rect x='29' y='10' width='6' height='2' fill='#B8B0A5'/>
+            <rect x='30' y='12' width='4' height='1' fill='#8f887d'/>
+          </g>
+
+          <!-- FRONT pose: square critter, two eyes centered, two arm-nubs, two legs -->
+          <g class='mpt-pose mpt-front' data-mpt-pose='front'>
+            <rect x='18' y='24' width='28' height='24' fill='#C15B3C'/>
+            <rect x='18' y='24' width='28' height='3'  fill='#cf6a48'/>
+            <rect x='13' y='30' width='5'  height='9'  fill='#A84C30'/>
+            <rect x='46' y='30' width='5'  height='9'  fill='#A84C30'/>
+            <rect x='22' y='48' width='6'  height='4'  fill='#A84C30'/>
+            <rect x='36' y='48' width='6'  height='4'  fill='#A84C30'/>
+            <g class='mpt-eyes-front'>
+              <rect x='25' y='32' width='5' height='6' fill='#1A1A1A'/>
+              <rect x='34' y='32' width='5' height='6' fill='#1A1A1A'/>
+            </g>
+            <g class='mpt-sleepy-front'>
+              <rect x='25' y='36' width='5' height='2' fill='#1A1A1A'/>
+              <rect x='34' y='36' width='5' height='2' fill='#1A1A1A'/>
+            </g>
+          </g>
+
+          <!-- MID pose: transitional 3/4 turn, body narrows, eyes drift right -->
+          <g class='mpt-pose mpt-mid' data-mpt-pose='mid'>
+            <rect x='20' y='24' width='24' height='24' fill='#C15B3C'/>
+            <rect x='20' y='24' width='24' height='3'  fill='#cf6a48'/>
+            <rect x='44' y='30' width='4'  height='8'  fill='#A84C30'/>
+            <rect x='23' y='48' width='6'  height='4'  fill='#A84C30'/>
+            <rect x='35' y='48' width='6'  height='4'  fill='#A84C30'/>
+            <rect x='30' y='32' width='5' height='6' fill='#1A1A1A'/>
+            <rect x='37' y='32' width='4' height='6' fill='#1A1A1A'/>
+          </g>
+
+          <!-- PROFILE pose: right-facing "dog", snout extends right, one eye, raised arm -->
+          <g class='mpt-pose mpt-profile' data-mpt-pose='profile'>
+            <rect x='20' y='24' width='22' height='24' fill='#C15B3C'/>
+            <rect x='20' y='24' width='22' height='3'  fill='#cf6a48'/>
+            <rect x='42' y='30' width='8'  height='7'  fill='#C15B3C'/>
+            <rect x='50' y='32' width='3'  height='4'  fill='#A84C30'/>
+            <rect x='24' y='48' width='6'  height='4'  fill='#A84C30'/>
+            <rect x='34' y='48' width='6'  height='4'  fill='#A84C30'/>
+            <rect class='mpt-arm' data-mpt-arm x='17' y='30' width='5' height='9' fill='#A84C30'/>
+            <rect x='40' y='31' width='5' height='6' fill='#1A1A1A'/>
+          </g>
+
+          <!-- PEER pose: leaning left, one enlarged eye behind a lens ring -->
+          <g class='mpt-pose mpt-peer' data-mpt-pose='peer'>
+            <rect x='22' y='24' width='24' height='24' fill='#C15B3C'/>
+            <rect x='22' y='24' width='24' height='3'  fill='#cf6a48'/>
+            <rect x='46' y='30' width='4'  height='8'  fill='#A84C30'/>
+            <rect x='26' y='48' width='6'  height='4'  fill='#A84C30'/>
+            <rect x='38' y='48' width='6'  height='4'  fill='#A84C30'/>
+            <rect x='29' y='31' width='6' height='7' fill='#1A1A1A'/>
+            <rect x='37' y='33' width='3' height='4' fill='#1A1A1A'/>
+            <g class='mpt-lens' fill='none' stroke='#3a352c' stroke-width='2'>
+              <rect x='25' y='28' width='14' height='13' rx='1'/>
+            </g>
+            <rect x='12' y='40' width='10' height='2' fill='#6f6c65' transform='rotate(28 22 41)'/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "mascot-pose-turn",
+  "display": "Mascot Sprite Pose-Turn",
+  "cat": "Motion",
+  "isNew": true,
+  "source": [
+    "claude-code-session-recaps",
+    "claude-code-ultrareview",
+    "code-w-claude-conf"
+  ],
+  "desc": "The pixel Claude critter hard-swaps between distinct poses (front -> right-profile -> left-peer) frame-by-frame instead of rotating, raises an arm and pops an idea bulb as an insight lands. Discrete sprite re-draws over a continuous idle bob. From Claude Code session recaps / ultrareview.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const rig   = card.querySelector("[data-mpt-rig]")
+    const body  = card.querySelector("[data-mpt-body]")
+    const bulb  = card.querySelector("[data-mpt-bulb]")
+    const arm   = card.querySelector("[data-mpt-arm]")
+    const poses = ["front", "mid", "profile", "peer"]
+    const poseEls = {}
+    poses.forEach(p => { poseEls[p] = card.querySelector(`[data-mpt-pose='${p}']`) })
+
+    const setPose = (name) => {
+      poses.forEach(p => gsap.set(poseEls[p], { autoAlpha: p === name ? 1 : 0 }))
+    }
+
+    // contentful resting state: turned to the profile "idea" pose, bulb lit, arm raised
+    gsap.set(rig,  { y: 0 })
+    gsap.set(body, { y: 0 })
+    setPose("profile")
+    gsap.set(arm,  { y: -4, rotation: -18, transformOrigin: "50% 100%" })
+    gsap.set(bulb, { transformOrigin: "32px 56px", scale: 1, autoAlpha: 1 })
+
+    // continuous idle bob for the pre-first-replay rest state. Infinite repeat is fine
+    // here because this is a STANDALONE tween, NOT a child of the returned timeline.
+    const bob = gsap.to(body, {
+      y: -3, duration: 0.75, ease: "sine.inOut", yoyo: true, repeat: -1
+    })
+    let tl = null
+
+    return function replay() {
+      if (tl) tl.kill()
+      gsap.killTweensOf([rig, body, arm, bulb])
+      bob.kill()
+
+      // start from rest: front-facing, no bulb, arm down
+      gsap.set(body, { y: 0 })
+      gsap.set(arm,  { y: 0, rotation: 0, transformOrigin: "50% 100%" })
+      gsap.set(bulb, { transformOrigin: "32px 56px", scale: 0, autoAlpha: 0 })
+      setPose("front")
+
+      tl = gsap.timeline()
+
+      // idle bob lives inside the replay so the audit harness scrubs it too.
+      // FINITE repeat (6 half-cycles * 0.75s = 4.5s) spans the whole content so the
+      // returned timeline keeps a FINITE duration() and stays deterministically scrubbable.
+      // A repeat:-1 here would make tl.duration() === Infinity and break the scrub harness.
+      tl.to(body, { y: -3, duration: 0.75, ease: "sine.inOut", yoyo: true, repeat: 5 }, 0)
+
+      // a blink before the turn (discrete: eyes -> sleepy slits and back, no tween)
+      tl.set(card.querySelector(".mpt-eyes-front"),   { autoAlpha: 0 }, 0.55)
+      tl.set(card.querySelector(".mpt-sleepy-front"), { autoAlpha: 1 }, 0.55)
+      tl.set(card.querySelector(".mpt-sleepy-front"), { autoAlpha: 0 }, 0.66)
+      tl.set(card.querySelector(".mpt-eyes-front"),   { autoAlpha: 1 }, 0.66)
+
+      // discrete pose re-draw across an intermediate sprite (steps, not interpolation)
+      tl.call(() => setPose("mid"),     [], 0.95)
+      tl.call(() => setPose("profile"), [], 1.12)
+
+      // arm raises as the critter "turns to look" (the one eased sub-motion)
+      tl.to(arm, { y: -4, rotation: -18, duration: 0.16, ease: "power2.out" }, 1.18)
+
+      // idea bulb pops above the head on the insight beat (overshoot then settle)
+      tl.to(bulb, { scale: 1, autoAlpha: 1, duration: 0.2, ease: "back.out(3)" }, 1.3)
+
+      // hold the lit idea pose, then a second beat: peer-left through a lens
+      tl.to(bulb, { scale: 0, autoAlpha: 0, duration: 0.14, ease: "power2.in" }, 2.5)
+      tl.to(arm,  { y: 0, rotation: 0, duration: 0.14, ease: "power2.in" }, 2.5)
+      tl.call(() => setPose("mid"),  [], 2.66)
+      tl.call(() => setPose("peer"), [], 2.82)
+
+      // settle back to the resting profile "idea" pose for a contentful end state
+      tl.call(() => setPose("mid"),     [], 3.85)
+      tl.call(() => setPose("profile"), [], 4.0)
+      tl.to(arm,  { y: -4, rotation: -18, duration: 0.16, ease: "power2.out" }, 4.05)
+      tl.to(bulb, { scale: 1, autoAlpha: 1, duration: 0.2, ease: "back.out(3)" }, 4.18)
+
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

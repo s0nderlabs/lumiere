@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Inline Reply Composer Expand · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.rxp-stage{position:absolute;inset:0;background:var(--paper);overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;padding:20px 18px;font-family:'Outfit',sans-serif;gap:0}
+.rxp-row{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;background:color-mix(in srgb, #D17B8A 12%, transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb, #D17B8A 32%, transparent)}
+.rxp-glyph{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:#D17B8A;box-shadow:0 0 0 3px color-mix(in srgb, #D17B8A 22%, transparent)}
+.rxp-name{flex:1;min-width:0;font-size:12px;font-weight:600;letter-spacing:-0.01em;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rxp-tag{font-family:'Geist Mono',monospace;font-size:9.5px;font-weight:500;letter-spacing:0.02em;color:#D17B8A;flex-shrink:0}
+.rxp-panel{position:relative;overflow:hidden;margin:6px 0 0 12px;padding:11px 13px 12px 15px;border-radius:0 9px 9px 0;background:var(--paper-2)}
+.rxp-accent{position:absolute;left:0;top:0;bottom:0;width:2px;background:#D17B8A;border-radius:2px;transform-origin:top center}
+.rxp-q{font-size:11px;font-weight:400;line-height:1.45;color:var(--ink-2);margin-bottom:10px}
+.rxp-field{display:flex;align-items:baseline;gap:6px;font-family:'Geist Mono',monospace;font-size:11px;line-height:1.4;min-width:0}
+.rxp-caretmark{color:#D17B8A;font-weight:600;flex-shrink:0}
+.rxp-typed{white-space:pre;color:var(--ink);min-width:0;overflow:hidden}
+.rxp-ch{display:none}
+.rxp-ch.rxp-on{display:inline}
+.rxp-caret{display:inline-block;width:6px;height:13px;margin-left:1px;background:var(--ink);transform:translateY(2px);flex-shrink:0}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="inline-reply-composer-expand"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='rxp-stage'>
+    <div class='rxp-row' data-rxp-row>
+      <span class='rxp-glyph'></span>
+      <span class='rxp-name'>auth-refactor</span>
+      <span class='rxp-tag' data-rxp-tag>3m</span>
+    </div>
+    <div class='rxp-panel' data-rxp-panel>
+      <span class='rxp-accent' data-rxp-accent></span>
+      <div class='rxp-q' data-rxp-q>Two migration paths exist. Which should I take?</div>
+      <div class='rxp-field'>
+        <span class='rxp-caretmark'>&gt;</span>
+        <span class='rxp-typed' data-rxp-typed></span><span class='rxp-caret' data-rxp-caret></span>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "inline-reply-composer-expand",
+  "display": "Inline Reply Composer Expand",
+  "cat": "Chat",
+  "isNew": true,
+  "source": [
+    "claude-code-agent-view"
+  ],
+  "desc": "An inline reply panel expands below a selected agent-queue row, drawing a magenta accent and revealing the agent's pending question, then the user types the answer character-by-character into a > reply field. Claude Code agent-view.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const panel  = card.querySelector("[data-rxp-panel]")
+    const accent = card.querySelector("[data-rxp-accent]")
+    const q      = card.querySelector("[data-rxp-q]")
+    const typed  = card.querySelector("[data-rxp-typed]")
+    const caret  = card.querySelector("[data-rxp-caret]")
+    const REPLY  = "go with the additive backfill"
+
+    // Build per-character spans once. Spaces use a literal space (white-space:pre on .rxp-typed).
+    if (!typed.dataset.split) {
+      typed.innerHTML = REPLY.split("").map(c =>
+        `<span class="rxp-ch">${c === " " ? " " : c}</span>`
+      ).join("")
+      typed.dataset.split = "1"
+    }
+    const chars = Array.from(typed.querySelectorAll(".rxp-ch"))
+    const N = chars.length
+
+    // Reveal up to `count` chars by toggling a prefixed class. Driven by onUpdate so it is
+    // fully deterministic under frame-by-frame timeline scrubbing (callbacks can be skipped
+    // on time() jumps; onUpdate fires every tick).
+    function reveal(count) {
+      const k = Math.max(0, Math.min(N, Math.floor(count)))
+      for (let i = 0; i < N; i++) chars[i].classList.toggle("rxp-on", i < k)
+    }
+
+    // Resting / idle state: panel open, accent drawn, question + full reply visible, caret on.
+    // This is the most contentful frame, so the card never reads empty before replay.
+    gsap.set(panel,  { height: "auto", autoAlpha: 1 })
+    gsap.set(accent, { scaleY: 1 })
+    gsap.set(q,      { autoAlpha: 1, y: 0 })
+    gsap.set(caret,  { autoAlpha: 1 })
+    reveal(N)
+
+    let tl = null
+    return function replay() {
+      if (tl) { tl.kill(); tl = null }
+      gsap.killTweensOf([panel, accent, q, caret])
+
+      // Measure the open height against the LIVE stage (tracks any card size) before
+      // collapsing, so the expand tweens to a real pixel height (scrub-safe, unlike "auto").
+      gsap.set(panel, { height: "auto" })
+      const openH = panel.offsetHeight
+
+      // Collapse to the closed/hidden start state.
+      gsap.set(panel,  { height: 0, autoAlpha: 1 })
+      gsap.set(accent, { scaleY: 0 })
+      gsap.set(q,      { autoAlpha: 0, y: 6 })
+      gsap.set(caret,  { autoAlpha: 1 })
+      reveal(0)
+
+      const counter = { v: 0 }
+      const perChar = 0.055              // ~18 chars/sec, clearly legible typewriter cadence
+      const typeDur = N * perChar
+      tl = gsap.timeline()
+
+      // EXPAND: panel height grows while the magenta accent bar draws downward.
+      tl.to(panel,  { height: openH, duration: 0.32, ease: "power3.out" }, 0.25)
+      tl.to(accent, { scaleY: 1, duration: 0.30, ease: "power2.out" }, 0.25)
+
+      // The agent's pending question lifts + fades in once there is room for it.
+      tl.to(q, { autoAlpha: 1, y: 0, duration: 0.26, ease: "power2.out" }, 0.42)
+
+      // TYPE the reply character-by-character (scrub-safe onUpdate, intentional linear cadence).
+      const typeStart = 0.85
+      tl.to(counter, {
+        v: N,
+        duration: typeDur,
+        ease: "none",
+        onUpdate: () => reveal(counter.v)
+      }, typeStart)
+
+      // Block caret blink during typing: a nested, finite, visible-dominant blink. The caret
+      // rests ON (autoAlpha 1) and dips OFF for a short beat each cycle, so it reads as a real
+      // text caret rather than a mostly-hidden flicker. Nested timeline stays fully scrubbable.
+      const blinkCycles = Math.max(1, Math.ceil(typeDur / 0.55))
+      const blink = gsap.timeline()
+      for (let i = 0; i < blinkCycles; i++) {
+        // visible hold, then a brief off-flash, then back on -> caret is ON most of each 0.55s.
+        blink.set(caret, { autoAlpha: 1 }, i * 0.55)
+        blink.set(caret, { autoAlpha: 0 }, i * 0.55 + 0.42)
+        blink.set(caret, { autoAlpha: 1 }, i * 0.55 + 0.52)
+      }
+      tl.add(blink, typeStart)
+
+      // Settle: full reply held with the caret resting on (the resting state).
+      const typedDone = typeStart + typeDur
+      tl.set(caret, { autoAlpha: 1 }, typedDone)
+      tl.to({}, { duration: 1.2 }, typedDone)   // dwell on the answered panel
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

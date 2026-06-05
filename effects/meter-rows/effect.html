@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Meter Rows · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.mr-card {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  padding: 13px 15px 15px;
+  font-family: 'Inter', 'Outfit', system-ui, sans-serif;
+}
+.mr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+}
+.mr-title {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.mr-sub {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.mr-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mr-row {
+  display: grid;
+  grid-template-columns: 13px 72px 1fr 48px;
+  align-items: center;
+  column-gap: 9px;
+}
+.mr-icon {
+  width: 11px;
+  height: 11px;
+  border-radius: 4px;
+  background: var(--proof-green);
+  justify-self: center;
+}
+.mr-label {
+  font-size: 10.5px;
+  font-weight: 550;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mr-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 4px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.mr-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: var(--proof-green);
+}
+.mr-value {
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="meter-rows"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'>
+  <div class='mr-card' data-mr-card>
+    <div class='mr-head'>
+      <span class='mr-title'>Spending by category</span>
+      <span class='mr-sub'>this month</span>
+    </div>
+    <div class='mr-rows' data-mr-rows></div>
+  </div>
+</div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "meter-rows",
+  "display": "Meter Rows",
+  "cat": "Data Viz",
+  "isNew": true,
+  "source": [
+    "chatgpt-personal-finance"
+  ],
+  "desc": "List of category rows, each row pairs an icon + label + thin inline fill-bar + right-aligned value. Rows stagger in top to bottom; each fill-bar animates 0 to width after its row lifts. ChatGPT finance video uses this for spending categories and portfolio holdings.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const rowsWrap = card.querySelector("[data-mr-rows]")
+
+      // Spending list from the ChatGPT finance video (14.7 to 16.1).
+      // Bars are proportional to the largest value (Rent at 100%).
+      const data = [
+        { label: "Rent",          value: "$1,850", pct: 100 },
+        { label: "Subscriptions", value: "$630",   pct: 34 },
+        { label: "Groceries",     value: "$620",   pct: 34 },
+        { label: "Miscellaneous", value: "$580",   pct: 31 },
+        { label: "Medical",       value: "$410",   pct: 22 },
+        { label: "Transit",       value: "$215",   pct: 12 }
+      ]
+
+      rowsWrap.innerHTML = data.map(d => (
+        "<div class='mr-row' data-mr-row>" +
+          "<span class='mr-icon'></span>" +
+          "<span class='mr-label'>" + d.label + "</span>" +
+          "<span class='mr-bar'><span class='mr-fill' data-mr-fill></span></span>" +
+          "<span class='mr-value'>" + d.value + "</span>" +
+        "</div>"
+      )).join("")
+
+      const rows = rowsWrap.querySelectorAll("[data-mr-row]")
+      const fills = rowsWrap.querySelectorAll("[data-mr-fill]")
+
+      // Idle resting state: rows visible, bars filled to their target width.
+      gsap.set(rows, { opacity: 1, y: 0 })
+      fills.forEach((f, i) => gsap.set(f, { width: data[i].pct + "%" }))
+
+      let tl = null
+
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+
+        // Hidden start: rows lifted + faded, bars empty.
+        gsap.set(rows, { opacity: 0, y: 14 })
+        gsap.set(fills, { width: "0%" })
+
+        tl = gsap.timeline()
+
+        rows.forEach((row, i) => {
+          const at = i * 0.12
+          // Row lifts in.
+          tl.to(row, { opacity: 1, y: 0, duration: 0.34, ease: "power2.out" }, at)
+          // Fill animates 0 to its width just after the row settles.
+          tl.to(fills[i], { width: data[i].pct + "%", duration: 0.42, ease: "power2.out" }, at + 0.18)
+        })
+
+        // Hold the final state so the data is readable (~1.6s).
+        tl.to({}, { duration: 1.6 })
+
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

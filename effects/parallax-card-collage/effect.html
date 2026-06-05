@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Parallax Card Collage · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.pcc-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafaf8}
+.pcc-card{position:absolute;background:#fff;border-radius:14px;box-shadow:0 4px 16px -6px rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.04);padding:10px 12px;font-family:'Outfit',sans-serif;font-size:10px;color:#333;will-change:transform,opacity}
+.pcc-card.pcc-accent{border:none;font-weight:800;font-size:17px;color:#000;border-radius:10px}
+.pcc-card .pcc-label{font-weight:500;font-size:8.5px;color:#999;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.04em}
+.pcc-card .pcc-val{font-size:13px;font-weight:700;color:#111}
+.pcc-donut{width:52px;height:52px;border-radius:50%;border:4px solid #d0d0cc;position:relative}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="parallax-card-collage"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='pcc-stage'>
+      <div class='pcc-card' data-pcc='a' style='width:90px;top:18%;left:8%'><div class='pcc-label'>Stocks</div><div class='pcc-val'>$48,512</div></div>
+      <div class='pcc-card' data-pcc='b' style='width:70px;top:12%;right:18%'><div class='pcc-donut'></div></div>
+      <div class='pcc-card pcc-accent' data-pcc='c' style='background:#d4f0c0;top:42%;left:22%;padding:10px 18px'>you</div>
+      <div class='pcc-card pcc-accent' data-pcc='d' style='background:#f5e86c;top:34%;right:10%;padding:10px 18px'>can</div>
+      <div class='pcc-card' data-pcc='e' style='width:110px;bottom:12%;left:6%'><div class='pcc-label'>YTD</div><div class='pcc-val' style='color:#2e9b66'>+2.73%</div></div>
+      <div class='pcc-card' data-pcc='f' style='width:95px;bottom:8%;right:8%'><div class='pcc-label'>Spending</div><div class='pcc-val'>$4,325</div></div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "parallax-card-collage",
+  "display": "Parallax Card Collage",
+  "cat": "Reveal",
+  "isNew": true,
+  "source": [
+    "claude-code-agent-view",
+    "claude-code-push-notifications",
+    "chatgpt-personal-finance"
+  ],
+  "desc": "Multiple UI cards enter from different directions at different speeds, creating a layered depth composition. ChatGPT intro-style multi-layer entrance.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const cards = card.querySelectorAll("[data-pcc]")
+      const dirs = [
+        { x: -60, y: 30, r: -5 },
+        { x: 50, y: -40, r: 3 },
+        { x: -30, y: -50, r: 8 },
+        { x: 60, y: -20, r: -4 },
+        { x: -50, y: 40, r: 6 },
+        { x: 40, y: 50, r: -7 }
+      ]
+      gsap.set(cards, { opacity: 1, x: 0, y: 0, rotation: 0, scale: 1 })
+      return () => {
+        gsap.killTweensOf(cards)
+        cards.forEach((c, i) => {
+          const d = dirs[i]
+          gsap.set(c, { opacity: 0, x: d.x, y: d.y, rotation: d.r, scale: 0.88 })
+          gsap.to(c, {
+            opacity: 1, x: 0, y: 0, rotation: 0, scale: 1,
+            duration: 0.85, ease: "expo.out", delay: 0.4 + i * 0.09
+          })
+        })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

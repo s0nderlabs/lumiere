@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Queued-to-Resolved Badge Grid · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.qrb-stage{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:9px;background:#fff;padding:16px 18px;font-family:'Outfit',sans-serif}
+.qrb-head{display:flex;align-items:baseline;justify-content:space-between;font-size:11px;font-weight:700;color:#15140F;letter-spacing:-0.01em}
+.qrb-head-count{font-size:8.5px;font-weight:600;color:#9C968B;font-variant-numeric:tabular-nums}
+.qrb-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.qrb-card{position:relative;background:#fbfaf8;border:1px solid rgba(21,20,15,0.08);border-radius:9px;padding:8px 9px 7px;display:flex;flex-direction:column;gap:5px;will-change:box-shadow}
+.qrb-card-top{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.qrb-name{font-size:9.5px;font-weight:600;color:#15140F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.qrb-badge{position:relative;display:inline-flex;align-items:center;justify-content:flex-end;flex-shrink:0;min-width:80px;height:9px;transform-origin:right center}
+.qrb-bdot{width:6px;height:6px;border-radius:50%;background:#9C968B;flex-shrink:0}
+.qrb-blabel{display:inline-flex;align-items:center;gap:4px;font-size:7px;font-weight:700;letter-spacing:0.04em;white-space:nowrap}
+.qrb-bq{position:absolute;right:0;top:50%;transform:translateY(-50%);color:#9C968B}
+.qrb-br{position:absolute;right:0;top:50%;transform:translateY(-50%);color:#3a9e74}
+.qrb-rf{position:absolute;right:0;top:50%;transform:translateY(-50%);color:#CF6F57}
+.qrb-glyph{display:inline-flex;align-items:center;justify-content:center;width:9px;height:9px;border-radius:50%;font-size:7px;line-height:1;color:#fff}
+.qrb-br .qrb-glyph{background:#73D9AA}
+.qrb-rf .qrb-glyph{background:#CF6F57;font-weight:800}
+.qrb-metrics{display:flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums}
+.qrb-mval{font-size:12px;font-weight:700;color:#15140F;letter-spacing:-0.02em}
+.qrb-mdelta{font-size:8px;font-weight:600}
+.qrb-up{color:#3a9e74}
+.qrb-dn{color:#CF6F57}
+.qrb-alert{display:flex;align-items:center;justify-content:space-between;gap:4px;font-size:7.5px;font-weight:600;color:#CF6F57}
+.qrb-open{font-size:7.5px;font-weight:700;color:#CF6F57;text-decoration:none;flex-shrink:0}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="status-badge-resolve"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='qrb-stage'>
+    <div class='qrb-head'>Reconciliation queue<span class='qrb-head-count' data-qrb-count>4 items</span></div>
+    <div class='qrb-grid' data-qrb-grid>
+      <div class='qrb-card' data-qrb-card data-qrb-out='ok'>
+        <div class='qrb-card-top'><span class='qrb-name'>Acme Corp</span>
+          <span class='qrb-badge' data-qrb-badge>
+            <span class='qrb-blabel qrb-bq' data-qrb-q><span class='qrb-bdot'></span>QUEUED</span>
+            <span class='qrb-blabel qrb-br' data-qrb-r><span class='qrb-glyph'>&#10003;</span>COMPLETE</span>
+          </span>
+        </div>
+        <div class='qrb-metrics' data-qrb-metrics><span class='qrb-mval'>$48,512</span><span class='qrb-mdelta qrb-up'>matched</span></div>
+        <div class='qrb-alert' data-qrb-alert>Variance over threshold<a class='qrb-open' data-qrb-open>Open &#8594;</a></div>
+      </div>
+      <div class='qrb-card' data-qrb-card data-qrb-out='ok'>
+        <div class='qrb-card-top'><span class='qrb-name'>Northwind</span>
+          <span class='qrb-badge' data-qrb-badge>
+            <span class='qrb-blabel qrb-bq' data-qrb-q><span class='qrb-bdot'></span>QUEUED</span>
+            <span class='qrb-blabel qrb-br' data-qrb-r><span class='qrb-glyph'>&#10003;</span>COMPLETE</span>
+          </span>
+        </div>
+        <div class='qrb-metrics' data-qrb-metrics><span class='qrb-mval'>$12,940</span><span class='qrb-mdelta qrb-up'>matched</span></div>
+        <div class='qrb-alert' data-qrb-alert>Variance over threshold<a class='qrb-open' data-qrb-open>Open &#8594;</a></div>
+      </div>
+      <div class='qrb-card' data-qrb-card data-qrb-out='flag'>
+        <div class='qrb-card-top'><span class='qrb-name'>Globex Ltd</span>
+          <span class='qrb-badge' data-qrb-badge>
+            <span class='qrb-blabel qrb-bq' data-qrb-q><span class='qrb-bdot'></span>QUEUED</span>
+            <span class='qrb-blabel qrb-rf' data-qrb-f><span class='qrb-glyph'>!</span>NEEDS REVIEW</span>
+          </span>
+        </div>
+        <div class='qrb-metrics' data-qrb-metrics><span class='qrb-mval'>$7,108</span><span class='qrb-mdelta qrb-dn'>&minus;$842</span></div>
+        <div class='qrb-alert' data-qrb-alert>Variance over threshold<a class='qrb-open' data-qrb-open>Open &#8594;</a></div>
+      </div>
+      <div class='qrb-card' data-qrb-card data-qrb-out='ok'>
+        <div class='qrb-card-top'><span class='qrb-name'>Initech</span>
+          <span class='qrb-badge' data-qrb-badge>
+            <span class='qrb-blabel qrb-bq' data-qrb-q><span class='qrb-bdot'></span>QUEUED</span>
+            <span class='qrb-blabel qrb-br' data-qrb-r><span class='qrb-glyph'>&#10003;</span>COMPLETE</span>
+          </span>
+        </div>
+        <div class='qrb-metrics' data-qrb-metrics><span class='qrb-mval'>$31,205</span><span class='qrb-mdelta qrb-up'>matched</span></div>
+        <div class='qrb-alert' data-qrb-alert>Variance over threshold<a class='qrb-open' data-qrb-open>Open &#8594;</a></div>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "status-badge-resolve",
+  "display": "Queued-to-Resolved Badge Grid",
+  "cat": "Data Viz",
+  "isNew": true,
+  "source": [
+    "claude-financial-services"
+  ],
+  "desc": "A grid of QUEUED task cards resolves in a stagger to green COMPLETE checks or an orange NEEDS-REVIEW alert, with metrics fading in and the flagged card gaining a coral outline. Claude for Financial Services agent templates.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const cards = Array.from(card.querySelectorAll("[data-qrb-card]"))
+    const items = cards.map(c => ({
+      card: c,
+      flagged: c.getAttribute("data-qrb-out") === "flag",
+      badge: c.querySelector("[data-qrb-badge]"),
+      q: c.querySelector("[data-qrb-q]"),
+      r: c.querySelector("[data-qrb-q] ~ .qrb-br") || c.querySelector("[data-qrb-r]"),
+      f: c.querySelector("[data-qrb-f]"),
+      metrics: c.querySelector("[data-qrb-metrics]"),
+      alert: c.querySelector("[data-qrb-alert]"),
+      open: c.querySelector("[data-qrb-open]")
+    }))
+    const CORAL = "#CF6F57"
+
+    // resting / resolved state (contentful): everything resolved
+    const applyResolved = () => {
+      items.forEach(it => {
+        gsap.set(it.q, { autoAlpha: 0 })
+        gsap.set([it.r, it.f].filter(Boolean), { autoAlpha: 1 })
+        gsap.set(it.badge, { scale: 1 })
+        gsap.set(it.metrics, { autoAlpha: 1, y: 0 })
+        if (it.flagged) {
+          gsap.set(it.card, { boxShadow: "0 0 0 1.5px " + CORAL, borderColor: CORAL })
+          gsap.set([it.alert, it.open], { autoAlpha: 1, y: 0 })
+        } else {
+          gsap.set(it.card, { boxShadow: "0 0 0 0px rgba(207,111,87,0)", borderColor: "rgba(21,20,15,0.08)" })
+          gsap.set([it.alert, it.open], { autoAlpha: 0, y: 4 })
+        }
+      })
+    }
+    applyResolved()
+
+    return () => {
+      gsap.killTweensOf(items.flatMap(it => [it.card, it.badge, it.q, it.r, it.f, it.metrics, it.alert, it.open].filter(Boolean)))
+      // reset to QUEUED
+      items.forEach(it => {
+        gsap.set(it.q, { autoAlpha: 1 })
+        gsap.set([it.r, it.f].filter(Boolean), { autoAlpha: 0 })
+        gsap.set(it.badge, { scale: 1 })
+        gsap.set(it.metrics, { autoAlpha: 0, y: 4 })
+        gsap.set(it.card, { boxShadow: "0 0 0 0px rgba(207,111,87,0)", borderColor: "rgba(21,20,15,0.08)" })
+        gsap.set([it.alert, it.open], { autoAlpha: 0, y: 4 })
+      })
+      const tl = gsap.timeline({ defaults: { ease: "power2.out" } })
+      items.forEach((it, i) => {
+        const t = 0.5 + i * 0.15
+        // badge pop + recolor
+        tl.to(it.badge, { scale: 1.12, duration: 0.12, ease: "back.out(3)" }, t)
+        // label crossfade QUEUED -> resolved
+        tl.to(it.q, { autoAlpha: 0, duration: 0.1 }, t)
+        tl.to(it.flagged ? it.f : it.r, { autoAlpha: 1, duration: 0.16 }, t + 0.04)
+        tl.to(it.badge, { scale: 1, duration: 0.14, ease: "power2.out" }, t + 0.12)
+        // metrics fade in
+        tl.to(it.metrics, { autoAlpha: 1, y: 0, duration: 0.22 }, t + 0.06)
+        // flagged: coral outline + alert line + open link
+        if (it.flagged) {
+          tl.to(it.card, { boxShadow: "0 0 0 1.5px " + CORAL, borderColor: CORAL, duration: 0.24, ease: "power2.out" }, t + 0.04)
+          tl.to([it.alert, it.open], { autoAlpha: 1, y: 0, duration: 0.26, ease: "power2.out" }, t + 0.14)
+        }
+      })
+      tl.to({}, { duration: 0.8 }) // hold resolved state
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

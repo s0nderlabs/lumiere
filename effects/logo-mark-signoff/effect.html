@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Logo Mark Signoff · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.lms-stage {
+  background: var(--vp-bg);
+}
+.lms-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  width: 100%;
+  height: 100%;
+}
+.lms-slot {
+  position: relative;
+  width: 320px;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lms-wm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.lms-mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
+}
+.lms-disclaimer {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: var(--ink-3);
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="logo-mark-signoff"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage lms-stage'>
+  <div class='lms-frame'>
+    <div class='lms-slot'>
+      <div class='lms-wm' data-wm>lumiere</div>
+      <svg class='lms-mark' data-mark viewBox='0 0 100 100' width='112' height='112' fill='none' aria-hidden='true'>
+        <g data-mark-paths stroke='var(--ink)' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'>
+          <circle class='lms-arc' data-arc cx='50' cy='50' r='30'></circle>
+          <circle class='lms-arc' data-arc cx='50' cy='50' r='20'></circle>
+          <circle class='lms-arc' data-arc cx='50' cy='50' r='10'></circle>
+          <line class='lms-arc' data-arc x1='50' y1='8' x2='50' y2='92'></line>
+          <line class='lms-arc' data-arc x1='8' y1='50' x2='92' y2='50'></line>
+        </g>
+      </svg>
+    </div>
+    <div class='lms-disclaimer' data-disclaimer>Not a replacement for professional advice.</div>
+  </div>
+</div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "logo-mark-signoff",
+  "display": "Logo Mark Signoff",
+  "cat": "Camera",
+  "isNew": true,
+  "source": [
+    "claude-code-fast-mode",
+    "claude-code-agent-view",
+    "claude-financial-services",
+    "chatgpt-personal-finance"
+  ],
+  "desc": "Brand sign-off: wordmark crossfades to a monoline geometric mark that scales up and strokes in, with a fixed disclaimer line held beneath. Used as the outro pattern in the ChatGPT finance video.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const wordmark   = card.querySelector('[data-wm]')
+      const mark       = card.querySelector('[data-mark]')
+      const disclaimer = card.querySelector('[data-disclaimer]')
+      const arcs       = Array.from(card.querySelectorAll('[data-arc]'))
+
+      // measure each stroke path length for the dasharray draw-in
+      const lengths = arcs.map(a => {
+        const len = (typeof a.getTotalLength === 'function') ? a.getTotalLength() : 220
+        return (len && isFinite(len) && len > 0) ? len : 220
+      })
+
+      function setStrokeDrawn() {
+        // mark fully strokes-in (visible final state)
+        arcs.forEach((a, i) => {
+          gsap.set(a, { strokeDasharray: lengths[i], strokeDashoffset: 0 })
+        })
+      }
+      function setStrokeHidden() {
+        // mark hidden behind its own dash gap, ready to draw in
+        arcs.forEach((a, i) => {
+          gsap.set(a, { strokeDasharray: lengths[i], strokeDashoffset: lengths[i] })
+        })
+      }
+
+      // IDLE = final state: wordmark gone, mark fully visible + strokes drawn, disclaimer held
+      function applyIdle() {
+        gsap.set(wordmark,   { opacity: 0 })
+        gsap.set(mark,       { opacity: 1, scale: 1, transformOrigin: '50% 50%' })
+        gsap.set(disclaimer, { opacity: 1 })
+        setStrokeDrawn()
+      }
+      applyIdle()
+
+      let tl = null
+
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+
+        // rest the scene to its START state (wordmark visible, mark hidden + un-drawn)
+        gsap.set(wordmark,   { opacity: 1 })
+        gsap.set(mark,       { opacity: 0, scale: 0.6, transformOrigin: '50% 50%' })
+        gsap.set(disclaimer, { opacity: 1 }) // disclaimer holds the ENTIRE time
+        setStrokeHidden()
+
+        tl = gsap.timeline()
+
+        // hold the wordmark so the viewer reads it
+        tl.to(wordmark, { opacity: 1, duration: 0.5, ease: 'none' }, 0)
+
+        // SIMULTANEOUS crossfade: wordmark fades out while mark fades + scales in
+        tl.to(wordmark, { opacity: 0, duration: 0.6, ease: 'power2.in' }, 0.5)
+        tl.to(mark,     { opacity: 1, duration: 0.6, ease: 'power3.out' }, 0.5)
+        tl.to(mark,     { scale: 1, duration: 0.6, ease: 'power3.out' }, 0.5)
+
+        // stroke-in: each concentric arc draws from gap to full, slightly staggered
+        arcs.forEach((a, i) => {
+          tl.to(a, { strokeDashoffset: 0, duration: 0.7, ease: 'power2.out' }, 0.55 + i * 0.07)
+        })
+
+        // hold the final state ~1.5s
+        tl.to({}, { duration: 1.5 }, 1.45)
+
+        // reset back to idle (final mark state) at the end
+        tl.add(applyIdle, 3.1)
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

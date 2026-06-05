@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Headline Type-On · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.hto-stage {
+  background: var(--cream);
+  padding: 0 20px;
+}
+.hto-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.hto-headline {
+  position: relative;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-align: center;
+  white-space: nowrap;
+}
+.hto-headline .hto-char {
+  display: none;
+  white-space: pre;
+}
+.hto-headline .hto-char.is-on {
+  display: inline-block;
+}
+.hto-headline .hto-caret {
+  display: inline-block;
+  width: 3px;
+  height: 0.86em;
+  margin-left: 2px;
+  background: var(--ink);
+  transform: translateY(0.10em);
+  border-radius: 1px;
+  vertical-align: baseline;
+}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="headline-type-on"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage hto-stage'>
+  <div class='hto-line'>
+    <span class='hto-headline' data-headline></span>
+  </div>
+</div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "headline-type-on",
+  "display": "Headline Type-On",
+  "cat": "Text",
+  "isNew": true,
+  "source": [
+    "chatgpt-personal-finance"
+  ],
+  "desc": "Large centered display headline types in character by character on a clean cream surface. No chrome around it. ChatGPT finance video uses this 4x as connective tissue between demo beats.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const headline = card.querySelector('[data-headline]')
+      const TEXT = 'see where your money is going'
+
+      // Build per-character spans plus a trailing caret span (the caret lives INSIDE
+      // the headline so it always follows the last typed char and the whole unit
+      // stays centered). Spaces use a literal space inside .hto-char (white-space:pre).
+      if (!headline.dataset.split) {
+        const charsHtml = TEXT.split('').map(c =>
+          `<span class="hto-char">${c === ' ' ? ' ' : c}</span>`
+        ).join('')
+        headline.innerHTML = charsHtml + '<span class="hto-caret" data-caret></span>'
+        headline.dataset.split = '1'
+      }
+      const chars = Array.from(headline.querySelectorAll('.hto-char'))
+      const caret = headline.querySelector('[data-caret]')
+      const N = chars.length
+      const line = card.querySelector('.hto-line')
+
+      // Fit the headline to the card: the full sentence stays on one line (as the
+      // reference does) but must not clip. Scale the font down from the CSS size only
+      // when the typed-out line is wider than the available width. Re-fit after the
+      // web font loads (metrics change). Measured with all chars shown.
+
+      // Reveal up to `count` chars by toggling the display class. Driven by an
+      // onUpdate so it is fully deterministic under frame-by-frame timeline scrubbing
+      // (callbacks can be skipped on time() jumps; onUpdate fires every tick).
+      function reveal(count) {
+        const k = Math.max(0, Math.min(N, Math.floor(count)))
+        for (let i = 0; i < N; i++) {
+          if (i < k) chars[i].classList.add('is-on')
+          else chars[i].classList.remove('is-on')
+        }
+      }
+
+      function fit() {
+        headline.style.fontSize = ""           // reset to the CSS size, then measure
+        reveal(N)
+        gsap.set(caret, { opacity: 1 })
+        const avail = (line ? line.clientWidth : 0) - 6
+        const w = headline.scrollWidth
+        if (avail > 0 && w > avail) {
+          const base = parseFloat(getComputedStyle(headline).fontSize) || 46
+          headline.style.fontSize = (base * avail / w).toFixed(2) + "px"
+        }
+      }
+
+      // Idle / resting state: full sentence visible, fitted, caret resting. This is what
+      // the card shows before replay is triggered.
+      fit()
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit)
+
+      let tl = null
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+
+        // Reset to hidden: zero chars shown, caret on (the blinking cursor).
+        reveal(0)
+        gsap.set(caret, { opacity: 1 })
+
+        const start = 0.35
+        const perChar = 0.05               // ~20 chars/sec cadence, clearly legible
+        const typeDur = N * perChar
+        const typedDone = start + typeDur
+        const counter = { v: 0 }
+        tl = gsap.timeline()
+
+        // Type each character on, one at a time, left to right (scrub-safe onUpdate).
+        tl.to(counter, {
+          v: N,
+          duration: typeDur,
+          ease: 'none',
+          onUpdate: () => reveal(counter.v)
+        }, start)
+
+        // Caret blink during typing for texture (does not gate the type-on).
+        tl.to(caret, {
+          opacity: 0,
+          duration: 0.001,
+          repeat: Math.max(1, Math.floor(typedDone / 0.45)),
+          yoyo: true,
+          repeatDelay: 0.45,
+          ease: 'none'
+        }, start)
+
+        // Settle caret on, hold the full sentence ~1.3s, then fade caret out.
+        tl.set(caret, { opacity: 1 }, typedDone)
+        tl.to(caret, { opacity: 0, duration: 0.35, ease: 'power1.out' }, typedDone + 1.3)
+
+        // Return to idle resting state (full sentence visible, caret on).
+        tl.call(() => reveal(N), [], typedDone + 1.8)
+        tl.set(caret, { opacity: 1 }, typedDone + 1.8)
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

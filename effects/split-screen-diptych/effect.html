@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Cause/Effect Split-Screen Diptych · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.ssd-frame{position:absolute;inset:0;overflow:hidden;background:var(--vp-bg)}
+.ssd-stage{
+    position:absolute;inset:0;
+    background:#15140f;
+    overflow:hidden;
+    will-change:transform;
+    backface-visibility:hidden;
+  }
+.ssd-grid{
+    position:absolute;inset:0;
+    background-image:radial-gradient(rgba(232,116,60,0.14) 1px, transparent 1px);
+    background-size:13px 13px;
+    background-position:-1px -1px;
+    opacity:0.9;
+  }
+.ssd-mascot{
+    position:absolute;left:12px;top:11px;
+    width:24px;height:24px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(232,116,60,0.16);
+    border:1px solid rgba(232,116,60,0.42);
+    z-index:4;will-change:transform,opacity;
+  }
+.ssd-star{color:#e8743c;font-size:13px;line-height:1}
+.ssd-deck{
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    gap:20px;padding:0 22px;
+    z-index:2;
+  }
+.ssd-panel{will-change:transform,opacity}
+.ssd-left{
+    width:150px;
+    background:#1f1d18;
+    border:1px solid rgba(232,116,60,0.16);
+    border-radius:11px;
+    box-shadow:0 18px 40px -28px rgba(0,0,0,0.8);
+    overflow:hidden;
+  }
+.ssd-term-chrome{
+    display:flex;gap:5px;
+    padding:7px 10px;
+    background:#26241d;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+.ssd-tl{width:7px;height:7px;border-radius:50%;background:#4a463c;display:inline-block}
+.ssd-tl.r{background:#e8736b}
+.ssd-tl.y{background:#e6c66c}
+.ssd-tl.g{background:#7ec48a}
+.ssd-term-body{
+    padding:9px 11px 11px;
+    font-family:'Geist Mono','SFMono-Regular',monospace;
+    font-size:9.5px;line-height:1.55;
+    color:#e7e1d2;
+  }
+.ssd-tline{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.ssd-prompt{color:#e8743c;font-weight:600}
+.ssd-cmd{color:#f2ede0;font-weight:600}
+.ssd-arg{color:#b9b3a4}
+.ssd-dim{color:#8d887b;font-size:9px;margin-top:2px}
+.ssd-bullet{color:#5f5a4f;font-size:7px}
+.ssd-ok{color:#7ec48a;font-weight:600;margin-left:auto}
+.ssd-right{display:flex;align-items:center;justify-content:center}
+.ssd-phone{
+    position:relative;
+    width:118px;height:190px;
+    background:#0c0b08;
+    border:3px solid #e8743c;
+    border-radius:20px;
+    box-shadow:0 18px 42px -26px rgba(232,116,60,0.55),0 14px 30px -24px rgba(0,0,0,0.8);
+    overflow:hidden;
+    padding:7px 6px;
+  }
+.ssd-notch{
+    position:absolute;top:5px;left:50%;transform:translateX(-50%);
+    width:30px;height:5px;border-radius:999px;background:#000;
+    z-index:3;
+  }
+.ssd-screen{
+    position:relative;width:100%;height:100%;
+    border-radius:13px;
+    background:linear-gradient(180deg,#1c1a14 0%,#15140f 100%);
+    padding:14px 6px 0;
+  }
+.ssd-time{
+    text-align:center;color:#e7e1d2;
+    font-family:'Geist Mono','SFMono-Regular',monospace;
+    font-size:8px;letter-spacing:0.04em;margin-bottom:10px;opacity:0.65;
+  }
+.ssd-banner{
+    display:flex;align-items:flex-start;gap:5px;
+    padding:6px 6px;
+    background:rgba(248,247,244,0.97);
+    border-radius:9px;
+    box-shadow:0 8px 18px -10px rgba(0,0,0,0.6);
+    will-change:transform,opacity;
+  }
+.ssd-app{
+    flex:0 0 auto;width:16px;height:16px;border-radius:5px;
+    background:#e8743c;display:flex;align-items:center;justify-content:center;
+  }
+.ssd-app-glyph{color:#fff;font-size:9px;line-height:1}
+.ssd-banner-body{min-width:0;line-height:1.2}
+.ssd-banner-title{
+    font-family:'Outfit',sans-serif;font-weight:600;font-size:8px;
+    color:#15140f;letter-spacing:0.01em;white-space:nowrap;margin-bottom:1px;
+  }
+.ssd-banner-msg{
+    font-family:'Outfit',sans-serif;font-weight:400;font-size:7px;line-height:1.25;
+    color:#5a564d;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="split-screen-diptych"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='ssd-frame'>
+    <div class='ssd-stage' data-ssd='stage'>
+      <div class='ssd-grid' aria-hidden='true'></div>
+      <div class='ssd-mascot' data-ssd='mascot' aria-hidden='true'><span class='ssd-star'>&#10022;</span></div>
+      <div class='ssd-deck'>
+        <div class='ssd-panel ssd-left' data-ssd='left'>
+          <div class='ssd-term-chrome'><span class='ssd-tl r'></span><span class='ssd-tl y'></span><span class='ssd-tl g'></span></div>
+          <div class='ssd-term-body'>
+            <div class='ssd-tline'><span class='ssd-prompt'>$</span><span class='ssd-cmd'>claude</span><span class='ssd-arg'>deploy</span></div>
+            <div class='ssd-tline ssd-dim'><span class='ssd-bullet'>&#9655;</span><span>build complete</span></div>
+            <div class='ssd-tline ssd-dim'><span class='ssd-bullet'>&#9655;</span><span>pushing &hellip;</span><span class='ssd-ok'>&#10003;</span></div>
+          </div>
+        </div>
+        <div class='ssd-panel ssd-right' data-ssd='right'>
+          <div class='ssd-phone'>
+            <div class='ssd-notch'></div>
+            <div class='ssd-screen'>
+              <div class='ssd-time'>9:41</div>
+              <div class='ssd-banner' data-ssd='banner'>
+                <div class='ssd-app'><span class='ssd-app-glyph'>&#10022;</span></div>
+                <div class='ssd-banner-body'>
+                  <div class='ssd-banner-title'>Claude Code</div>
+                  <div class='ssd-banner-msg'>Deploy finished, tests green</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "split-screen-diptych",
+  "display": "Cause/Effect Split-Screen Diptych",
+  "cat": "Layer",
+  "isNew": true,
+  "source": [
+    "claude-code-push-notifications"
+  ],
+  "desc": "Two co-present panels (terminal where work happens, phone where the result lands) slide inward, then the camera travels right to punch in on the notification instead of cutting. From the Claude Code push-notifications launch clip.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const stage  = card.querySelector('[data-ssd="stage"]')
+    const left   = card.querySelector('[data-ssd="left"]')
+    const right  = card.querySelector('[data-ssd="right"]')
+    const banner = card.querySelector('[data-ssd="banner"]')
+    const mascot = card.querySelector('[data-ssd="mascot"]')
+
+    // IDLE = both panels seated, camera wide, banner landed, mascot idling (contentful rest)
+    function applyIdle() {
+      gsap.set(stage,  { scale: 1, x: 0, transformOrigin: "70% 48%", force3D: true })
+      gsap.set([left, right], { x: 0, autoAlpha: 1 })
+      gsap.set(banner, { y: 0, autoAlpha: 1, scale: 1 })
+      gsap.set(mascot, { y: 0, rotation: 0, autoAlpha: 1 })
+    }
+    applyIdle()
+
+    let tl = null
+
+    return function replay() {
+      if (tl) { tl.kill(); tl = null }
+      gsap.killTweensOf([stage, left, right, banner, mascot])
+
+      // START state: camera wide, panels off-screen inward, banner not yet landed
+      gsap.set(stage,  { scale: 1, x: 0, transformOrigin: "70% 48%", force3D: true })
+      gsap.set(left,   { x: -200, autoAlpha: 0 })
+      gsap.set(right,  { x: 200,  autoAlpha: 0 })
+      gsap.set(banner, { y: -22, autoAlpha: 0, scale: 0.94 })
+      gsap.set(mascot, { y: 0, rotation: 0, autoAlpha: 0 })
+
+      tl = gsap.timeline({ defaults: { force3D: true } })
+
+      // dual-slide entrance: both panels seat to center simultaneously
+      tl.to([left, right], { x: 0, autoAlpha: 1, duration: 0.28, ease: "power3.out" }, 0.25)
+      tl.to(mascot, { autoAlpha: 1, duration: 0.4, ease: "power2.out" }, 0.30)
+
+      // camera travels right + punches in on the phone (no cut)
+      tl.to(stage, { scale: 1.6, x: -60, duration: 0.6, ease: "power2.inOut" }, 0.85)
+
+      // the result lands: notification banner drops in during the hold
+      tl.to(banner, { y: 0, autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out(1.6)" }, 1.15)
+      // mascot idle nudge (the bridge element, alive but quiet)
+      tl.to(mascot, { y: -3, rotation: 8, duration: 0.5, ease: "sine.inOut" }, 1.2)
+      tl.to(mascot, { y: 0, rotation: 0, duration: 0.6, ease: "sine.inOut" }, 1.7)
+
+      // hold on the landed result
+      tl.to({}, { duration: 1.4 }, 1.7)
+
+      // camera pulls back to the full diptych
+      tl.to(stage, { scale: 1, x: 0, duration: 0.8, ease: "power2.inOut" }, 3.1)
+
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

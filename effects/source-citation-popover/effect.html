@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Source-Trace Citation Popover · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.stc-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;background:#FBF7F2;padding:20px 22px;font-family:'Outfit',sans-serif;overflow:hidden}
+.stc-prose{font-size:11px;line-height:1.55;color:#15140F;font-weight:400;max-width:90%;margin-bottom:10px;letter-spacing:-0.005em}
+.stc-val{font-weight:600;color:#15140F;font-variant-numeric:tabular-nums}
+.stc-cite{font-family:'Geist Mono',monospace;font-size:9.5px;font-weight:500;color:#9C968B;padding:1px 5px;border-radius:5px;white-space:nowrap;cursor:default}
+.stc-pop{position:relative;width:208px;background:#FFFFFF;border-radius:11px;border:1px solid rgba(21,20,15,0.08);box-shadow:0 12px 32px -12px rgba(21,20,15,0.28),0 2px 8px -4px rgba(21,20,15,0.12);padding:9px 11px 8px;margin-left:8px}
+.stc-pop-head{display:flex;align-items:center;gap:6px;padding-bottom:6px;border-bottom:1px solid rgba(21,20,15,0.06);margin-bottom:6px}
+.stc-doc-ic{width:13px;height:13px;flex-shrink:0;display:inline-flex;color:#CF6F57}
+.stc-doc-ic svg{width:11px;height:13px;fill:none;stroke:#CF6F57;stroke-width:1;stroke-linejoin:round}
+.stc-fname{font-family:'Geist Mono',monospace;font-size:9.5px;font-weight:500;color:#15140F;flex:1;letter-spacing:-0.01em}
+.stc-page{font-family:'Geist Mono',monospace;font-size:8px;font-weight:500;color:#9C968B;background:#F4EFE9;padding:2px 5px;border-radius:4px;letter-spacing:0.02em}
+.stc-table{display:flex;flex-direction:column;gap:1px}
+.stc-trow{display:flex;align-items:center;justify-content:space-between;padding:3px 6px;border-radius:5px;font-size:9.5px}
+.stc-tk{color:#9C968B;font-weight:500}
+.stc-tv{color:#15140F;font-weight:600;font-family:'Geist Mono',monospace;font-size:9px;font-variant-numeric:tabular-nums}
+.stc-cited .stc-tk{color:#CF6F57}
+.stc-cited .stc-tv{color:#CF6F57}
+.stc-pop-foot{margin-top:7px;padding-top:6px;border-top:1px solid rgba(21,20,15,0.06);font-family:'Geist Mono',monospace;font-size:7.5px;color:#9C968B;letter-spacing:0.01em}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="source-citation-popover"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='stc-stage'>
+    <div class='stc-prose'>Q1 EBITDA rose to <span class='stc-val'>$4.1M</span>, per <span class='stc-cite' data-stc-cite>fy25-q1.pdf&nbsp;p.6</span></div>
+    <div class='stc-pop' data-stc-pop>
+      <div class='stc-pop-head'>
+        <span class='stc-doc-ic'><svg viewBox='0 0 12 14'><path d='M2 0.5h5L10.5 4v9a0.5 0.5 0 0 1-0.5 0.5H2a0.5 0.5 0 0 1-0.5-0.5V1a0.5 0.5 0 0 1 0.5-0.5z'/><path d='M7 0.5V4h3.5'/></svg></span>
+        <span class='stc-fname'>fy25-q1.pdf</span>
+        <span class='stc-page'>Page 6</span>
+      </div>
+      <div class='stc-table'>
+        <div class='stc-trow'><span class='stc-tk'>Revenue</span><span class='stc-tv'>$18.4M</span></div>
+        <div class='stc-trow'><span class='stc-tk'>Op. expenses</span><span class='stc-tv'>$14.3M</span></div>
+        <div class='stc-trow stc-cited' data-stc-cited><span class='stc-tk'>EBITDA</span><span class='stc-tv'>$4.1M</span></div>
+        <div class='stc-trow'><span class='stc-tk'>Margin</span><span class='stc-tv'>22.3%</span></div>
+      </div>
+      <div class='stc-pop-foot'>Extracted by Agent · 14:02:38</div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "source-citation-popover",
+  "display": "Source-Trace Citation Popover",
+  "cat": "UI",
+  "isNew": true,
+  "source": [
+    "claude-financial-services"
+  ],
+  "desc": "Hovering an inline file citation highlights it pink and pops a source-trace card with a mini table where the cited row glows in the brand accent. Claude for Financial Services provenance/grounding moment.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const cite = card.querySelector("[data-stc-cite]")
+    const pop = card.querySelector("[data-stc-pop]")
+    const cited = card.querySelector("[data-stc-cited]")
+    /* contentful resting state: citation highlighted, popover open, cited row glowing */
+    gsap.set(cite, { backgroundColor: "#F8E3DC", color: "#CF6F57" })
+    gsap.set(pop, { scale: 1, autoAlpha: 1, transformOrigin: "top left" })
+    gsap.set(cited, { backgroundColor: "#F8E3DC" })
+    return () => {
+      gsap.killTweensOf([cite, pop, cited])
+      /* reset to pre-hover */
+      gsap.set(cite, { backgroundColor: "rgba(0,0,0,0)", color: "#9C968B" })
+      gsap.set(pop, { scale: 0.85, autoAlpha: 0, transformOrigin: "top left" })
+      gsap.set(cited, { backgroundColor: "rgba(248,227,220,0)" })
+      const tl = gsap.timeline({ delay: 0.45 })
+      /* 1 - citation highlight pill */
+      tl.to(cite, { backgroundColor: "#F8E3DC", color: "#CF6F57", duration: 0.15, ease: "power2.out" })
+      /* 2 - popover materializes from the anchor */
+      tl.to(pop, { scale: 1, autoAlpha: 1, duration: 0.3, ease: "power3.out" }, "-=0.02")
+      /* 3 - cited row glows in, then settles to its resting tint */
+      tl.to(cited, { backgroundColor: "#FBD3C8", duration: 0.18, ease: "power2.out" }, "-=0.1")
+      tl.to(cited, { backgroundColor: "#F8E3DC", duration: 0.32, ease: "sine.inOut" })
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

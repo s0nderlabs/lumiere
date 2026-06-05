@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Word-by-Word Rise · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.bridge-line{font-family:'Outfit',sans-serif;font-weight:500;font-size:24px;color:var(--ink);letter-spacing:-0.02em;line-height:1.15;text-align:center;padding:0 12px}
+.bridge-line .bl-word{display:inline-block;opacity:0}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="word-rise"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'><div class='bridge-line' data-wr>everything is happening on chain.</div></div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "word-rise",
+  "display": "Word-by-Word Rise",
+  "cat": "Text",
+  "source": [
+    "claude-financial-services"
+  ],
+  "desc": "Per-word lift with longer stagger. Each word lands as its own beat.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+/* module-scope helpers carried over verbatim from dashboard/effects.js */
+function splitWords(el) {
+  const text = el.textContent
+  el.innerHTML = text
+    .split(" ")
+    .map(w => `<span class="bl-word" style="display:inline-block;margin-right:.25em">${w}</span>`)
+    .join(" ")
+  return el.querySelectorAll(".bl-word")
+}
+
+window.LUMIERE_INIT = function init(card) {
+      const el = card.querySelector("[data-wr]")
+      const words = splitWords(el)
+      gsap.set(words, { opacity: 1, y: 0 })
+      return () => {
+        gsap.killTweensOf(words)
+        gsap.set(words, { opacity: 0, y: 22 })
+        gsap.to(words, { opacity: 1, y: 0, duration: 0.55, ease: "expo.out", stagger: 0.25, delay: 0.2 })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

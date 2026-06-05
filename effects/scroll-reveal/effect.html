@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Scroll Reveal · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.srv-stage{position:absolute;inset:0;overflow:hidden;background:#fff}
+.srv-inner{position:absolute;left:0;right:0;top:0;padding:14px 16px;font-family:'Outfit',sans-serif}
+.srv-heading{font-size:13px;font-weight:700;color:#111;margin-bottom:6px}
+.srv-para{font-size:10px;color:#444;line-height:1.55;margin-bottom:8px}
+.srv-table{width:100%;border-collapse:collapse;font-size:9.5px;color:#333}
+.srv-table th{text-align:left;font-weight:600;color:#111;padding:4px 0;border-bottom:1px solid #e0e0e0}
+.srv-table td{padding:6px 0;border-bottom:1px solid #f0f0f0}
+.srv-table .srv-val{text-align:right;font-weight:600;color:#222}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="scroll-reveal"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='srv-stage'>
+      <div class='srv-inner' data-srv>
+        <div class='srv-heading'>Where you stand today</div>
+        <div class='srv-para'>You've got about <b>$143K cash</b>, or <b>$128K</b> after paying off credit cards. Your take-home income is roughly <b>$11.4K/month</b>.</div>
+        <div class='srv-para'>Mortgage rates remain high, around the <b>mid-6% range</b>. Chicago home prices are way more reasonable than in coastal markets.</div>
+        <div class='srv-heading' style='margin-top:6px'>Phase 1: savings buckets</div>
+        <table class='srv-table'>
+          <tr><th>Bucket</th><th class='srv-val'>Target</th></tr>
+          <tr><td>Emergency fund</td><td class='srv-val'>$45K</td></tr>
+          <tr><td>Down payment</td><td class='srv-val'>$80K-$140K</td></tr>
+          <tr><td>Closing/repairs</td><td class='srv-val'>~$20K</td></tr>
+        </table>
+        <div class='srv-heading' style='margin-top:8px'>Phase 2: Next 3-6 months</div>
+        <div class='srv-para'>Choose your buying lane based on your risk tolerance and timeline.</div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "scroll-reveal",
+  "display": "Scroll Reveal",
+  "cat": "Chat",
+  "isNew": true,
+  "source": [
+    "claude-code-agent-view",
+    "chatgpt-personal-finance"
+  ],
+  "desc": "Viewport pans vertically to reveal off-screen content below the fold. ChatGPT long-response auto-scroll.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const inner = card.querySelector("[data-srv]")
+      gsap.set(inner, { y: 0 })
+      return () => {
+        gsap.killTweensOf(inner)
+        gsap.set(inner, { y: 0 })
+        const tl = gsap.timeline({ delay: 0.8 })
+        tl.to(inner, { y: -60, duration: 1.5, ease: "power1.inOut" })
+        tl.to(inner, { y: -130, duration: 1.5, ease: "power1.inOut" }, "+=0.6")
+        tl.to(inner, { y: 0, duration: 0.8, ease: "power2.out" }, "+=1.2")
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Composer Commit · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.cc-scene{position:absolute;inset:0;background:var(--paper);overflow:hidden;font-family:'Outfit','Inter',system-ui,sans-serif}
+.cc-composer{
+  position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  display:flex;align-items:center;gap:8px;
+  will-change:transform,opacity;
+}
+.cc-plus{
+  width:28px;height:28px;flex-shrink:0;
+  border-radius:50%;
+  background:var(--cream-deep);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink-3);font-size:19px;font-weight:300;line-height:1;
+}
+.cc-pill{
+  display:flex;align-items:center;gap:9px;
+  background:var(--cream-deep);
+  border-radius:999px;
+  padding:7px 7px 7px 14px;
+}
+.cc-text{
+  font-size:12px;font-weight:400;letter-spacing:-0.01em;
+  color:var(--ink);
+  white-space:nowrap;
+}
+.cc-send{
+  width:26px;height:26px;flex-shrink:0;
+  border-radius:50%;
+  background:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+}
+.cc-send svg{width:12px;height:12px;fill:none;stroke:var(--cream);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.cc-bubble{
+  position:absolute;top:18px;right:20px;
+  background:var(--cream-deep);
+  border-radius:999px;
+  padding:9px 16px;
+  font-size:12px;font-weight:400;letter-spacing:-0.01em;
+  color:var(--ink);
+  white-space:nowrap;
+  will-change:transform,opacity;
+}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="composer-commit"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'>
+  <div class='cc-scene'>
+    <!-- the committed user message: appears top-right on send (OG: ChatGPT
+         finance video 0:23.4 - bubble lands low and drifts up to settle) -->
+    <div class='cc-bubble' data-cc-bubble>Am I paying for subscriptions I don't need?</div>
+    <!-- idle composer, centered like the reference -->
+    <div class='cc-composer' data-cc-composer>
+      <div class='cc-plus' data-cc-plus>+</div>
+      <div class='cc-pill' data-cc-pill>
+        <div class='cc-text' data-cc-text>Am I paying for subscriptions I don't need?</div>
+        <div class='cc-send' data-cc-send><svg viewBox='0 0 16 16'><path d='M8 12V4M8 4L4 8M8 4l4 4'/></svg></div>
+      </div>
+    </div>
+  </div>
+</div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "composer-commit",
+  "display": "Composer Commit",
+  "cat": "Chat",
+  "isNew": true,
+  "source": [
+    "claude-code-agent-view",
+    "chatgpt-personal-finance"
+  ],
+  "desc": "Composer commit, faithful to the ChatGPT reference: a centered input bar (plus outside, send inside) holds, then the commit is a hard swap - the composer vanishes in a beat and the finished user bubble appears top-right slightly low, rising ~12px into its settled spot. No flight, no morph.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const composer = card.querySelector("[data-cc-composer]")
+      const bubble = card.querySelector("[data-cc-bubble]")
+
+      // Faithful to the reference (ChatGPT finance video, 0:21.4-0:23.6):
+      // the centered composer holds, then the commit is a HARD swap - the
+      // composer vanishes within a frame and the finished bubble appears
+      // top-right slightly LOW, drifting up ~12px to settle as it fades in.
+      // No flight, no shape morph, no color change.
+
+      function setIdle() {
+        gsap.set(composer, { autoAlpha: 1, scale: 1, transformOrigin: "50% 50%" })
+        gsap.set(bubble, { autoAlpha: 0, y: 14 })
+      }
+
+      setIdle()
+
+      let tl = null
+      return function replay() {
+        if (tl) { tl.kill(); tl = null }
+        gsap.killTweensOf([composer, bubble])
+        setIdle()
+
+        tl = gsap.timeline()
+
+        // 0 - 1.1s: HOLD on the idle centered composer.
+        tl.to(composer, { autoAlpha: 1, duration: 1.1 }, 0)
+
+        // 1.1s: COMMIT. The composer drops out almost instantly (the OG cut
+        // is a single 30fps frame; 0.1s reads the same without strobing).
+        tl.to(composer, { autoAlpha: 0, scale: 0.985, duration: 0.1, ease: "power1.in" }, 1.1)
+
+        // 1.12 - 1.4s: the sent bubble appears top-right, rising into place.
+        tl.to(bubble, { autoAlpha: 1, y: 0, duration: 0.28, ease: "power2.out" }, 1.12)
+
+        // 1.4 - 3.4s: HOLD on the settled bubble - the resting state.
+        tl.to(bubble, { y: 0, duration: 2.0 }, 1.4)
+
+        return tl
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

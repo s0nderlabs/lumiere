@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Inline Label Word-Insert · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.ilw-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px;background:var(--cream);overflow:hidden}
+.ilw-phrase{display:inline-flex;align-items:center;font-family:'Outfit',sans-serif;font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-0.01em;white-space:nowrap}
+.ilw-tok{display:inline-block}
+.ilw-tail{margin-left:0.4em}
+.ilw-clip{display:inline-flex;align-items:center;overflow:hidden;margin-left:0.4em;will-change:width}
+.ilw-chip{display:inline-block;font-size:13px;font-weight:600;line-height:1;letter-spacing:0.01em;color:#8E8E94;background:var(--paper-2);border:1px solid var(--line-strong);border-radius:7px;padding:4px 8px;white-space:nowrap;transform-origin:left center;will-change:transform,opacity}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="inline-label-word-insert"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='ilw-stage'>
+    <div class='ilw-phrase' data-ilw-phrase>
+      <span class='ilw-tok'>Opus 4.7</span>
+      <span class='ilw-clip' data-ilw-clip><span class='ilw-chip' data-ilw-chip>Fast</span></span>
+      <span class='ilw-tok ilw-tail' data-ilw-tail>1M Default</span>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "inline-label-word-insert",
+  "display": "Inline Label Word-Insert",
+  "cat": "Text",
+  "isNew": true,
+  "source": [
+    "claude-code-fast-mode"
+  ],
+  "desc": "A live setting writes itself into a label: the \"Fast\" chip expands open between two existing tokens of \"Opus 4.7 / 1M Default\" while the trailing token reflows right to make room. Claude Code Fast-mode launch, frame-synced to the toggle flipping on.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const clip = card.querySelector("[data-ilw-clip]")
+    const chip = card.querySelector("[data-ilw-chip]")
+    const tail = card.querySelector("[data-ilw-tail]")
+
+    // The chip lives inside a clip element whose width tweens 0 -> targetW so the
+    // trailing token reflows right via flex (no jitter, numeric target = scrubbable).
+    // targetW is the chip's natural width incl. its own padding/margins. Measured with
+    // the clip in its open auto-width state, then re-measured after the font loads.
+    let targetW = 0
+    function measure() {
+      const prev = clip.style.width
+      clip.style.width = "auto"
+      const w = clip.getBoundingClientRect().width
+      if (w > 0) targetW = w
+      clip.style.width = prev
+    }
+    function applyIdle() {
+      gsap.set(clip, { width: "auto" })
+      gsap.set(chip, { opacity: 1, scale: 1, x: 0 })
+      gsap.set(tail, { x: 0 })
+    }
+    // Contentful resting state: full phrase with "Fast" inserted and visible.
+    measure(); applyIdle()
+    requestAnimationFrame(() => { measure(); applyIdle() })
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measure(); applyIdle() })
+
+    let tl = null
+    return function replay() {
+      if (tl) { tl.kill(); tl = null }
+      measure()
+      // Defensive: if the card is measured at zero width (not yet laid out / hidden),
+      // never collapse the clip to 0 (the chip would vanish inside overflow:hidden).
+      // Fall back to the contentful rest state and skip the reflow animation.
+      if (!(targetW > 0)) { applyIdle(); return null }
+      gsap.set(clip, { width: 0 })
+      gsap.set(chip, { opacity: 0, scale: 0.7, x: -3 })
+      gsap.set(tail, { x: 0 })
+
+      tl = gsap.timeline()
+      // hold the collapsed phrase a beat (the setting is about to be written)
+      tl.to({}, { duration: 0.45 })
+      // the slot opens: clip width 0 -> target, the tail reflows right with it
+      tl.to(clip, { width: targetW, duration: 0.2, ease: "power2.out" }, ">")
+      // the inserted word writes in just behind the opening edge
+      tl.to(chip, { opacity: 1, scale: 1, x: 0, duration: 0.16, ease: "back.out(2.4)" }, "<0.05")
+      // settle, hold the written-in label, then return to the contentful rest state
+      tl.to({}, { duration: 1.0 })
+      tl.add(applyIdle, ">")
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Spinner to Dot · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.std-stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;padding:10px;gap:6px}
+.std-header{font-family:'Outfit',sans-serif;font-size:9px;color:#999;display:flex;align-items:center;gap:5px}
+.std-header-icon{width:16px;height:16px;border-radius:4px;background:#111;display:flex;align-items:center;justify-content:center}
+.std-header-icon svg{width:10px;height:10px;fill:#fff}
+.std-list{display:flex;flex-direction:column;gap:0;width:82%;background:#fff;border-radius:14px;border:1px solid rgba(0,0,0,0.06);overflow:hidden;box-shadow:0 2px 10px -4px rgba(0,0,0,0.06)}
+.std-item{display:flex;align-items:center;gap:8px;padding:5px 11px;font-family:'Outfit',sans-serif;font-size:9.5px;color:#333;border-bottom:1px solid rgba(0,0,0,0.04)}
+.std-item:last-child{border-bottom:none}
+.std-item-icon{width:17px;height:17px;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:6.5px;color:#fff;font-weight:700}
+.std-item-name{flex:1;font-weight:500}
+.std-item-sub{font-size:7.5px;color:#aaa;margin-top:1px}
+.std-status{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:9px;color:#aaa;font-weight:500}
+.std-spinner{width:11px;height:11px;border-radius:50%;border:1.5px solid #ddd;border-top-color:#888;display:inline-block}
+.std-check{width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block}
+/* added by audit: missed by class-token matcher */
+  @keyframes std-spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="spinner-to-dot"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='std-stage'>
+      <div class='std-header'><div class='std-header-icon'><svg viewBox='0 0 12 12'><rect x='2' y='2' width='3' height='3' rx='0.5'/><rect x='7' y='2' width='3' height='3' rx='0.5'/><rect x='2' y='7' width='3' height='3' rx='0.5'/><rect x='7' y='7' width='3' height='3' rx='0.5'/></svg></div>Connecting with Plaid</div>
+      <div class='std-list'>
+        <div class='std-item' data-std><div class='std-item-icon' style='background:#016fd0'>AE</div><div class='std-item-name'>American Express<div class='std-item-sub'>1 account</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
+        <div class='std-item' data-std><div class='std-item-icon' style='background:#c41230'>BA</div><div class='std-item-name'>Bank of America<div class='std-item-sub'>2 accounts</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
+        <div class='std-item' data-std><div class='std-item-icon' style='background:#00a3de'>CS</div><div class='std-item-name'>Charles Schwab<div class='std-item-sub'>1 account</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
+        <div class='std-item' data-std><div class='std-item-icon' style='background:#6b3fa0'>ET</div><div class='std-item-name'>Etrade<div class='std-item-sub'>1 account</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
+        <div class='std-item' data-std><div class='std-item-icon' style='background:#368727'>FI</div><div class='std-item-name'>Fidelity<div class='std-item-sub'>1 account</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
+        <div class='std-item' data-std><div class='std-item-icon' style='background:#00c805'>RH</div><div class='std-item-name'>Robinhood<div class='std-item-sub'>1 account</div></div><div class='std-status' data-std-status><span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing</div></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "spinner-to-dot",
+  "display": "Spinner to Dot",
+  "cat": "UI",
+  "isNew": true,
+  "source": [
+    "chatgpt-personal-finance"
+  ],
+  "desc": "Accounts sync one by one: spinning arc becomes a green dot on completion. ChatGPT Plaid connection flow.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const items = card.querySelectorAll("[data-std]")
+      const statuses = card.querySelectorAll("[data-std-status]")
+      const spinners = card.querySelectorAll("[data-std-spin]")
+      let timers = []
+      const restore = () => {
+        statuses.forEach(s => { s.innerHTML = "<span class='std-spinner' data-std-spin style='animation:std-spin 0.7s linear infinite'></span>Syncing" })
+        gsap.set(items, { opacity: 1, x: 0 })
+      }
+      restore()
+      items.forEach(item => { gsap.set(item, { opacity: 1 }) })
+      return () => {
+        timers.forEach(t => clearTimeout(t))
+        timers = []
+        gsap.killTweensOf(items)
+        gsap.set(items, { opacity: 0, x: 20 })
+        restore()
+        items.forEach((item, i) => {
+          gsap.to(item, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out", delay: 0.3 + i * 0.15 })
+          const status = item.querySelector("[data-std-status]")
+          timers.push(setTimeout(() => {
+            status.innerHTML = "<span class='std-check'></span><span style='color:#2e9b66;font-weight:600'>Synced</span>"
+          }, 1200 + i * 400))
+        })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

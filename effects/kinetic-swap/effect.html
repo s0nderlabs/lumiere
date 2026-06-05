@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Kinetic Swap · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.ks-stage{
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 50%, rgba(16,15,9,0.04), transparent 70%),
+      var(--vp-bg);
+  }
+.ks-anchor{
+    position:relative;width:100%;height:100%;
+    display:flex;align-items:center;justify-content:center;
+  }
+.ks-line{
+    position:absolute;
+    left:0;right:0;top:50%;
+    transform:translateY(-50%);
+    font-family:'Outfit',system-ui,sans-serif;
+    font-weight:500;
+    font-size:22px;
+    letter-spacing:-0.025em;
+    line-height:1.1;
+    color:var(--ink);
+    text-align:center;
+    white-space:nowrap;
+    opacity:0;
+    z-index:10;
+    pointer-events:none;
+    padding:0 4px;
+  }
+.ks-line .ks-word{
+    display:inline-block;
+    opacity:0;
+    will-change:transform,opacity,filter;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="kinetic-swap"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage ks-stage'>
+      <div class='ks-anchor'>
+        <div class='ks-line' data-ks='1'>
+          <span class='ks-word'>scaffolding</span><span class='ks-word'>&nbsp;takes</span><span class='ks-word'>&nbsp;weeks.</span>
+        </div>
+        <div class='ks-line' data-ks='2'>
+          <span class='ks-word'>lumiere</span><span class='ks-word'>&nbsp;collapses</span><span class='ks-word'>&nbsp;the</span><span class='ks-word'>&nbsp;loop.</span>
+        </div>
+        <div class='ks-line' data-ks='3'>
+          <span class='ks-word'>ship</span><span class='ks-word'>&nbsp;a</span><span class='ks-word'>&nbsp;launch</span><span class='ks-word'>&nbsp;video</span><span class='ks-word'>&nbsp;today.</span>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "kinetic-swap",
+  "display": "Kinetic Swap",
+  "cat": "Text",
+  "source": [
+    "anima-launch"
+  ],
+  "desc": "Three phrases stack at one anchor and swap with blur-clear rise. Bridge sequence between scenes; final phrase HOLDS as the end state. Mirrors anima-launch's revealLine (lines 2547-2592) with identical constants.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const stage = card.querySelector('.ks-stage')
+      const lines = stage.querySelectorAll('.ks-line')
+      const wordsOf = (i) => stage.querySelectorAll(`.ks-line[data-ks="${i}"] .ks-word`)
+
+      const ENTER_DUR = 0.5
+      const STAGGER = 0.055
+      const EXIT_DUR = 0.4
+      const HOLD_PREMISE = 0.85
+      const HOLD_PUNCH = 1.30
+      const GAP = 0.05
+
+      let tl
+
+      const setIdle = () => {
+        gsap.set(lines[0], { opacity: 1, y: 0 })
+        gsap.set(wordsOf(1), { opacity: 1, y: 0, filter: 'blur(0px)' })
+        for (let i = 1; i < lines.length; i++) {
+          gsap.set(lines[i], { opacity: 0, y: 0 })
+          gsap.set(wordsOf(i + 1), { opacity: 0, y: 32, filter: 'blur(8px)' })
+        }
+      }
+      setIdle()
+
+      const revealLine = (timeline, idx, t, holdDur) => {
+        const lineEl = lines[idx - 1]
+        const words = wordsOf(idx)
+        timeline.set(lineEl, { opacity: 1, y: 0 }, t)
+        timeline.fromTo(words,
+          { opacity: 0, y: 32, filter: 'blur(8px)' },
+          { opacity: 1, y: 0, filter: 'blur(0px)',
+            duration: ENTER_DUR, ease: 'expo.out', stagger: STAGGER },
+          t)
+        const enterEnd = t + ENTER_DUR + STAGGER * (words.length - 1)
+        const exitAt = enterEnd + holdDur
+        timeline.to(lineEl, { opacity: 0, y: -36, duration: EXIT_DUR, ease: 'power2.in' }, exitAt)
+        return exitAt + EXIT_DUR
+      }
+
+      const revealFinal = (timeline, idx, t, holdDur) => {
+        /* punchline: same enter, NO exit - anima ends the bridge here */
+        const lineEl = lines[idx - 1]
+        const words = wordsOf(idx)
+        timeline.set(lineEl, { opacity: 1, y: 0 }, t)
+        timeline.fromTo(words,
+          { opacity: 0, y: 32, filter: 'blur(8px)' },
+          { opacity: 1, y: 0, filter: 'blur(0px)',
+            duration: ENTER_DUR, ease: 'expo.out', stagger: STAGGER },
+          t)
+        const enterEnd = t + ENTER_DUR + STAGGER * (words.length - 1)
+        return enterEnd + holdDur
+      }
+
+      return function play() {
+        if (tl) { tl.kill(); tl = null }
+        gsap.set(lines[0], { opacity: 1, y: 0 })
+        gsap.set(wordsOf(1), { opacity: 0, y: 32, filter: 'blur(8px)' })
+        for (let i = 1; i < lines.length; i++) {
+          gsap.set(lines[i], { opacity: 0, y: 0 })
+          gsap.set(wordsOf(i + 1), { opacity: 0, y: 32, filter: 'blur(8px)' })
+        }
+
+        tl = gsap.timeline()
+        const t0 = 0.15
+        const line1End = revealLine(tl, 1, t0, HOLD_PREMISE)
+        const line2End = revealLine(tl, 2, line1End + GAP, HOLD_PREMISE)
+        revealFinal(tl, 3, line2End + GAP, HOLD_PUNCH)
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

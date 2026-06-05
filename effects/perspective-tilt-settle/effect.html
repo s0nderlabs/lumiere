@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>3D Perspective Tilt-Settle · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.pts-stage{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:26px;background:#CF6F57;
+    perspective:1200px;perspective-origin:50% 50%;
+  }
+.pts-deck{
+    position:relative;width:230px;height:166px;
+    transform-style:preserve-3d;
+  }
+.pts-page{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;gap:9px;
+    padding:15px 16px;
+    background:#FBF7F2;border:1px solid rgba(16,15,9,0.08);border-radius:13px;
+    box-shadow:0 22px 44px -22px rgba(40,16,8,0.55),0 4px 12px -6px rgba(40,16,8,0.30);
+    backface-visibility:hidden;will-change:transform,filter,opacity;
+    font-family:'Outfit',system-ui,sans-serif;color:#241a14;
+  }
+.pts-head{display:flex;align-items:center;gap:8px}
+.pts-dot{width:8px;height:8px;border-radius:50%;background:#CF6F57;flex:0 0 auto;box-shadow:0 0 0 3px rgba(207,111,87,0.16)}
+.pts-ttl{font-size:13px;font-weight:600;letter-spacing:-0.01em;color:#241a14}
+.pts-tag{
+    margin-left:auto;font-family:'Geist Mono',monospace;font-size:8.5px;
+    text-transform:uppercase;letter-spacing:0.10em;color:#9c5443;
+    background:rgba(207,111,87,0.12);border:1px solid rgba(207,111,87,0.22);
+    padding:2px 6px;border-radius:999px;
+  }
+.pts-row{
+    display:flex;align-items:baseline;justify-content:space-between;
+    padding-bottom:7px;border-bottom:1px solid rgba(16,15,9,0.07);
+  }
+.pts-k{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:0.06em;text-transform:uppercase;color:#8a6f63}
+.pts-v{font-family:'Geist Mono',monospace;font-size:18px;font-weight:500;letter-spacing:-0.01em;color:#241a14}
+.pts-bars{display:flex;align-items:flex-end;gap:7px;height:46px}
+.pts-bars i{flex:1;border-radius:3px 3px 1px 1px;background:linear-gradient(180deg,#E08F79,#CF6F57)}
+.pts-foot{
+    margin-top:auto;font-family:'Geist Mono',monospace;font-size:9px;
+    letter-spacing:0.04em;color:#a07d6e;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="perspective-tilt-settle"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='pts-stage'>
+    <div class='pts-deck'>
+      <div class='pts-page pts-out' data-pts='out'>
+        <div class='pts-head'>
+          <span class='pts-dot'></span>
+          <span class='pts-ttl'>Cash Flow Agent</span>
+          <span class='pts-tag'>active</span>
+        </div>
+        <div class='pts-row'><span class='pts-k'>liquidity</span><span class='pts-v'>$2.4M</span></div>
+        <div class='pts-bars'><i style='height:42%'></i><i style='height:68%'></i><i style='height:55%'></i><i style='height:81%'></i><i style='height:63%'></i></div>
+        <div class='pts-foot'>reconciled · 14:02</div>
+      </div>
+      <div class='pts-page pts-in' data-pts='in'>
+        <div class='pts-head'>
+          <span class='pts-dot'></span>
+          <span class='pts-ttl'>Risk Review Agent</span>
+          <span class='pts-tag'>ready</span>
+        </div>
+        <div class='pts-row'><span class='pts-k'>exposure</span><span class='pts-v'>0.18%</span></div>
+        <div class='pts-bars'><i style='height:58%'></i><i style='height:39%'></i><i style='height:72%'></i><i style='height:46%'></i><i style='height:88%'></i></div>
+        <div class='pts-foot'>scenario set · 12 holdings</div>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "perspective-tilt-settle",
+  "display": "3D Perspective Tilt-Settle",
+  "cat": "Camera",
+  "isNew": true,
+  "source": [
+    "claude-financial-services"
+  ],
+  "desc": "Signature page-to-page transition from Claude for Financial Services: an incoming agent-template page enters rotated in 3D with a directional motion-blur smear, eases flat and crisp on power4.out, then the outgoing page whips off left with a skewed blur on power2.in.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const pageOut = card.querySelector('[data-pts="out"]')
+    const pageIn  = card.querySelector('[data-pts="in"]')
+
+    // contentful resting state: the incoming page sits flat, crisp, facing the viewer
+    function applyIdle() {
+      gsap.set(pageOut, { autoAlpha: 0, x: -120, skewX: 8, filter: 'blur(0px)' })
+      gsap.set(pageIn,  { autoAlpha: 1, rotationY: 0, rotationX: 0, scale: 1, x: 0, skewX: 0, filter: 'blur(0px)', transformOrigin: 'center', force3D: true })
+    }
+    applyIdle()
+
+    let tl = null
+
+    return function replay() {
+      if (tl) { tl.kill(); tl = null }
+
+      // START: outgoing page is present + flat; incoming page is rotated back in 3D, smeared
+      gsap.set(pageOut, { autoAlpha: 1, x: 0, skewX: 0, filter: 'blur(0px)', force3D: true })
+      gsap.set(pageIn,  { autoAlpha: 0, rotationY: 14, rotationX: 6, scale: 0.94, x: 0, skewX: 0, transformOrigin: 'center', filter: 'blur(6px)', force3D: true })
+
+      tl = gsap.timeline({ defaults: { lazy: false, force3D: true } })
+
+      // hold the outgoing page so the viewer reads context
+      tl.to({}, { duration: 0.45 }, 0)
+
+      // EXIT WHIP: outgoing page skews + smears off to the left, power2.in
+      tl.to(pageOut, { x: -120, skewX: 8, filter: 'blur(10px)', autoAlpha: 0, duration: 0.3, ease: 'power2.in' }, 0.45)
+
+      // INCOMING: fade up fast, then the 3D tilt eases flat as the blur resolves crisp, power4.out
+      tl.to(pageIn, { autoAlpha: 1, duration: 0.15, ease: 'sine.out' }, 0.6)
+      tl.to(pageIn, { rotationY: 0, rotationX: 0, scale: 1, filter: 'blur(0px)', duration: 0.65, ease: 'power4.out' }, 0.6)
+
+      // hold settled, then reset to idle (incoming page flat + crisp at rest)
+      tl.to({}, { duration: 1.1 }, 1.25)
+      tl.add(applyIdle, 2.35)
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

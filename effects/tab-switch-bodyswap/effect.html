@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Tab Switch Body-Swap · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.tsb-stage{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+.tsb-window{
+    width:90%;max-width:264px;
+    background:var(--paper);border:1px solid var(--line-strong);border-radius:11px;
+    overflow:hidden;box-shadow:var(--shadow-card);
+  }
+.tsb-bar{
+    position:relative;display:flex;align-items:flex-end;gap:2px;
+    background:var(--paper-2);border-bottom:1px solid var(--line);
+    padding:6px 6px 0;
+  }
+.tsb-tabs{display:flex;gap:3px}
+.tsb-tab{
+    display:flex;align-items:center;gap:5px;
+    font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:-0.01em;
+    padding:6px 11px;border-radius:7px 7px 0 0;
+    background:#EDE9E1;color:#A8A39A;font-weight:400;
+    white-space:nowrap;line-height:1;
+  }
+.tsb-tab .tsb-glyph{font-size:9px;opacity:0.7}
+.tsb-underline{
+    position:absolute;left:0;bottom:0;height:2px;width:0;border-radius:2px;
+    background:#C15B3C;
+  }
+.tsb-body{
+    position:relative;padding:13px 14px 14px;min-height:96px;
+    background:var(--paper);
+  }
+.tsb-page{
+    position:absolute;left:14px;right:14px;top:13px;
+    display:flex;flex-direction:column;gap:7px;
+    font-family:'Geist Mono',monospace;
+  }
+.tsb-row{
+    display:flex;align-items:center;gap:7px;
+    font-size:10.5px;line-height:1.4;color:var(--ink-2);
+  }
+.tsb-row.tsb-you{color:var(--ink);font-weight:500}
+.tsb-row .tsb-mark{color:#C15B3C;font-weight:700;flex:0 0 auto}
+.tsb-row .tsb-dot{
+    flex:0 0 auto;width:6px;height:6px;border-radius:50%;
+    background:var(--proof-green);
+  }
+.tsb-row .tsb-meta{margin-left:auto;color:var(--ink-3);font-size:9px;letter-spacing:0.02em}
+.tsb-row.tsb-res{color:var(--ink-3);padding-left:13px;font-size:9.5px}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="tab-switch-bodyswap"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='tsb-stage'>
+    <div class='tsb-window' data-tsb-window>
+      <div class='tsb-bar'>
+        <div class='tsb-tabs'>
+          <div class='tsb-tab' data-tsb-tab-a><span class='tsb-glyph'>#</span>auth-refactor</div>
+          <div class='tsb-tab' data-tsb-tab-b><span class='tsb-glyph'>#</span>db-migrate</div>
+        </div>
+        <div class='tsb-underline' data-tsb-underline></div>
+      </div>
+      <div class='tsb-body'>
+        <div class='tsb-page' data-tsb-body-a>
+          <div class='tsb-row tsb-you'><span class='tsb-mark'>&gt;</span>refactor the token guard</div>
+          <div class='tsb-row'><span class='tsb-dot'></span>patched auth.ts <span class='tsb-meta'>+18 -6</span></div>
+          <div class='tsb-row tsb-res'>└ 3 tests pass</div>
+        </div>
+        <div class='tsb-page' data-tsb-body-b>
+          <div class='tsb-row tsb-you'><span class='tsb-mark'>&gt;</span>run the pending migration</div>
+          <div class='tsb-row'><span class='tsb-dot'></span>applied 0042_add_index <span class='tsb-meta'>1.2s</span></div>
+          <div class='tsb-row tsb-res'>└ schema in sync</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "tab-switch-bodyswap",
+  "display": "Tab Switch Body-Swap",
+  "cat": "UI",
+  "isNew": true,
+  "source": [
+    "claude-code-session-recaps"
+  ],
+  "desc": "Two session tabs cross-fade fill and weight, a terracotta underline slides under the newly active tab, and the whole body hard-swaps to the new conversation behind the crossfade. Claude Code session recaps multi-session window.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const tabA = card.querySelector("[data-tsb-tab-a]")
+    const tabB = card.querySelector("[data-tsb-tab-b]")
+    const underline = card.querySelector("[data-tsb-underline]")
+    const bodyA = card.querySelector("[data-tsb-body-a]")
+    const bodyB = card.querySelector("[data-tsb-body-b]")
+
+    // active = white fill, bold ink label; inactive = warm-gray fill, dim label.
+    const ACTIVE_BG = "#FFFFFF", INACTIVE_BG = "#EDE9E1"
+    const ACTIVE_INK = "#1A1A1A", DIM_INK = "#A8A39A"
+    const ACCENT = "#C15B3C"
+
+    // underline rides under whichever tab is active; measured from tab offsets so it
+    // tracks layout at the live ~360x240 card size.
+    function placeUnderline(tabEl) {
+      gsap.set(underline, { x: tabEl.offsetLeft, width: tabEl.offsetWidth, backgroundColor: ACCENT })
+    }
+    function activate(active, inactive) {
+      gsap.set(active, { backgroundColor: ACTIVE_BG, color: ACTIVE_INK, fontWeight: 700 })
+      gsap.set(inactive, { backgroundColor: INACTIVE_BG, color: DIM_INK, fontWeight: 400 })
+      placeUnderline(active)
+    }
+    function rest() {
+      // resting state: tab B active, body B visible (per build_spec)
+      activate(tabB, tabA)
+      gsap.set(bodyA, { autoAlpha: 0, y: 0 })
+      gsap.set(bodyB, { autoAlpha: 1, y: 0 })
+    }
+    rest()
+    // re-place once layout settles / fonts load so the underline lands exactly
+    requestAnimationFrame(() => { if (Number(gsap.getProperty(tabB, "fontWeight")) >= 700) placeUnderline(tabB) })
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => placeUnderline(tabB))
+
+    let tl = null
+    return function replay() {
+      if (tl) { tl.kill(); tl = null }
+      gsap.killTweensOf([tabA, tabB, underline, bodyA, bodyB])
+      // reset to the OTHER tab (A) active so the switch to B is the visible beat
+      activate(tabA, tabB)
+      gsap.set(bodyA, { autoAlpha: 1, y: 0 })
+      gsap.set(bodyB, { autoAlpha: 0, y: 0 })
+
+      tl = gsap.timeline({ defaults: { ease: "power2.out" } })
+      // hold on session A so the viewer registers it
+      tl.to({}, { duration: 0.7 })
+      // tab color/weight crossfade - old dims, new brightens
+      tl.to(tabA, { backgroundColor: INACTIVE_BG, color: DIM_INK, fontWeight: 400, duration: 0.15 }, "switch")
+      tl.to(tabB, { backgroundColor: ACTIVE_BG, color: ACTIVE_INK, fontWeight: 700, duration: 0.15 }, "switch")
+      // accent underline slides under the newly active tab
+      tl.to(underline, { x: tabB.offsetLeft, width: tabB.offsetWidth, duration: 0.16, ease: "power2.inOut" }, "switch")
+      // body cross-fades with a soft micro-slide as the tab flips (outgoing lifts, incoming rises in)
+      tl.to(bodyA, { autoAlpha: 0, y: -5, duration: 0.16, ease: "power2.in" }, "switch+=0.02")
+      tl.fromTo(bodyB, { autoAlpha: 0, y: 7 }, { autoAlpha: 1, y: 0, duration: 0.24, ease: "power2.out" }, "switch+=0.1")
+      // rest on session B
+      tl.to({}, { duration: 0.5 })
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

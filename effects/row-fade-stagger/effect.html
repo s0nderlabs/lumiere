@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Row Fade Stagger · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.row-list{display:flex;flex-direction:column;gap:5px;width:90%;max-width:240px}
+.row-line{
+    background:var(--paper-2);border:1px solid var(--line);border-radius:8px;
+    height:18px;font-family:'Geist Mono',monospace;font-size:10px;color:var(--ink-3);
+    padding:0 11px;display:flex;align-items:center;
+  }
+.row-line .dotcol{width:5px;height:5px;border-radius:50%;background:var(--ink-3);margin-right:8px}
+.row-line.now .dotcol{background:var(--ink)}
+.row-line.now{color:var(--ink)}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="row-fade-stagger"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'><div class='row-list'>
+      <div class='row-line trow'><span class='dotcol'></span>specter · 0xa7…</div>
+      <div class='row-line trow'><span class='dotcol'></span>auditor · 0xb3…</div>
+      <div class='row-line trow'><span class='dotcol'></span>scout · 0xc1…</div>
+      <div class='row-line trow'><span class='dotcol'></span>oracle · 0xd9…</div>
+      <div class='row-line trow now'><span class='dotcol'></span>anima · 0xe5…</div>
+    </div></div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "row-fade-stagger",
+  "display": "Row Fade Stagger",
+  "cat": "Layer",
+  "source": [
+    "claude-code-agent-view",
+    "claude-financial-services"
+  ],
+  "desc": "Light per-row lift with linear stagger. Subtler than character cascade; for lists and tables.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const rows = card.querySelectorAll(".trow")
+      gsap.set(rows, { opacity: 1, y: 0 })
+      return () => {
+        gsap.killTweensOf(rows)
+        gsap.set(rows, { opacity: 1, y: 0 })
+        gsap.set(rows, { opacity: 0, y: 6 })
+        gsap.to(rows, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out", stagger: 0.12, delay: 0.2 })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

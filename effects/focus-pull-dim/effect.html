@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Focus-Pull History Dim · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.fpd-stage{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+.fpd-log{
+    width:86%;max-width:248px;display:flex;flex-direction:column;gap:6px;
+    font-family:'Geist Mono',monospace;
+  }
+.fpd-history{display:flex;flex-direction:column;gap:6px}
+.fpd-row{
+    display:flex;align-items:center;gap:9px;
+    font-size:10.5px;line-height:1.5;color:var(--ink-2);
+  }
+.fpd-dot{
+    flex:0 0 auto;width:6px;height:6px;border-radius:50%;
+    background:#C2410C;
+  }
+.fpd-row .fpd-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fpd-row .fpd-tag{margin-left:auto;color:var(--ink-3);font-size:9px;letter-spacing:0.04em}
+.fpd-focus{
+    display:flex;align-items:flex-start;gap:9px;margin-top:4px;
+    padding-top:9px;border-top:1px solid var(--line);
+  }
+.fpd-focus .fpd-spark{
+    flex:0 0 auto;color:#C2410C;font-size:13px;line-height:1.1;font-weight:600;
+  }
+.fpd-focus .fpd-line{
+    font-family:'Outfit',sans-serif;font-size:12.5px;font-weight:600;
+    line-height:1.32;color:var(--ink);letter-spacing:-0.01em;
+  }
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="focus-pull-dim"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='fpd-stage'>
+    <div class='fpd-log'>
+      <div class='fpd-history' data-fpd-hist>
+        <div class='fpd-row'><span class='fpd-dot'></span><span class='fpd-txt'>read auth.ts · 142 lines</span><span class='fpd-tag'>4m</span></div>
+        <div class='fpd-row'><span class='fpd-dot'></span><span class='fpd-txt'>edit token refresh guard</span><span class='fpd-tag'>3m</span></div>
+        <div class='fpd-row'><span class='fpd-dot'></span><span class='fpd-txt'>run vitest · 57 passed</span><span class='fpd-tag'>2m</span></div>
+        <div class='fpd-row'><span class='fpd-dot'></span><span class='fpd-txt'>commit · fix session expiry</span><span class='fpd-tag'>1m</span></div>
+      </div>
+      <div class='fpd-focus' data-fpd-focus>
+        <span class='fpd-spark'>✳</span>
+        <span class='fpd-line'>Recap: hardened the refresh path and locked the regression behind a test.</span>
+      </div>
+    </div>
+  </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "focus-pull-dim",
+  "display": "Focus-Pull History Dim",
+  "cat": "Layer",
+  "isNew": true,
+  "source": [
+    "claude-code-session-recaps"
+  ],
+  "desc": "Resolved log history dims to ~0.35 with its accent bullets desaturating to pale salmon, in lockstep with a fresh recap line arriving at full opacity to own the focus. Claude Code session-recap emphasis beat.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+    const hist  = card.querySelector("[data-fpd-hist]")
+    const dots  = card.querySelectorAll(".fpd-dot")
+    const focus = card.querySelector("[data-fpd-focus]")
+    const DIM = 0.35
+    const PALE = "saturate(0.4) brightness(1.35)"
+    // contentful rest: history already dimmed + desaturated, recap line crisp
+    gsap.set(hist,  { opacity: DIM })
+    gsap.set(dots,  { filter: PALE })
+    gsap.set(focus, { opacity: 1, y: 0 })
+    return () => {
+      gsap.killTweensOf([hist, ...dots, focus])
+      // reset to pre-pull: full-contrast history, recap not yet arrived
+      gsap.set(hist,  { opacity: 1 })
+      gsap.set(dots,  { filter: "saturate(1) brightness(1)" })
+      gsap.set(focus, { opacity: 0, y: 8 })
+      const tl = gsap.timeline({ defaults: { ease: "power2.out" } })
+      // focus-pull: history recedes in lockstep with the recap line landing
+      tl.to(hist,  { opacity: DIM, duration: 0.4 }, 0.5)
+      tl.to(dots,  { filter: PALE, duration: 0.4 }, "<")
+      tl.to(focus, { opacity: 1, y: 0, duration: 0.45 }, "<")
+      return tl
+    }
+  }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

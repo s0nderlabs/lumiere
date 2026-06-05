@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Blur-Clear Rise · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.manifesto-stack{display:flex;flex-direction:column;gap:6px;padding:0 12px;text-align:center}
+.manifesto-line{font-family:'Outfit',sans-serif;font-weight:300;font-size:18px;color:var(--ink);line-height:1.4;letter-spacing:-0.01em;margin:0}
+.manifesto-line.emph{font-weight:500;color:var(--ink)}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="blur-clear-rise"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'><div class='manifesto-stack'>
+      <div class='manifesto-line bl-line'>writing the brief is the hard part.</div>
+      <div class='manifesto-line bl-line'>scaffolding is the easy part.</div>
+      <div class='manifesto-line bl-line emph'>that's where the time goes.</div>
+    </div></div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "blur-clear-rise",
+  "display": "Blur-Clear Rise",
+  "cat": "Text",
+  "source": [
+    "claude-code-agent-view"
+  ],
+  "desc": "Multi-line text clears from 8px blur as it lifts. Manifesto pacing, longer rest between lines.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const lines = card.querySelectorAll(".bl-line")
+      gsap.set(lines, { opacity: 1, y: 0, filter: "blur(0px)" })
+      return () => {
+        gsap.killTweensOf(lines)
+        gsap.set(lines, { opacity: 0, y: 32, filter: "blur(8px)" })
+        gsap.to(lines, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.75, ease: "expo.out", stagger: 0.55, delay: 0.2 })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

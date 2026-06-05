@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Donut Chart Fill · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.dcf-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#fff;padding:14px}
+.dcf-wrap{display:flex;align-items:center;gap:16px}
+.dcf-svg{width:86px;height:86px}
+.dcf-legend{font-family:'Outfit',sans-serif;font-size:9px;color:#666;display:flex;flex-direction:column;gap:4px}
+.dcf-legend-row{display:flex;align-items:center;gap:5px}
+.dcf-dot{width:7px;height:7px;border-radius:2px;flex-shrink:0}
+.dcf-legend-val{margin-left:auto;font-weight:600;color:#111;font-size:9.5px;padding-left:12px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="donut-chart-fill"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='dcf-stage'>
+      <div class='dcf-wrap'>
+        <svg class='dcf-svg' viewBox='0 0 100 100' data-dcf-svg>
+          <circle cx='50' cy='50' r='35' fill='none' stroke='#eee' stroke-width='14'/>
+        </svg>
+        <div class='dcf-legend' data-dcf-legend></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "donut-chart-fill",
+  "display": "Donut Chart Fill",
+  "cat": "Data Viz",
+  "isNew": true,
+  "source": [
+    "chatgpt-personal-finance"
+  ],
+  "desc": "Donut chart segments animate arcs from 0 to their value, with a green-gradient palette plus a light-blue cash wedge. ChatGPT portfolio distribution.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const svg = card.querySelector("[data-dcf-svg]")
+      const legend = card.querySelector("[data-dcf-legend]")
+      const data = [
+        { label: "Stocks", pct: 47, color: "#1a5e3a", val: "$48,512" },
+        { label: "ETFs", pct: 19, color: "#2e9b66", val: "$19,134" },
+        { label: "Bonds", pct: 18, color: "#5fcc88", val: "$18,354" },
+        { label: "Crypto", pct: 10, color: "#a8e6cf", val: "$10,736" },
+        { label: "Cash", pct: 6, color: "#87ceeb", val: "$6,200" }
+      ]
+      const R = 35, C = 2 * Math.PI * R
+      let offset = 0
+      const arcs = []
+      data.forEach(d => {
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+        circle.setAttribute("cx", "50")
+        circle.setAttribute("cy", "50")
+        circle.setAttribute("r", String(R))
+        circle.setAttribute("fill", "none")
+        circle.setAttribute("stroke", d.color)
+        circle.setAttribute("stroke-width", "14")
+        circle.setAttribute("stroke-dasharray", `${(d.pct / 100) * C} ${C}`)
+        circle.setAttribute("stroke-dashoffset", String(-offset))
+        circle.setAttribute("transform", "rotate(-90 50 50)")
+        svg.appendChild(circle)
+        arcs.push({ el: circle, len: (d.pct / 100) * C })
+        offset += (d.pct / 100) * C
+      })
+      legend.innerHTML = data.map(d =>
+        `<div class='dcf-legend-row'><span class='dcf-dot' style='background:${d.color}'></span>${d.label}<span class='dcf-legend-val'>${d.val}</span></div>`
+      ).join("")
+      const legendRows = legend.querySelectorAll(".dcf-legend-row")
+      gsap.set(arcs.map(a => a.el), { opacity: 1 })
+      gsap.set(legendRows, { opacity: 1, x: 0 })
+      return () => {
+        gsap.killTweensOf(arcs.map(a => a.el))
+        gsap.killTweensOf(legendRows)
+        arcs.forEach(a => {
+          gsap.set(a.el, { attr: { "stroke-dasharray": `0 ${C}` }, opacity: 1 })
+        })
+        gsap.set(legendRows, { opacity: 0, x: 10 })
+        arcs.forEach((a, i) => {
+          gsap.to(a.el, {
+            attr: { "stroke-dasharray": `${a.len} ${C}` },
+            duration: 0.6, ease: "power2.inOut", delay: 0.5 + i * 0.12
+          })
+        })
+        legendRows.forEach((r, i) => {
+          gsap.to(r, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out", delay: 0.7 + i * 0.08 })
+        })
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

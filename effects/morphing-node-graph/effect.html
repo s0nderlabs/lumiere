@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Morphing Node Graph · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.mng-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#EFEFE5;padding:20px}
+.mng-svg{width:100%;height:100%;overflow:visible}
+.mng-edge{stroke:#CE6F5B;stroke-width:2.6;stroke-linecap:round;fill:none}
+.mng-node{fill:#CE6F5B}
+[data-theme="dark"] .mng-stage{background:#1a1612}
+[data-theme="dark"] .mng-edge{stroke:#d97d68}
+[data-theme="dark"] .mng-node{fill:#d97d68}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="morphing-node-graph"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='mng-stage'>
+      <svg class='mng-svg' viewBox='0 0 200 130' preserveAspectRatio='xMidYMid meet' data-mng-svg aria-hidden='true'>
+        <g class='mng-edges' data-mng-edges></g>
+        <g class='mng-nodes' data-mng-nodes></g>
+      </svg>
+    </div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "morphing-node-graph",
+  "display": "Morphing Node Graph",
+  "cat": "Motion",
+  "isNew": true,
+  "source": [
+    "claude-financial-services"
+  ],
+  "desc": "A coral node network continuously re-forms between mesh, hex wheel, cube wireframe and scatter topologies, edges stretching to follow with a hand-drawn wobble. Claude for Financial Services agent-template motif.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": true,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const NS = "http://www.w3.org/2000/svg"
+      const svg = card.querySelector("[data-mng-svg]")
+      const edgeG = card.querySelector("[data-mng-edges]")
+      const nodeG = card.querySelector("[data-mng-nodes]")
+      const N = 7, CX = 100, CY = 65
+
+      // 4 topologies, each 7 {x,y} (viewBox 200x130, centered ~100,65)
+      const mesh = [
+        { x: 100, y: 22 }, { x: 50, y: 52 }, { x: 150, y: 52 },
+        { x: 38, y: 100 }, { x: 100, y: 84 }, { x: 162, y: 100 }, { x: 100, y: 116 }
+      ]
+      const hex = [
+        { x: 100, y: 65 }, { x: 100, y: 22 }, { x: 152, y: 44 },
+        { x: 152, y: 86 }, { x: 100, y: 108 }, { x: 48, y: 86 }, { x: 48, y: 44 }
+      ]
+      const cube = [
+        { x: 58, y: 36 }, { x: 130, y: 30 }, { x: 142, y: 96 },
+        { x: 70, y: 102 }, { x: 92, y: 56 }, { x: 152, y: 52 }, { x: 98, y: 112 }
+      ]
+      const scatter = [
+        { x: 32, y: 30 }, { x: 168, y: 24 }, { x: 176, y: 92 },
+        { x: 24, y: 104 }, { x: 96, y: 62 }, { x: 120, y: 110 }, { x: 60, y: 70 }
+      ]
+      const LAYOUTS = [mesh, hex, cube, scatter]
+
+      // connectivity per topology (node-index pairs)
+      const C_MESH = [[0,1],[0,2],[1,2],[1,4],[2,4],[1,3],[3,4],[4,5],[2,5],[4,6],[3,6],[5,6]]
+      const C_HEX  = [[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[1,2],[2,3],[3,4],[4,5],[5,6],[6,1]]
+      const C_CUBE = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,2],[2,6],[6,3],[0,4],[1,5],[5,6],[4,6]]
+      const C_SCAT = [[4,6],[6,0],[4,1],[4,5],[2,5],[0,3],[1,2]]
+      const CONN = [C_MESH, C_HEX, C_CUBE, C_SCAT]
+
+      // union of all edges => fixed DOM pool, toggled per topology
+      const key = (a, b) => a < b ? a + "-" + b : b + "-" + a
+      const union = new Map()
+      CONN.forEach(set => set.forEach(([a, b]) => union.set(key(a, b), [a, b])))
+      const edgeDefs = [...union.values()]
+
+      // build node state objects (base position + wobble offset)
+      const nodes = []
+      for (let i = 0; i < N; i++) {
+        const c = document.createElementNS(NS, "circle")
+        c.setAttribute("class", "mng-node")
+        c.setAttribute("r", i === 4 ? "6.2" : "5")
+        nodeG.appendChild(c)
+        nodes.push({ el: c, x: mesh[i].x, y: mesh[i].y, wx: 0, wy: 0 })
+      }
+      // build edge pool
+      const edges = edgeDefs.map(([a, b]) => {
+        const l = document.createElementNS(NS, "line")
+        l.setAttribute("class", "mng-edge")
+        edgeG.appendChild(l)
+        return { el: l, a, b, on: 0 }
+      })
+      const activeSet = (topoIdx) => {
+        const s = new Set(CONN[topoIdx].map(([a, b]) => key(a, b)))
+        return s
+      }
+
+      // single render: writes final cx/cy (base + wobble) to nodes, then edge endpoints
+      const render = () => {
+        for (const n of nodes) {
+          n.el.setAttribute("cx", (n.x + n.wx).toFixed(2))
+          n.el.setAttribute("cy", (n.y + n.wy).toFixed(2))
+        }
+        for (const e of edges) {
+          const na = nodes[e.a], nb = nodes[e.b]
+          e.el.setAttribute("x1", (na.x + na.wx).toFixed(2))
+          e.el.setAttribute("y1", (na.y + na.wy).toFixed(2))
+          e.el.setAttribute("x2", (nb.x + nb.wx).toFixed(2))
+          e.el.setAttribute("y2", (nb.y + nb.wy).toFixed(2))
+          e.el.setAttribute("stroke-opacity", e.on.toFixed(3))
+        }
+      }
+
+      let master = null
+      const wobbles = []
+      const seedTopology = (idx) => {
+        const L = LAYOUTS[idx]
+        nodes.forEach((n, i) => { n.x = L[i].x; n.y = L[i].y; n.wx = 0; n.wy = 0 })
+        const set = activeSet(idx)
+        edges.forEach(e => { e.on = set.has(key(e.a, e.b)) ? 1 : 0 })
+        render()
+      }
+
+      // contentful resting state: settled mesh
+      seedTopology(0)
+
+      return function replay() {
+        if (master) { master.kill(); master = null }
+        wobbles.forEach(w => w.kill())
+        wobbles.length = 0
+        gsap.killTweensOf(nodes)
+        gsap.killTweensOf(edges)
+
+        seedTopology(0)
+
+        // continuous hand-drawn wobble, seeded phase per node (deterministic:
+        // raw randomness breaks frame-exact seeking, see FORMAT.md)
+        const rng = (seed) => { const x = Math.sin(seed * 99.13 + 4.7) * 43758.5453; return x - Math.floor(x) }
+        nodes.forEach((n, i) => {
+          n.wx = 0; n.wy = 0
+          wobbles.push(gsap.to(n, {
+            wx: 1.2, wy: 1.0, duration: 0.6 + rng(i + 1) * 0.25,
+            yoyo: true, repeat: -1, ease: "sine.inOut",
+            delay: rng(i + 17) * 0.6
+          }))
+        })
+
+        // master morph loop; onUpdate drives the single render every tick
+        master = gsap.timeline({ repeat: -1, onUpdate: render })
+        const order = [1, 2, 3, 0] // hex -> cube -> scatter -> back to mesh
+        const HOLD = 0.18
+        order.forEach((idx, step) => {
+          const L = LAYOUTS[idx]
+          const set = activeSet(idx)
+          // morph node base positions to the new topology
+          master.to(nodes, {
+            x: (i) => L[i].x, y: (i) => L[i].y,
+            duration: 0.85, ease: "power1.inOut", stagger: 0.02
+          }, step === 0 ? 0.35 : "+=" + HOLD)
+          // cross-fade edge connectivity in parallel
+          master.to(edges, {
+            on: (i) => set.has(key(edges[i].a, edges[i].b)) ? 1 : 0,
+            duration: 0.6, ease: "power1.inOut"
+          }, "<0.1")
+        })
+        return master
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>

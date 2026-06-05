@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+<head>
+<meta charset="utf-8"/>
+<title>Row Highlight · lumiere effect</title>
+<link rel="stylesheet" href="../_fonts/vendored.css">
+<link rel="stylesheet" href="../_base.css">
+<style data-effect-css>
+.vp-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:22px}
+.choices{width:80%;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-family:'Geist Mono',monospace;font-size:11px;display:flex;flex-direction:column;gap:1px}
+.choice{padding:6px 10px;color:var(--ink-2);border-left:2px solid transparent;border-radius:0 6px 6px 0;margin:0 -8px}
+.choice.winner{color:var(--ink)}
+</style>
+</head>
+<body>
+<div id="fit">
+  <div id="card" class="card-sim"
+       data-composition-id="row-highlight"
+       data-stage-width="360" data-stage-height="240">
+    <div class="viewport"><div class='vp-stage'><div class='choices'>
+      <div data-rrh class='choice winner'>specter · score 0.92</div>
+      <div class='choice'>auditor · score 0.81</div>
+      <div class='choice'>scout · score 0.75</div>
+    </div></div></div>
+  </div>
+</div>
+<script src="../_vendor/gsap.min.js"></script>
+<script data-effect-meta type="application/json">
+{
+  "id": "row-highlight",
+  "display": "Row Highlight",
+  "cat": "UI",
+  "source": [
+    "claude-code-agent-view",
+    "claude-financial-services"
+  ],
+  "desc": "Background tint plus left border for selection feedback. Brief over-shoot lands the impact; then it settles to a steady-state tint.",
+  "stage": {
+    "width": 360,
+    "height": 240
+  },
+  "scrubbable": false,
+  "variables": {}
+}
+</script>
+<script data-effect-init>
+window.LUMIERE_INIT = function init(card) {
+      const el = card.querySelector("[data-rrh]")
+      const restColor = "rgba(46,155,102,0.10)"
+      const peakColor = "rgba(46,155,102,0.20)"
+      gsap.set(el, { backgroundColor: restColor, borderLeftColor: "#2e9b66" })
+      return () => {
+        gsap.killTweensOf(el)
+        gsap.set(el, { backgroundColor: "transparent", borderLeftColor: "transparent" })
+        const tl = gsap.timeline({ delay: 0.5 })
+        tl.to(el, { borderLeftColor: "#2e9b66", duration: 0.3, ease: "power2.out" })
+        tl.to(el, { backgroundColor: peakColor, duration: 0.4, ease: "sine.out" }, "<+0.1")
+        tl.to(el, { backgroundColor: restColor, duration: 0.6, ease: "sine.inOut" }, "+=0.3")
+      }
+    }
+</script>
+<script src="../_runtime.js"></script>
+</body>
+</html>
