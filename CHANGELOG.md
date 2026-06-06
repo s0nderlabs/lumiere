@@ -2,6 +2,19 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-06-06
+
+### Added
+
+- **Composer hover spotlight**: hovering an effect row floats a 420x280 live preview that trails the cursor on a lerp spring (side-flip with viewport clamping on both axes, shimmer while the effect mounts with a load fallback, replay on re-hover). One iframe alive at a time; torn down on view switch; hides on token insert and revives on the next mouse move.
+- **Composer category chips**: All / Camera / Reveal / Text / Data Viz / Chat / Motion / Layer / UI with counts, built from the effect metas, ANDed with the text search; re-tapping the active chip resets to All.
+
+### Changed
+
+- **Composer is now a viewport-pinned workbench**: compact tool header (one-line lede), storyboard textarea absorbs the vertical slack, both panes share top and bottom edges, the rail and command preview scroll internally, no page scroll.
+- Scrollbars are hidden dashboard-wide (panes still scroll via wheel/trackpad/keys).
+- Picker rows carry their category on `dataset.cat` (filtering is O(rows) per keystroke instead of O(rows x effects)).
+
 ## [0.16.0] - 2026-06-06
 
 ### Added

@@ -71,6 +71,10 @@ html,body{
     transition:background-color .2s ease, color .2s ease;
   }
 
+/* no visible scrollbars anywhere - panes still scroll (wheel/trackpad/keys) */
+*{scrollbar-width:none}
+*::-webkit-scrollbar{display:none}
+
 .shell{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
 
 /* ============================================================
@@ -209,9 +213,30 @@ html.theme-dark .nav-item.active .count{color:rgba(16,15,9,0.65)}
 
 /* ---- composer ---- */
 
-.composer-layout{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start}
+/* composer = a viewport-pinned WORKBENCH: both panes share top and bottom
+   edges, the storyboard textarea absorbs the vertical slack (flex:1), the
+   rail scrolls internally. The editorial hero belongs to the Library; here
+   the heading is a compact tool header. */
+.main-wrap:has(#view-composer:not([hidden])){padding-bottom:32px}
 
-@media (max-width:1100px){.composer-layout{grid-template-columns:1fr}}
+.composer-layout{display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:stretch;height:calc(100vh - 88px)}
+
+@media (max-width:1100px){.composer-layout{grid-template-columns:1fr;height:auto}}
+
+.composer-main{display:flex;flex-direction:column;min-height:0}
+
+.composer-head{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;margin-bottom:28px}
+
+.composer-head h1{
+    font-family:'Outfit',sans-serif;font-weight:500;
+    font-size:40px;line-height:1;letter-spacing:-0.04em;
+    margin:0;color:var(--ink);
+  }
+
+.composer-head p{
+    font-family:'Outfit',sans-serif;font-size:13.5px;color:var(--ink-3);
+    letter-spacing:-0.005em;margin:0;
+  }
 
 .composer-label{
     display:block;font-family:'Geist Mono',monospace;font-size:9px;
@@ -222,16 +247,21 @@ html.theme-dark .nav-item.active .count{color:rgba(16,15,9,0.65)}
 .composer-label .opt{text-transform:none;letter-spacing:0.02em}
 
 .composer-textarea{
-    width:100%;min-height:300px;resize:vertical;
+    width:100%;resize:none;
     background:var(--paper);border:1px solid var(--line);border-radius:16px;
     padding:18px 20px;font-family:'Outfit',sans-serif;font-size:15px;
     line-height:1.6;color:var(--ink);letter-spacing:-0.005em;outline:none;
     transition:border-color .15s;margin-bottom:20px;
   }
 
+/* the storyboard box IS the slack absorber of the workbench column */
+#storyboardInput{flex:1;min-height:140px}
+
+@media (max-width:1100px){#storyboardInput{min-height:260px}}
+
 .composer-textarea:focus{border-color:var(--line-strong)}
 
-.composer-textarea.small{min-height:90px}
+.composer-textarea.small{min-height:90px;flex-shrink:0}
 
 .composer-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 
@@ -250,13 +280,16 @@ html.theme-dark .nav-item.active .count{color:rgba(16,15,9,0.65)}
     border-radius:14px;padding:16px 18px;
     font-family:'Geist Mono',monospace;font-size:11.5px;line-height:1.6;
     color:var(--ink-2);white-space:pre-wrap;word-break:break-word;
+    max-height:200px;overflow:auto;flex-shrink:0;
   }
 
 .composer-picker{
     background:var(--paper);border:1px solid var(--line);border-radius:16px;
-    padding:14px;position:sticky;top:24px;
-    max-height:calc(100vh - 48px);display:flex;flex-direction:column;gap:10px;
+    padding:14px;height:100%;min-height:0;
+    display:flex;flex-direction:column;gap:10px;
   }
+
+@media (max-width:1100px){.composer-picker{height:auto;max-height:70vh}}
 
 .picker-search{
     background:var(--cream-deep);border:1px solid var(--line);border-radius:999px;
@@ -265,6 +298,25 @@ html.theme-dark .nav-item.active .count{color:rgba(16,15,9,0.65)}
   }
 
 .picker-search:focus{border-color:var(--line-strong)}
+
+.picker-chips{display:flex;flex-wrap:wrap;gap:6px}
+
+.picker-chip{
+    display:inline-flex;align-items:center;gap:5px;
+    font-family:'Outfit',sans-serif;font-size:11.5px;font-weight:500;
+    color:var(--ink-2);background:transparent;
+    border:1px solid var(--line);border-radius:999px;
+    padding:4px 11px;cursor:pointer;letter-spacing:-0.005em;
+    transition:border-color .12s, background .12s, color .12s;
+  }
+
+.picker-chip:hover{border-color:var(--line-strong)}
+
+.picker-chip .n{font-family:'Geist Mono',monospace;font-size:9px;color:var(--ink-3)}
+
+.picker-chip.active{background:var(--ink);border-color:var(--ink);color:var(--cream)}
+
+.picker-chip.active .n{color:var(--cream);opacity:0.65}
 
 .picker-list{overflow:auto;display:flex;flex-direction:column;gap:1px;min-height:120px}
 
@@ -276,6 +328,34 @@ html.theme-dark .nav-item.active .count{color:rgba(16,15,9,0.65)}
 .picker-row:hover{background:var(--cream-deep)}
 
 .picker-row[hidden]{display:none}
+
+/* cursor-following hover spotlight (the elpabl0.xyz project-preview pattern):
+   one live effect iframe in a fixed portal that trails the cursor on a lerp
+   spring, flips to whichever side of the cursor has room, shimmers while the
+   effect mounts. pointer-events:none throughout - it is pure light. */
+.fx-spotlight{
+    position:fixed;top:0;left:0;width:420px;height:280px;z-index:9999;
+    pointer-events:none;border-radius:12px;overflow:hidden;
+    background:var(--cream-deep);border:1px solid var(--line);
+    box-shadow:0 24px 64px -12px rgba(16,15,9,0.28);
+    opacity:0;transition:opacity .2s cubic-bezier(0.16,1,0.3,1);
+  }
+
+.fx-spotlight.on{opacity:1}
+
+.fx-spotlight iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
+
+.fx-spotlight-shimmer{position:absolute;inset:0;background:var(--cream-deep);overflow:hidden;transition:opacity .3s;z-index:2}
+
+.fx-spotlight-shimmer::after{
+    content:"";position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent 0%,var(--line) 50%,transparent 100%);
+    animation:fx-shimmer 1.5s infinite;
+  }
+
+.fx-spotlight-shimmer.done{opacity:0}
+
+@keyframes fx-shimmer{to{transform:translateX(100%)}}
 
 .picker-name{font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;color:var(--ink);letter-spacing:-0.005em}
 
@@ -787,15 +867,13 @@ html.theme-dark .fav.is-active{color:#ff6f5e}
     </div>
 
     <div id="view-composer" class="view" hidden>
-      <section class="hero">
-        <div class="hero-text">
-          <h1>Composer.</h1>
-          <p class="lede">Write the storyboard as prose. Click an effect on the right to drop it in as a token; add per-use overrides in parens after it. Copy command resolves every token to its canonical file for any Claude session.</p>
-        </div>
-      </section>
-
       <div class="composer-layout">
         <div class="composer-main">
+          <div class="composer-head">
+            <h1>Composer.</h1>
+            <p>prose in, tokens from the right, overrides in parens. Copy the command when it reads well.</p>
+          </div>
+
           <label class="composer-label" for="storyboardInput">storyboard</label>
           <textarea id="storyboardInput" class="composer-textarea" spellcheck="false" placeholder='Cold open on cream. The wordmark rises with <wordmark-rise>(text="lumiere"), then a composer bar types the ask with <chat-input-typing>(text="make me a launch video"). Finish by diving through the focal letter with <dolly-zoom>(tagline="ships today.").'></textarea>
 
@@ -815,6 +893,7 @@ html.theme-dark .fav.is-active{color:#ff6f5e}
 
         <aside class="composer-picker">
           <input id="pickerSearch" class="picker-search" placeholder="filter effects..." spellcheck="false" />
+          <div id="pickerChips" class="picker-chips"></div>
           <div id="pickerList" class="picker-list"></div>
           <div id="pickerHint" class="picker-hint" hidden></div>
         </aside>
@@ -864,8 +943,20 @@ const FAV_ICON = `<svg viewBox='0 0 16 16' fill='none' stroke='currentColor' str
 
 let EFFECTS = []                  // metas parsed from each effect.html
 const grid = document.getElementById("grid")
-const frameMap = new Map()        // effect id -> iframe element
+const frameMap = new Map()        // effect id -> iframe element (library grid)
 const pendingReplay = new Set()   // replays requested before the iframe was ready
+
+/* composer picker spotlight state (one floating live-preview iframe that
+   follows the cursor; machinery lives next to buildPicker further down) */
+const SPOT_W = 420, SPOT_H = 280, SPOT_OFF = 24
+const spot = {
+  el: null, frame: null, shimmer: null,
+  id: null,            /* effect currently loaded in the iframe */
+  visible: false,
+  tx: 0, ty: 0,        /* lerp target (top-left of the card) */
+  x: 0, y: 0, s: 0.92, /* current position + scale */
+  raf: null,
+}
 const BOOT_CB = Date.now()        // busts QtWebEngine's hard cache once per load
 
 function resolvedTheme() {
@@ -943,7 +1034,17 @@ window.addEventListener("message", e => {
   const fr = frameMap.get(m.id)
   let mine = false
   try { mine = !!fr && fr.contentWindow === e.source } catch (err) { mine = !!fr }
-  if (!mine) return
+  if (!mine) {
+    /* the composer spotlight frame shares the ready/theme handshake; it gets
+       theme sync + a one-shot play on mount but never touches pendingReplay */
+    let spotMine = false
+    try { spotMine = !!spot.frame && spot.frame.contentWindow === e.source } catch (err) { spotMine = !!spot.frame && spot.id === m.id }
+    if (!spotMine) return
+    try { e.source.postMessage({ type: "lumiere", cmd: "theme", value: resolvedTheme() }, "*") } catch (err) {}
+    try { e.source.postMessage({ type: "lumiere", cmd: "replay" }, "*") } catch (err) {}
+    if (spot.shimmer && spot.id === m.id) spot.shimmer.classList.add("done")
+    return
+  }
   try { e.source.postMessage({ type: "lumiere", cmd: "theme", value: resolvedTheme() }, "*") } catch (err) {}
   if (pendingReplay.has(m.id)) { pendingReplay.delete(m.id); replayEffect(m.id) }
 })
@@ -1121,6 +1222,7 @@ function applyTheme(name) {
   frameMap.forEach(fr => {
     try { fr.contentWindow && fr.contentWindow.postMessage({ type: "lumiere", cmd: "theme", value: t }, "*") } catch (e) {}
   })
+  try { spot.frame && spot.frame.contentWindow && spot.frame.contentWindow.postMessage({ type: "lumiere", cmd: "theme", value: t }, "*") } catch (e) {}
 }
 
 applyTheme(localStorage.getItem("lumiere-theme") || "auto")
@@ -1165,6 +1267,7 @@ function showView(name) {
     x.classList.toggle("active", x.dataset.view === name))
   localStorage.setItem("lumiere-view", name)
   if (name !== "preview") previewPause()
+  if (name !== "composer") spotlightTeardown()
 }
 
 document.querySelectorAll("#viewNav .nav-item[data-view]").forEach(item => {
@@ -1208,8 +1311,10 @@ function saveDraft() {
 sbInput.addEventListener("input", saveDraft)
 detailInput.addEventListener("input", saveDraft)
 
-/* token picker (text rows on purpose - 79 live iframes already exist in the
-   library view; the picker stays light) */
+/* token picker: dense text rows + the cursor-following spotlight preview.
+   Hovering a row floats ONE live effect iframe beside the cursor (lerp
+   spring, side-flip near the window edge, shimmer while mounting) - the
+   elpabl0.xyz project-preview pattern. Never more than one iframe alive. */
 function buildPicker() {
   const list = document.getElementById("pickerList")
   list.innerHTML = ""
@@ -1217,21 +1322,161 @@ function buildPicker() {
     const row = document.createElement("div")
     row.className = "picker-row"
     row.dataset.effect = meta.id
+    row.dataset.cat = meta.cat
     row.dataset.search = (meta.id + " " + meta.display + " " + meta.cat + " " + (meta.desc || "")).toLowerCase()
     const name = document.createElement("span"); name.className = "picker-name"; name.textContent = meta.display
     const cat = document.createElement("span"); cat.className = "picker-cat"; cat.textContent = meta.cat
     row.append(name, cat)
-    row.addEventListener("click", () => { insertToken(meta.id); showPickerHint(meta) })
+    /* hide on click: focus moves to the textarea, the preview must not park
+       over it; the next mousemove on a row revives it (spotlightTrack) */
+    row.addEventListener("click", () => { insertToken(meta.id); showPickerHint(meta); spotlightHide() })
+    row.addEventListener("mouseenter", e => spotlightShow(meta.id, e))
+    row.addEventListener("mousemove", spotlightTrack)
     list.appendChild(row)
   })
+  list.addEventListener("mouseleave", spotlightHide)
 }
 
-document.getElementById("pickerSearch").addEventListener("input", e => {
-  const q = e.target.value.trim().toLowerCase()
+/* ---- spotlight (state object declared next to frameMap, used here) ---- */
+function spotlightEl() {
+  if (spot.el) return spot.el
+  const el = document.createElement("div")
+  el.className = "fx-spotlight"
+  const shimmer = document.createElement("div")
+  shimmer.className = "fx-spotlight-shimmer"
+  el.appendChild(shimmer)
+  document.body.appendChild(el)
+  spot.el = el; spot.shimmer = shimmer
+  return el
+}
+
+/* inversion-safe clamp: when the viewport is smaller than the card the hi
+   bound collapses below lo; pin to lo instead of returning a negative */
+function spotClamp(v, lo, hi) { return Math.max(lo, Math.min(v, Math.max(lo, hi))) }
+
+function spotlightTarget(e) {
+  /* prefer the LEFT of the cursor: the rail hugs the right edge, so left is
+     open page; right would cover the very rows being scanned. Both axes are
+     clamped into the viewport. */
+  const roomLeft = e.clientX >= SPOT_W + SPOT_OFF + 24
+  const rawX = roomLeft ? e.clientX - SPOT_W - SPOT_OFF : e.clientX + SPOT_OFF
+  spot.tx = spotClamp(rawX, 8, window.innerWidth - SPOT_W - 8)
+  spot.ty = spotClamp(e.clientY - SPOT_H / 2, 8, window.innerHeight - SPOT_H - 8)
+}
+
+function spotlightLoop() {
+  const sTarget = spot.visible ? 1 : 0.94
+  spot.x += (spot.tx - spot.x) * 0.18
+  spot.y += (spot.ty - spot.y) * 0.18
+  spot.s += (sTarget - spot.s) * 0.2
+  /* stop when position AND scale converge (regardless of visibility): snap
+     to the exact targets and release the rAF until the next target change */
+  if (Math.abs(spot.tx - spot.x) < 0.5 && Math.abs(spot.ty - spot.y) < 0.5 && Math.abs(sTarget - spot.s) < 0.002) {
+    spot.x = spot.tx; spot.y = spot.ty; spot.s = sTarget
+    spot.el.style.transform = `translate(${spot.x}px,${spot.y}px) scale(${spot.s})`
+    spot.raf = null
+    return
+  }
+  spot.el.style.transform = `translate(${spot.x}px,${spot.y}px) scale(${spot.s.toFixed(4)})`
+  spot.raf = requestAnimationFrame(spotlightLoop)
+}
+
+function spotlightShow(id, e) {
+  const el = spotlightEl()
+  spotlightTarget(e)
+  if (!spot.visible) { spot.x = spot.tx; spot.y = spot.ty; spot.s = 0.92 }  /* appear at the cursor, no fly-in */
+  spot.visible = true
+  el.classList.add("on")
+  if (spot.id !== id) {
+    spot.id = id
+    spot.shimmer.classList.remove("done")
+    if (spot.frame) spot.frame.remove()
+    const fr = document.createElement("iframe")
+    fr.scrolling = "no"
+    fr.title = id
+    fr.src = `../effects/${encodeURIComponent(id)}/effect.html?theme=${resolvedTheme()}&cb=${BOOT_CB}`
+    /* shimmer fallback: a frame that loads but never posts ready (missing or
+       broken effect.html renders an error page) must not shimmer forever */
+    fr.addEventListener("load", () => setTimeout(() => {
+      if (spot.id === id && spot.shimmer) spot.shimmer.classList.add("done")
+    }, 600))
+    el.appendChild(fr)
+    spot.frame = fr
+  } else {
+    /* same effect re-hovered: instant, just replay the motion */
+    try { spot.frame && spot.frame.contentWindow && spot.frame.contentWindow.postMessage({ type: "lumiere", cmd: "replay" }, "*") } catch (err) {}
+  }
+  if (!spot.raf) spot.raf = requestAnimationFrame(spotlightLoop)
+}
+
+function spotlightTrack(e) {
+  if (!spot.visible) {
+    /* revive on real mouse movement: a hide (filter change, token click)
+       leaves the cursor parked on a row; the next intentional move brings
+       the preview back without requiring leave + re-enter */
+    const id = e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.effect
+    if (id) spotlightShow(id, e)
+    return
+  }
+  spotlightTarget(e)
+  if (!spot.raf) spot.raf = requestAnimationFrame(spotlightLoop)
+}
+
+function spotlightHide() {
+  if (!spot.el) return
+  spot.visible = false
+  spot.el.classList.remove("on")
+  if (!spot.raf) spot.raf = requestAnimationFrame(spotlightLoop)
+}
+
+/* full teardown (leaving the composer): a hidden spotlight keeps its iframe
+   for instant re-hover, but a live animating frame must not outlive the view */
+function spotlightTeardown() {
+  spotlightHide()
+  if (spot.frame) { spot.frame.remove(); spot.frame = null }
+  spot.id = null
+  if (spot.shimmer) spot.shimmer.classList.remove("done")
+}
+
+/* picker filtering: category chip AND text query */
+let pickerCat = "all"
+
+function buildPickerChips() {
+  const wrap = document.getElementById("pickerChips")
+  wrap.innerHTML = ""
+  const cats = []
+  EFFECTS.forEach(m => { if (!cats.includes(m.cat)) cats.push(m.cat) })
+  const make = (label, value, count) => {
+    const chip = document.createElement("button")
+    chip.className = "picker-chip" + (pickerCat === value ? " active" : "")
+    chip.dataset.cat = value
+    const name = document.createElement("span"); name.textContent = label
+    const n = document.createElement("span"); n.className = "n"; n.textContent = count
+    chip.append(name, n)
+    chip.addEventListener("click", () => {
+      pickerCat = pickerCat === value ? "all" : value   /* re-tap toggles back to All */
+      wrap.querySelectorAll(".picker-chip").forEach(c =>
+        c.classList.toggle("active", c.dataset.cat === pickerCat))
+      applyPickerFilter()
+    })
+    wrap.appendChild(chip)
+  }
+  make("All", "all", EFFECTS.length)
+  cats.forEach(cat => make(cat, cat, EFFECTS.filter(m => m.cat === cat).length))
+}
+
+function applyPickerFilter() {
+  const q = document.getElementById("pickerSearch").value.trim().toLowerCase()
   document.querySelectorAll(".picker-row").forEach(row => {
-    row.hidden = q !== "" && !row.dataset.search.includes(q)
+    const catOk = pickerCat === "all" || row.dataset.cat === pickerCat
+    const qOk = q === "" || row.dataset.search.includes(q)
+    row.hidden = !(catOk && qOk)
   })
-})
+  document.getElementById("pickerList").scrollTop = 0
+  spotlightHide()
+}
+
+document.getElementById("pickerSearch").addEventListener("input", applyPickerFilter)
 
 function insertToken(id) {
   const tok = "<" + id + ">"
@@ -1492,6 +1737,7 @@ window.addEventListener("keydown", e => {
   buildSourceNav()
   attachCardInteractions()
   buildPicker()
+  buildPickerChips()
   updateDraftNav()
   showView(localStorage.getItem("lumiere-view") || "library")
   /* surface silently-dropped effects (failed fetch / bad meta) instead of
