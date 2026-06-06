@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/s0nderlabs/lumiere/blob/main/creation/launch-video.lock.schema.json",
+  "title": "launch-video.lock.json",
+  "description": "The structured design lock for a lumiere-scaffolded launch video. Successor of anima-launch's prose design.md. Lives at the TARGET project's root; lumiere ships this schema. Every Claude session that touches the project treats locked values as non-negotiable.",
+  "type": "object",
+  "required": ["lockVersion", "meta", "palette", "typography", "motion", "scenes"],
+  "additionalProperties": false,
+  "properties": {
+    "lockVersion": {
+      "description": "Schema version of this lock file. Current: 1.",
+      "const": 1
+    },
+    "meta": {
+      "type": "object",
+      "required": ["project", "title", "targetDurationSeconds", "stage", "render"],
+      "additionalProperties": false,
+      "properties": {
+        "project": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "Project slug (e.g. lumiere-teaser). Used as the root composition id." },
+        "title": { "type": "string", "minLength": 1, "description": "Human title of the video." },
+        "tagline": { "type": "string", "description": "Optional one-line voice of the video." },
+        "targetDurationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "stage": {
+          "type": "object",
+          "required": ["width", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "width": { "type": "integer", "exclusiveMinimum": 0 },
+            "height": { "type": "integer", "exclusiveMinimum": 0 }
+          },
+          "description": "Logical composition size the scene files are authored at (anima: 1920x1080)."
+        },
+        "render": {
+          "type": "object",
+          "required": ["width", "height", "fps"],
+          "additionalProperties": false,
+          "properties": {
+            "width": { "type": "integer", "exclusiveMinimum": 0 },
+            "height": { "type": "integer", "exclusiveMinimum": 0 },
+            "fps": { "type": "integer", "enum": [24, 25, 30, 50, 60] },
+            "output": { "type": "string", "description": "Output mp4 path relative to project root." }
+          },
+          "description": "Final render target (anima: 3840x2160 @ 60)."
+        },
+        "lockedOn": { "type": "string", "format": "date", "description": "Date the design was locked (YYYY-MM-DD)." },
+        "lockedWith": { "type": "string", "description": "Who locked it (e.g. elpabl0)." }
+      }
+    },
+    "palette": {
+      "type": "object",
+      "required": ["tokens"],
+      "additionalProperties": false,
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["token", "hex", "use"],
+            "additionalProperties": false,
+            "properties": {
+              "token": { "type": "string", "pattern": "^--[a-z0-9-]+$", "description": "CSS custom property name (e.g. --color-cream)." },
+              "hex": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+              "use": { "type": "string", "minLength": 1, "description": "What this token is for (primary background, ink, ...)." }
+            }
+          }
+        },
+        "shadow": { "type": "string", "description": "The locked shadow color/recipe (e.g. rgba(60,50,30,0.32) warm, never pure black)." },
+        "bans": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Enforceable prohibitions as plain statements (e.g. 'zero blue', 'no invented colors')."
+        }
+      }
+    },
+    "typography": {
+      "type": "object",
+      "required": ["roles"],
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["role", "family", "weight"],
+            "additionalProperties": false,
+            "properties": {
+              "role": { "type": "string", "minLength": 1, "description": "display | body | aside | mono-kicker | wordmark | ... (free vocabulary, used by scenes)." },
+              "family": { "type": "string", "minLength": 1 },
+              "weight": { "type": "string", "minLength": 1, "description": "Weight or weight ladder (e.g. '500/600')." },
+              "tracking": { "type": "string", "description": "letter-spacing (e.g. '-0.02em', '0.22em uppercase')." },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "banned": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Banned families/styles (e.g. 'Fraunces', 'any serif fallback', 'italic')."
+        },
+        "fonts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["family", "source"],
+            "additionalProperties": false,
+            "properties": {
+              "family": { "type": "string" },
+              "source": { "type": "string", "description": "Relative asset path in the project, or 'builtin' if the runtime ships it." }
+            }
+          },
+          "description": "Where each family's files come from."
+        }
+      }
+    },
+    "heroElements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "kind": { "type": "string", "enum": ["svg", "sprite", "dom", "image"] },
+          "description": { "type": "string", "description": "What this motif is and how it behaves across scenes." },
+          "svgPath": { "type": "string", "description": "Locked SVG path data (kind=svg)." },
+          "viewBox": { "type": "string" },
+          "css": { "type": "string", "description": "Locked styling/behavior recipe (fill, stroke, breathe loop, ...)." },
+          "sizes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["context", "width", "height"],
+              "additionalProperties": false,
+              "properties": {
+                "context": { "type": "string", "description": "Where this size applies (hero, on-UI, inline, ...)." },
+                "width": { "type": "number" },
+                "height": { "type": "number" },
+                "notes": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "description": "Recurring visual motifs locked across the whole video (anima's cursor, lumiere's mascot)."
+    },
+    "texture": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "css": { "type": "string", "description": "How to apply (selector + properties)." },
+        "svg": { "type": "string", "description": "Inline SVG source if the texture is generated (paper noise)." }
+      },
+      "description": "Global surface treatment applied to every scene background."
+    },
+    "motion": {
+      "type": "object",
+      "required": ["eases", "principles"],
+      "additionalProperties": false,
+      "properties": {
+        "eases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["use", "ease"],
+            "additionalProperties": false,
+            "properties": {
+              "use": { "type": "string", "minLength": 1, "description": "entrances | hero reveals | transitions | clicks | ..." },
+              "ease": { "type": "string", "minLength": 1, "description": "GSAP ease string (power3.out, expo.out, back.out(1.2), ...)." }
+            }
+          }
+        },
+        "principles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Locked motion rules as enforceable statements (e.g. 'offset first animation 0.1-0.3s after each cut', 'no exit animations except final scene', 'vary at least 3 eases per scene')."
+        },
+        "breatheSeconds": { "type": "number", "description": "Ambient breathe-loop period if the video has one (anima: 2.6)." }
+      }
+    },
+    "audio": {
+      "type": "object",
+      "required": ["tracks"],
+      "additionalProperties": false,
+      "properties": {
+        "tracks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["role", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "role": { "type": "string", "description": "keyboard | click | ambient | chime | vo | music | ..." },
+              "status": { "type": "string", "enum": ["locked", "tbd", "none"] },
+              "asset": { "type": "string", "description": "Path relative to project root (status=locked)." },
+              "volume": { "type": "number", "minimum": 0, "maximum": 1 },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      },
+      "description": "Audio strategy. v0 policy is handoff: assets are provided externally; tbd tracks render silent."
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "start", "duration", "storyboard", "effects"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "description": "Scene slug; names the scene's clip block in the root index.html (v1 keeps all scenes in the root composition; per-scene compositions/<NN>-<id>.html files arrive only with sub-compositions later)." },
+          "title": { "type": "string" },
+          "start": { "type": "number", "minimum": 0, "description": "Seconds on the master timeline." },
+          "duration": { "type": "number", "exclusiveMinimum": 0 },
+          "energy": { "type": "string", "description": "Beat energy (rising | settle | focused | building | reset | peak | resolve | ...)." },
+          "storyboard": { "type": "string", "minLength": 1, "description": "Freeform prose for this beat - what happens, in the user's words. The creative brief the scaffold builds to." },
+          "content": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The actual copy/data for this scene (headline text, terminal lines, chart numbers). Free-form keys, any JSON values; scenes reference them."
+          },
+          "effects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["ref"],
+              "additionalProperties": false,
+              "properties": {
+                "ref": { "type": "string", "minLength": 1, "description": "Canonical effect id (from effects/index.json) or an explicit path to an effect.html." },
+                "vars": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "speed": { "type": "number", "exclusiveMinimum": 0, "description": "Rate multiplier; must be > 0 (0 freezes timelines). The shared knob every effect honors." }
+                  },
+                  "description": "Per-use variable overrides, same keys as the effect's meta.variables. Atomic per knob (see effects/FORMAT.md Variables)."
+                },
+                "role": { "type": "string", "description": "What this effect does in the scene (hero reveal, background element, transition out, ...)." },
+                "notes": { "type": "string" }
+              }
+            },
+            "description": "Effects deployed in this scene, restaged per creation/RESTAGE.md. Empty array allowed for fully bespoke scenes."
+          },
+          "transitionOut": { "type": "string", "description": "How this scene hands off to the next (cut, dolly-dive, dissolve, ...). Omit for plain cut." },
+          "notes": { "type": "string" }
+        }
+      },
+      "description": "The beat sheet as data, ordered by start time. start/duration drive data-start/data-duration in the root composition."
+    },
+    "idioms": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Inherited visual idioms (glass pill prompt radius 42px, mono kicker above headings, soft warm shadows, ...)."
+    },
+    "outOfScope": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Hard bans for the whole video (ASCII art, 3D shaders, emojis, ...)."
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string" },
+          "path": { "type": "string" },
+          "url": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      },
+      "description": "Pointers to source material (brand css, reference videos, beat-sheet provenance)."
+    }
+  }
+}

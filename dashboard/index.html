@@ -202,6 +202,140 @@ html.theme-dark .nav-item.active .count{color:rgba(16,15,9,0.65)}
   }
 
 /* ============================================================
+     VIEWS (Library / Composer / Preview)
+     ============================================================ */
+
+.view[hidden]{display:none}
+
+/* ---- composer ---- */
+
+.composer-layout{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start}
+
+@media (max-width:1100px){.composer-layout{grid-template-columns:1fr}}
+
+.composer-label{
+    display:block;font-family:'Geist Mono',monospace;font-size:9px;
+    text-transform:uppercase;letter-spacing:0.16em;color:var(--ink-3);
+    margin:0 0 8px;padding-left:2px;
+  }
+
+.composer-label .opt{text-transform:none;letter-spacing:0.02em}
+
+.composer-textarea{
+    width:100%;min-height:300px;resize:vertical;
+    background:var(--paper);border:1px solid var(--line);border-radius:16px;
+    padding:18px 20px;font-family:'Outfit',sans-serif;font-size:15px;
+    line-height:1.6;color:var(--ink);letter-spacing:-0.005em;outline:none;
+    transition:border-color .15s;margin-bottom:20px;
+  }
+
+.composer-textarea:focus{border-color:var(--line-strong)}
+
+.composer-textarea.small{min-height:90px}
+
+.composer-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+.composer-ghost{
+    background:transparent;border:1px solid var(--line-strong);color:var(--ink-2);
+    font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;
+    padding:10px 18px;border-radius:999px;cursor:pointer;transition:all .15s;
+  }
+
+.composer-ghost:hover{background:var(--cream-deep);color:var(--ink)}
+
+.composer-status{font-family:'Geist Mono',monospace;font-size:11px;color:var(--proof-green)}
+
+.command-preview{
+    margin-top:20px;background:var(--cream-deep);border:1px solid var(--line);
+    border-radius:14px;padding:16px 18px;
+    font-family:'Geist Mono',monospace;font-size:11.5px;line-height:1.6;
+    color:var(--ink-2);white-space:pre-wrap;word-break:break-word;
+  }
+
+.composer-picker{
+    background:var(--paper);border:1px solid var(--line);border-radius:16px;
+    padding:14px;position:sticky;top:24px;
+    max-height:calc(100vh - 48px);display:flex;flex-direction:column;gap:10px;
+  }
+
+.picker-search{
+    background:var(--cream-deep);border:1px solid var(--line);border-radius:999px;
+    padding:8px 14px;font-family:'Outfit',sans-serif;font-size:13px;
+    color:var(--ink);outline:none;
+  }
+
+.picker-search:focus{border-color:var(--line-strong)}
+
+.picker-list{overflow:auto;display:flex;flex-direction:column;gap:1px;min-height:120px}
+
+.picker-row{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:7px 10px;border-radius:9px;cursor:pointer;transition:background .12s;
+  }
+
+.picker-row:hover{background:var(--cream-deep)}
+
+.picker-row[hidden]{display:none}
+
+.picker-name{font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;color:var(--ink);letter-spacing:-0.005em}
+
+.picker-cat{font-family:'Geist Mono',monospace;font-size:9.5px;color:var(--ink-3);flex-shrink:0}
+
+.picker-hint{border-top:1px solid var(--line);padding-top:10px}
+
+.hint-title{font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;color:var(--ink)}
+
+.hint-desc{font-family:'Outfit',sans-serif;font-size:12px;color:var(--ink-2);line-height:1.5;margin-top:4px;max-height:80px;overflow:auto}
+
+.hint-vars-label{font-family:'Geist Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.14em;color:var(--ink-3);margin-top:10px}
+
+.hint-vars{
+    font-family:'Geist Mono',monospace;font-size:11px;color:var(--ink);
+    background:var(--cream-deep);border-radius:10px;padding:10px 12px;
+    margin:6px 0 0;white-space:pre-wrap;
+  }
+
+/* ---- preview ---- */
+
+.preview-bar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+
+.preview-path{
+    flex:1;min-width:320px;background:var(--paper);border:1px solid var(--line);
+    border-radius:999px;padding:10px 18px;
+    font-family:'Geist Mono',monospace;font-size:12px;color:var(--ink);outline:none;
+  }
+
+.preview-path:focus{border-color:var(--line-strong)}
+
+.preview-stage-wrap{
+    background:var(--vp-bg);border:1px solid var(--line);border-radius:20px;
+    overflow:hidden;position:relative;aspect-ratio:16/9;
+  }
+
+.preview-stage-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:var(--vp-bg)}
+
+.preview-empty{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--ink-3);font-family:'Outfit',sans-serif;font-size:14px;
+  }
+
+.preview-controls{display:flex;align-items:center;gap:14px;margin-top:18px}
+
+.preview-play{
+    width:44px;height:44px;border-radius:999px;border:none;cursor:pointer;
+    background:var(--ink);color:var(--cream);display:grid;place-items:center;
+    transition:opacity .15s;flex-shrink:0;
+  }
+
+.preview-play:hover{opacity:0.86}
+
+.preview-play svg{width:16px;height:16px}
+
+.preview-scrub{flex:1;accent-color:var(--ink);cursor:pointer}
+
+.preview-time{font-family:'Geist Mono',monospace;font-size:12px;color:var(--ink-2);min-width:110px;text-align:right}
+
+/* ============================================================
      EFFECT CARDS
      ============================================================ */
 
@@ -570,6 +704,13 @@ html.theme-dark .fav.is-active{color:#ff6f5e}
       </div>
     </div>
 
+    <div class="nav-section" id="viewNav">
+      <h6>Studio</h6>
+      <div class="nav-item active" data-view="library"><span>Library</span></div>
+      <div class="nav-item" data-view="composer"><span>Composer</span></div>
+      <div class="nav-item" data-view="preview"><span>Preview</span></div>
+    </div>
+
     <div class="nav-section" id="catNav">
       <h6>Library</h6>
       <div class="nav-item active" data-cat="all"><span>All primitives</span><span class="count" id="cntAll"></span></div>
@@ -588,9 +729,9 @@ html.theme-dark .fav.is-active{color:#ff6f5e}
       <h6>Sources</h6>
     </div>
 
-    <div class="nav-section">
+    <div class="nav-section" id="storyboardNav">
       <h6>Storyboards</h6>
-      <div class="nav-item disabled"><span>No drafts yet</span></div>
+      <div class="nav-item disabled" id="draftItem"><span>No drafts yet</span></div>
     </div>
 
     <div class="nav-section">
@@ -625,23 +766,89 @@ html.theme-dark .fav.is-active{color:#ff6f5e}
 
   <main class="main-wrap">
 
-    <section class="hero">
-      <div class="hero-text">
-        <h1>Library.</h1>
-        <p class="lede">Reusable animation primitives, extracted from production references. Drop them into storyboards, tweak per-use, remix the vocabulary.</p>
-      </div>
-      <button class="hero-cta" id="submitEffect">
-        Submit your effect
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
-      </button>
-    </section>
+    <div id="view-library" class="view">
+      <section class="hero">
+        <div class="hero-text">
+          <h1>Library.</h1>
+          <p class="lede">Reusable animation primitives, extracted from production references. Drop them into storyboards, tweak per-use, remix the vocabulary.</p>
+        </div>
+        <button class="hero-cta" id="submitEffect">
+          Submit your effect
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </button>
+      </section>
 
-    <div class="filter-bar" id="filterBar">
-      <button class="filter-chip active" data-filter="all">All</button>
-      <button class="filter-chip" data-filter="new">New</button>
+      <div class="filter-bar" id="filterBar">
+        <button class="filter-chip active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="new">New</button>
+      </div>
+
+      <div class="grid" id="grid"></div>
     </div>
 
-    <div class="grid" id="grid"></div>
+    <div id="view-composer" class="view" hidden>
+      <section class="hero">
+        <div class="hero-text">
+          <h1>Composer.</h1>
+          <p class="lede">Write the storyboard as prose. Click an effect on the right to drop it in as a token; add per-use overrides in parens after it. Copy command resolves every token to its canonical file for any Claude session.</p>
+        </div>
+      </section>
+
+      <div class="composer-layout">
+        <div class="composer-main">
+          <label class="composer-label" for="storyboardInput">storyboard</label>
+          <textarea id="storyboardInput" class="composer-textarea" spellcheck="false" placeholder='Cold open on cream. The wordmark rises with <wordmark-rise>(text="lumiere"), then a composer bar types the ask with <chat-input-typing>(text="make me a launch video"). Finish by diving through the focal letter with <dolly-zoom>(tagline="ships today.").'></textarea>
+
+          <label class="composer-label" for="detailInput">give claude more detail <span class="opt">(optional)</span></label>
+          <textarea id="detailInput" class="composer-textarea small" spellcheck="false" placeholder="Target duration, audio plan, render target, vibe references..."></textarea>
+
+          <div class="composer-actions">
+            <button class="hero-cta" id="copyCommand">
+              Copy command
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="8" height="8" rx="2"/><path d="M11 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1"/></svg>
+            </button>
+            <button class="composer-ghost" id="togglePreview">Preview command</button>
+            <span class="composer-status" id="copyStatus"></span>
+          </div>
+          <pre id="commandPreview" class="command-preview" hidden></pre>
+        </div>
+
+        <aside class="composer-picker">
+          <input id="pickerSearch" class="picker-search" placeholder="filter effects..." spellcheck="false" />
+          <div id="pickerList" class="picker-list"></div>
+          <div id="pickerHint" class="picker-hint" hidden></div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="view-preview" class="view" hidden>
+      <section class="hero">
+        <div class="hero-text">
+          <h1>Preview.</h1>
+          <p class="lede">Load a composition (a project's index.html) and scrub its registered timeline frame-exactly, the same way the renderer drives it.</p>
+        </div>
+      </section>
+
+      <div class="preview-bar">
+        <input id="previewPath" class="preview-path" spellcheck="false" placeholder="/absolute/path/to/project/index.html" />
+        <button class="composer-ghost" id="previewLoad">Load</button>
+        <button class="composer-ghost" id="copyRender" disabled style="opacity:0.5">Copy render command</button>
+        <span class="composer-status" id="renderStatus"></span>
+      </div>
+
+      <div class="preview-stage-wrap">
+        <iframe id="previewFrame" title="composition preview" hidden></iframe>
+        <div class="preview-empty" id="previewEmpty">No composition loaded.</div>
+      </div>
+
+      <div class="preview-controls" id="previewControls" hidden>
+        <button class="preview-play" id="previewPlay" aria-label="play/pause">
+          <svg id="previewPlayIcon" viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 2.8v10.4c0 .6.7 1 1.2.7l8.2-5.2c.5-.3.5-1 0-1.3L5.7 2.1c-.5-.3-1.2 0-1.2.7z"/></svg>
+        </button>
+        <input type="range" class="preview-scrub" id="previewScrub" min="0" max="1000" value="0" />
+        <span class="preview-time" id="previewTime">0.000 / 0.000</span>
+      </div>
+    </div>
 
   </main>
 </div>
@@ -784,6 +991,7 @@ const SOURCE_LABELS = {
 }
 
 function filterBySource(slug, itemEl) {
+  showView("library")   /* filters act on the library grid */
   document.querySelectorAll(".nav-item[data-cat], .nav-item[data-source]").forEach(x => x.classList.remove("active"))
   document.querySelectorAll(".filter-chip").forEach(c => c.classList.remove("active"))
   itemEl.classList.add("active")
@@ -851,6 +1059,7 @@ document.addEventListener("click", e => {
 /* Category filter */
 document.querySelectorAll(".nav-item[data-cat]").forEach(item => {
   item.addEventListener("click", () => {
+    showView("library")   /* filters act on the library grid */
     document.querySelectorAll(".nav-item[data-cat], .nav-item[data-source]").forEach(x => x.classList.remove("active"))
     item.classList.add("active")
     const cat = item.dataset.cat
@@ -937,9 +1146,332 @@ function placeholderToast(label) {
     setTimeout(() => t.remove(), 250)
   }, 1800)
 }
-document.getElementById("newStoryboard").addEventListener("click", () => placeholderToast("Storyboard composer coming in v1"))
 document.getElementById("addEffect").addEventListener("click", () => placeholderToast("Custom effect authoring coming in v1"))
 document.getElementById("submitEffect").addEventListener("click", () => placeholderToast("Submission flow coming in v1"))
+
+/* ============================================================
+   VIEWS - Library / Composer / Preview
+   ============================================================ */
+
+const VIEWS = ["library", "composer", "preview"]
+
+function showView(name) {
+  if (!VIEWS.includes(name)) name = "library"
+  VIEWS.forEach(v => {
+    const el = document.getElementById("view-" + v)
+    if (el) el.hidden = v !== name
+  })
+  document.querySelectorAll("#viewNav .nav-item[data-view]").forEach(x =>
+    x.classList.toggle("active", x.dataset.view === name))
+  localStorage.setItem("lumiere-view", name)
+  if (name !== "preview") previewPause()
+}
+
+document.querySelectorAll("#viewNav .nav-item[data-view]").forEach(item => {
+  item.addEventListener("click", () => showView(item.dataset.view))
+})
+
+document.getElementById("newStoryboard").addEventListener("click", () => {
+  showView("composer")
+  document.getElementById("storyboardInput").focus()
+})
+
+/* ============================================================
+   COMPOSER - freeform-prose storyboard + token picker +
+   copy-command handoff (locked format: paths inline, overrides
+   in parens after the path)
+   ============================================================ */
+
+const sbInput = document.getElementById("storyboardInput")
+const detailInput = document.getElementById("detailInput")
+const copyStatus = document.getElementById("copyStatus")
+const commandPreview = document.getElementById("commandPreview")
+
+/* draft persistence */
+sbInput.value = localStorage.getItem("lumiere-draft-storyboard") || ""
+detailInput.value = localStorage.getItem("lumiere-draft-detail") || ""
+
+function updateDraftNav() {
+  const item = document.getElementById("draftItem")
+  const has = sbInput.value.trim().length > 0
+  item.classList.toggle("disabled", !has)
+  item.querySelector("span").textContent = has ? "Draft storyboard" : "No drafts yet"
+  item.onclick = has ? () => showView("composer") : null
+}
+
+function saveDraft() {
+  localStorage.setItem("lumiere-draft-storyboard", sbInput.value)
+  localStorage.setItem("lumiere-draft-detail", detailInput.value)
+  updateDraftNav()
+  if (!commandPreview.hidden) commandPreview.textContent = buildCommand().cmd
+}
+sbInput.addEventListener("input", saveDraft)
+detailInput.addEventListener("input", saveDraft)
+
+/* token picker (text rows on purpose - 79 live iframes already exist in the
+   library view; the picker stays light) */
+function buildPicker() {
+  const list = document.getElementById("pickerList")
+  list.innerHTML = ""
+  EFFECTS.forEach(meta => {
+    const row = document.createElement("div")
+    row.className = "picker-row"
+    row.dataset.effect = meta.id
+    row.dataset.search = (meta.id + " " + meta.display + " " + meta.cat + " " + (meta.desc || "")).toLowerCase()
+    const name = document.createElement("span"); name.className = "picker-name"; name.textContent = meta.display
+    const cat = document.createElement("span"); cat.className = "picker-cat"; cat.textContent = meta.cat
+    row.append(name, cat)
+    row.addEventListener("click", () => { insertToken(meta.id); showPickerHint(meta) })
+    list.appendChild(row)
+  })
+}
+
+document.getElementById("pickerSearch").addEventListener("input", e => {
+  const q = e.target.value.trim().toLowerCase()
+  document.querySelectorAll(".picker-row").forEach(row => {
+    row.hidden = q !== "" && !row.dataset.search.includes(q)
+  })
+})
+
+function insertToken(id) {
+  const tok = "<" + id + ">"
+  const s = sbInput.selectionStart ?? sbInput.value.length
+  const e2 = sbInput.selectionEnd ?? sbInput.value.length
+  const before = sbInput.value.slice(0, s)
+  const after = sbInput.value.slice(e2)
+  const pad = before && !/\s$/.test(before) ? " " : ""
+  sbInput.value = before + pad + tok + after
+  const pos = (before + pad + tok).length
+  sbInput.focus()
+  sbInput.setSelectionRange(pos, pos)
+  saveDraft()
+}
+
+function showPickerHint(meta) {
+  const h = document.getElementById("pickerHint")
+  h.hidden = false
+  const vars = meta.variables && Object.keys(meta.variables).length
+    ? Object.entries(meta.variables).map(([k, v]) => k + " = " + JSON.stringify(v)).join("\n")
+    : "no knobs declared yet (defaults-only effect)"
+  h.innerHTML = `
+    <div class='hint-title'>${esc(meta.display)}</div>
+    <div class='hint-desc'>${esc(meta.desc || "")}</div>
+    <div class='hint-vars-label'>per-use knobs - override in parens after the token</div>
+    <pre class='hint-vars'>${esc(vars)}</pre>`
+}
+
+/* command building: every <token> resolves to the canonical effect.html
+   ABSOLUTE path inline in the prose (locked click-to-reference format) */
+function repoRoot() {
+  /* dashboard lives at <repo>/dashboard/index.html */
+  return decodeURIComponent(location.pathname).replace(/\/dashboard\/[^/]*$/, "")
+}
+
+function buildCommand() {
+  const unknown = []
+  /* the optional capture of a following "(" keeps the space-before-overrides
+     formatting scoped to RESOLVED tokens only - hand-typed text is untouched */
+  const resolved = sbInput.value.trim()
+    .replace(/<([a-z0-9][a-z0-9-]*)>(\()?/g, (m, id, paren) => {
+      if (EFFECTS.some(e => e.id === id)) {
+        return repoRoot() + "/effects/" + id + "/effect.html" + (paren ? " (" : "")
+      }
+      unknown.push(id)
+      return m
+    })
+  let cmd = "/lumiere create\n\nStoryboard:\n" + resolved
+  const d = detailInput.value.trim()
+  if (d) cmd += "\n\nAdditional detail:\n" + d
+  return { cmd, unknown }
+}
+
+async function copyCommand() {
+  if (!sbInput.value.trim()) { copyStatus.textContent = "storyboard is empty"; return }
+  const { cmd, unknown } = buildCommand()
+  let ok = false
+  try { await navigator.clipboard.writeText(cmd); ok = true } catch (e) {}
+  if (!ok) {
+    /* file:// clipboard fallback */
+    const ta = document.createElement("textarea")
+    ta.value = cmd
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0"
+    document.body.appendChild(ta)
+    ta.select()
+    try { ok = document.execCommand("copy") } catch (e) {}
+    ta.remove()
+  }
+  copyStatus.textContent = (ok ? "copied" : "copy blocked - use preview command")
+    + (unknown.length ? " · unknown tokens: " + unknown.join(", ") : "")
+  if (ok && !unknown.length) setTimeout(() => { copyStatus.textContent = "" }, 2600)
+}
+
+document.getElementById("copyCommand").addEventListener("click", copyCommand)
+
+document.getElementById("togglePreview").addEventListener("click", () => {
+  if (commandPreview.hidden) {
+    commandPreview.textContent = buildCommand().cmd || "(empty)"
+    commandPreview.hidden = false
+  } else {
+    commandPreview.hidden = true
+  }
+})
+
+/* ============================================================
+   PREVIEW - load a composition's index.html and drive its
+   registered paused timeline (window.__timelines), the same
+   contract the renderer uses
+   ============================================================ */
+
+const previewFrame = document.getElementById("previewFrame")
+const previewEmpty = document.getElementById("previewEmpty")
+const previewControls = document.getElementById("previewControls")
+const previewScrub = document.getElementById("previewScrub")
+const previewTime = document.getElementById("previewTime")
+const previewPathInput = document.getElementById("previewPath")
+
+let previewTl = null
+let previewDuration = 0
+let previewTicker = null
+let previewPlaying = false
+let previewPoll = null
+
+previewPathInput.value = localStorage.getItem("lumiere-preview-path") || ""
+
+function previewSetEmpty(msg) {
+  previewEmpty.textContent = msg
+  previewEmpty.style.display = "flex"
+  previewFrame.hidden = true
+  previewControls.hidden = true
+  previewTl = null
+  setRenderButton(false)
+}
+
+function fmtTime(t) { return t.toFixed(3) }
+
+function previewSync() {
+  if (!previewTl) return
+  let t = 0
+  try { t = previewTl.time() } catch (e) { return }
+  previewScrub.value = String(Math.round((t / previewDuration) * 1000))
+  previewTime.textContent = fmtTime(t) + " / " + fmtTime(previewDuration)
+  if (previewPlaying && t >= previewDuration - 0.001) previewPause()
+}
+
+function previewPlayIconSet(playing) {
+  document.getElementById("previewPlayIcon").innerHTML = playing
+    ? `<rect x='3.5' y='2.5' width='3.4' height='11' rx='1.2'/><rect x='9.1' y='2.5' width='3.4' height='11' rx='1.2'/>`
+    : `<path d='M4.5 2.8v10.4c0 .6.7 1 1.2.7l8.2-5.2c.5-.3.5-1 0-1.3L5.7 2.1c-.5-.3-1.2 0-1.2.7z'/>`
+}
+
+function previewPause() {
+  previewPlaying = false
+  previewPlayIconSet(false)
+  if (previewTl) { try { previewTl.pause() } catch (e) {} }
+  if (previewTicker) { clearInterval(previewTicker); previewTicker = null }
+  if (previewPoll) { clearInterval(previewPoll); previewPoll = null }
+}
+
+function previewPlay() {
+  if (!previewTl) return
+  try {
+    if (previewTl.time() >= previewDuration - 0.001) previewTl.time(0)
+    previewTl.play()
+  } catch (e) { return }
+  previewPlaying = true
+  previewPlayIconSet(true)
+  if (!previewTicker) previewTicker = setInterval(previewSync, 80)
+}
+
+document.getElementById("previewPlay").addEventListener("click", () => {
+  previewPlaying ? previewPause() : previewPlay()
+})
+
+previewScrub.addEventListener("input", () => {
+  if (!previewTl) return
+  previewPause()
+  const t = (Number(previewScrub.value) / 1000) * previewDuration
+  try { previewTl.time(t) } catch (e) {}
+  previewTime.textContent = fmtTime(t) + " / " + fmtTime(previewDuration)
+})
+
+function previewLoad() {
+  const path = previewPathInput.value.trim()
+  if (!path) { previewSetEmpty("Enter the absolute path of a composition index.html."); return }
+  localStorage.setItem("lumiere-preview-path", path)
+  previewPause()
+  previewSetEmpty("Loading composition...")
+  const src = (path.startsWith("file://") ? path : "file://" + path) + "?cb=" + Date.now()
+  previewFrame.hidden = false
+  previewFrame.src = src
+  /* poll for the registered timeline (registered LAST in the composition
+     script, so DOM-ready alone is not enough); single active poll, cleared
+     on re-load and on leaving the preview view */
+  if (previewPoll) { clearInterval(previewPoll); previewPoll = null }
+  let tries = 0
+  previewPoll = setInterval(() => {
+    tries++
+    let tl = null
+    try {
+      const reg = previewFrame.contentWindow && previewFrame.contentWindow.__timelines
+      if (reg) tl = reg.main || Object.values(reg)[0]
+    } catch (e) { /* cross-origin: cannot drive it */ }
+    if (tl) {
+      clearInterval(previewPoll); previewPoll = null
+      previewTl = tl
+      try { previewTl.pause(); previewTl.time(0) } catch (e) {}
+      previewDuration = (() => { try { return previewTl.duration() } catch (e) { return 0 } })()
+      if (!isFinite(previewDuration) || previewDuration <= 0) {
+        previewSetEmpty("Composition registered a timeline but its duration is not finite.")
+        return
+      }
+      previewEmpty.style.display = "none"
+      previewControls.hidden = false
+      previewScrub.value = "0"
+      previewTime.textContent = fmtTime(0) + " / " + fmtTime(previewDuration)
+      setRenderButton(true)
+    } else if (tries > 50) {
+      clearInterval(previewPoll); previewPoll = null
+      previewSetEmpty("No window.__timelines registry found - is this a HyperFrames-dialect composition?")
+    }
+  }, 100)
+}
+
+document.getElementById("previewLoad").addEventListener("click", previewLoad)
+previewPathInput.addEventListener("keydown", e => { if (e.key === "Enter") previewLoad() })
+
+/* render trigger (studio v2): the dashboard is a static page, so the trigger
+   follows the copy-command handoff pattern - it emits the exact shell command
+   for lumiere's stable render entry point */
+function setRenderButton(enabled) {
+  const b = document.getElementById("copyRender")
+  b.disabled = !enabled
+  b.style.opacity = enabled ? "1" : "0.5"
+}
+
+function renderCommandFor(path) {
+  const projectDir = path.replace(/^file:\/\//, "").replace(/\/[^/]*$/, "")
+  return "bun " + repoRoot() + "/bin/lumiere-render.mjs " + projectDir
+}
+
+document.getElementById("copyRender").addEventListener("click", async () => {
+  const path = previewPathInput.value.trim()
+  if (!path) return
+  const cmd = renderCommandFor(path)
+  const status = document.getElementById("renderStatus")
+  let ok = false
+  try { await navigator.clipboard.writeText(cmd); ok = true } catch (e) {}
+  if (!ok) {
+    const ta = document.createElement("textarea")
+    ta.value = cmd
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0"
+    document.body.appendChild(ta)
+    ta.select()
+    try { ok = document.execCommand("copy") } catch (e) {}
+    ta.remove()
+  }
+  status.textContent = ok ? "copied: " + cmd : cmd
+  setTimeout(() => { status.textContent = "" }, 5200)
+})
 
 /* Keyboard shortcut: ⌘K focuses search (placeholder) */
 window.addEventListener("keydown", e => {
@@ -959,6 +1491,9 @@ window.addEventListener("keydown", e => {
   updateCounts()
   buildSourceNav()
   attachCardInteractions()
+  buildPicker()
+  updateDraftNav()
+  showView(localStorage.getItem("lumiere-view") || "library")
   /* surface silently-dropped effects (failed fetch / bad meta) instead of
      letting cards vanish with only a console line */
   if (expected !== null && EFFECTS.length < expected) {

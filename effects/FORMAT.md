@@ -63,7 +63,8 @@ effects must skip them.
 </script>
 <script data-effect-init>
 window.LUMIERE_INIT = function init(card) {
-  /* effect setup: build DOM state, set contentful REST state,
+  /* read knobs from window.LUMIERE_VARS (see "Variables" below);
+     effect setup: build DOM state, set contentful REST state,
      return replay() which returns a gsap timeline */
 }
 </script>
@@ -96,6 +97,67 @@ Script order is load-bearing: gsap → meta → init → runtime.
 - Never `gsap.set(el, { clearProps: "all" })` on elements with inline
   style positioning (see feedback-clearprops-wipes-inline-positioning).
 
+## Variables (per-use parametrization)
+
+`meta.variables` declares the effect's knobs with their DEFAULT values.
+Before init runs, the runtime resolves
+`window.LUMIERE_VARS = { ...meta.variables, ...?vars overrides }`.
+The merge is shallow at the TOP-LEVEL KEY only: omitted knobs keep their
+defaults, but an overridden knob is replaced atomically - an
+object/array-valued knob (like a `data` array) is swapped wholesale,
+never deep-merged, so an override must restate the full collection.
+Malformed `?vars` JSON is dropped with a console error and the effect
+renders with pure defaults. Init reads its knobs from there:
+
+```js
+window.LUMIERE_INIT = function init(card) {
+  const V = window.LUMIERE_VARS
+  el.textContent = V.text
+  ...
+}
+```
+
+Rules:
+
+1. **Defaults reproduce the reference render, exactly.** Every default is
+   the literal that was previously hardcoded in the effect. Loading
+   `effect.html` with no `?vars=` must render identically to the
+   unparametrized file - this invariant is what keeps the canonical
+   library a quality anchor.
+2. **Expose few knobs, deliberately.** Only what a composer plausibly
+   tweaks per-use: content (`text`, `data`), the `speed` knob,
+   occasionally one key visual scalar. Not every literal is a variable;
+   knobs are added when a real use needs them, not speculatively.
+3. **`speed` convention**: rate multiplier, default `1`. Must be a finite
+   number `> 0` (`0` freezes timelines / never fires tweens; divides go to
+   Infinity). The runtime (`_runtime.js`) ENFORCES this: an invalid `speed`
+   override is dropped with a console error and the effect's default
+   applies, so effects may assume `> 0`. The lock schema also types
+   `vars.speed` with `exclusiveMinimum: 0`. Pick ONE
+   mechanism: if all of replay's timing lives in a single timeline,
+   apply `tl.timeScale(V.speed)`; otherwise divide every duration/
+   delay/stagger/interval literal by `V.speed`. Never mix the two in
+   one effect - timeScale only reaches the timeline and leaves bare
+   tweens at speed 1, desyncing the motion. A storyboard-level
+   `(duration=X)` override is translated by the scaffold step:
+   `speed = natural_duration / X`.
+4. **Values are JSON** (string / number / boolean, arrays / objects of
+   those). Keys are camelCase. No functions, no element refs.
+5. **Knobs must degrade gracefully** under reasonable overrides inside
+   the fixed stage: longer text may truncate/overflow per the effect's
+   existing CSS, data arrays may change length, but nothing should
+   throw or collapse the layout.
+
+Override channels (same values, different transports):
+
+- standalone / dashboard preview: `?vars=<URL-encoded JSON>`, e.g.
+  `effect.html?vars=%7B%22text%22%3A%22pragma%22%7D`
+- creation pipeline: HyperFrames `data-variable-values` per scene (the
+  scaffold step re-stages the effect and binds the per-use overrides).
+  The two attribute names are deliberately distinct: defaults live in
+  `data-composition-variables`, per-scene overrides in
+  `data-variable-values`.
+
 ## Meta block (`script[data-effect-meta]`)
 
 Machine-readable without executing JS (DOMParser + JSON.parse). Fields
@@ -107,9 +169,9 @@ mirror the legacy `LUMIERE_EFFECTS` entries: `id`, `display`, `cat`,
   (the verified dashboard card geometry; vector content scales cleanly).
   New video-first effects may use larger stages.
 - `scrubbable` - whether replay() returns a seekable timeline.
-- `variables` - parametrization defaults (HyperFrames
-  `data-composition-variables` analog). Conversions ship `{}`; knobs are
-  added per-use later, defaults must always reproduce the reference render.
+- `variables` - the effect's knobs + defaults (HyperFrames
+  `data-composition-variables` analog). See "Variables (per-use
+  parametrization)" above. Effects without knobs ship `{}`.
 
 ## Runtime API + URL params
 
@@ -126,10 +188,16 @@ contentWindow access.
 - `LUMIERE_PREPARE()` registers the paused timeline on
   `window.__timelines[id]` (HyperFrames key rule #3). It is lazy so the
   default mount shows the rest state, not frame 0.
-- `meta.variables` ↔ `data-composition-variables` defaults.
+- `meta.variables` ↔ HyperFrames' variables system, conceptually:
+  HyperFrames declares defaults as a JSON ARRAY of `{id, type, label,
+  default}` on `<html data-composition-variables>` and overrides as an
+  OBJECT on the mount (`data-variable-values`); lumiere keeps the simpler
+  object-of-defaults form and BAKES resolved values at restage time.
 - Scaffolding into an actual video composition (the creation pipeline)
-  re-stages the effect inside the target project; this file is the
-  canonical reference implementation it copies from.
+  re-stages the effect inside the target project per
+  `../creation/RESTAGE.md`; this file is the canonical reference
+  implementation it copies from. The lock file that drives scaffolding is
+  specified in `../creation/LOCK.md`.
 
 ## Conversion rules (legacy `dashboard/effects.js` → this format)
 

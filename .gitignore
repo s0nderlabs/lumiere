@@ -47,3 +47,8 @@ yarn-error.log*
 # Test outputs
 coverage/
 *.lcov
+
+# Render outputs (lumiere-render writes renders/ relative to a project dir)
+renders/
+# Render outputs: *.mp4 also catches locks that point output at a project-root path
+*.mp4

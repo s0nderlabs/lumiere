@@ -1,8 +1,10 @@
 # lumiere
 
-Video perception for Claude Code. Point it at any video (local file or URL), get a structured analysis the model can reason about: scenes, motion windows, action attribution, transcription, and base64 frames with temporal narrative guidance.
+Video perception + launch-video creation for Claude Code.
 
-Five MCP tools: `inspect` (cheap forecast), `analyze` (structural pass), `watch` (frames + audio), `measure` (exact token forecast via Anthropic's count_tokens), `configure` (settings).
+**Perception**: point it at any video (local file or URL), get a structured analysis the model can reason about: scenes, motion windows, action attribution, transcription, and base64 frames with temporal narrative guidance. Five MCP tools: `inspect` (cheap forecast), `analyze` (structural pass), `watch` (frames + audio), `measure` (exact token forecast via Anthropic's count_tokens), `configure` (settings).
+
+**Creation** (v0.16): scaffold a launch video from a storyboard. A 79-effect canonical library, a studio dashboard (library / composer / preview), a machine-readable design lock, a restage procedure, and two render engines behind one entry point. See [Creation](#creation-v016).
 
 ## Install
 
@@ -28,6 +30,7 @@ c --plugin-dir ~/Documents/s0nderlabs/lumiere
 - `whisper-cli` from `whisper.cpp` (default audio backend) or `GEMINI_API_KEY`
 - `MAX_MCP_OUTPUT_TOKENS=100000` recommended
 - `LUMIERE_ANTHROPIC_API_KEY` (optional, only for the `measure` tool and `lumiere-cost` CLI)
+- Google Chrome (optional, only for the own render engine: `lumiere-render --engine own`)
 
 macOS:
 
@@ -161,9 +164,29 @@ The `/lumiere` skill instructs the model to:
 4. `analyze` then `watch` with appropriate chunks + `narrative_mode` for action segments
 5. Optionally `measure` first when the call is high-stakes (cap-tight, expensive, or budget-critical)
 
+## Creation (v0.16)
+
+The SCAFFOLD phase: turn a storyboard into a rendered launch video.
+
+```
+/lumiere dashboard        # open the studio (Library / Composer / Preview)
+/lumiere create           # scaffold from a storyboard or brief
+```
+
+The flow: write a freeform storyboard in the Composer (effect tokens + per-use overrides in parens), copy the command, and a Claude session establishes a `launch-video.lock.json` (validated by `creation/_tools/validate-lock.mjs`), restages each canonical effect into a composition per `creation/RESTAGE.md`, and renders:
+
+```sh
+bun bin/lumiere-render.mjs <project-dir>                # hyperframes CLI engine (default)
+bun bin/lumiere-render.mjs <project-dir> --engine own   # lumiere's own frame-exact pipeline
+```
+
+Defaults (fps, output, resolution) come from the lock. The own engine drives the registered paused timeline frame-by-frame via system Chrome + ffmpeg and matches the hyperframes frame count exactly; it needs Google Chrome installed and does not mix audio yet (use the default engine for locked audio tracks).
+
+Specs live in `creation/` (`LOCK.md`, `RESTAGE.md`, the JSON schema) and `effects/FORMAT.md` (the per-effect file format + per-use `?vars=` variables contract).
+
 ## What lumiere is NOT (yet)
 
-Creation phase (scene scaffolding via HyperFrames, ElevenLabs SFX/BGM) is deferred until perception settles. Current ship is perception only.
+ElevenLabs SFX/BGM generation, own-engine audio mixing, and a formalized design-lock interview are not shipped yet. The INTERVIEW phase runs as a guided conversation today; the SCAFFOLD + RENDER phases are v0.16's ship.
 
 ## License
 

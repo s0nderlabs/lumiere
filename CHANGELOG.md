@@ -2,6 +2,24 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-06-06
+
+### Added
+
+- **Creation pipeline** (`creation/`): the SCAFFOLD phase ships. `LOCK.md` + `launch-video.lock.schema.json` (strict JSON Schema 2020-12) define the machine-readable design lock; `_tools/validate-lock.mjs` (bun + Ajv) checks schema plus cross-field timing invariants (leading dead air, gaps, overlaps with a `transitionOut` crossfade escape hatch, duplicate ids, duration drift); `RESTAGE.md` is the canonical effect-to-composition procedure (composition shell template with stage dims derived from the lock, six mechanical steps, de-timer recipes for the 7 wall-clock effects, hard rules, verification protocol).
+- **Skill creation route**: `/lumiere create` (or a storyboard `.md` / lock path) dispatches to a 5-step creation flow: resolve docs, read the storyboard (composer paren-overrides map to `effects[].vars`), establish + validate the lock, restage scene by scene, gate on lint (hyperframes `inspect` documented BEST-EFFORT: it crashes upstream on 0.6.7/0.6.75).
+- **Studio dashboard** (`dashboard/index.html`): three views. Library (the 79-effect grid), Composer (freeform-prose storyboard + token picker with per-effect knob hints from `meta.variables`, draft persistence, copy-command resolving `<effect-id>` tokens to canonical paths), Preview (loads any composition, scrubs the registered `window.__timelines` master frame-exactly, play/pause, copy-render-command).
+- **Stable render entry** (`bin/lumiere-render.mjs`): `--engine hyperframes|own`, lock-driven defaults (fps, output, resolution preset derivation), loud failure when the hyperframes engine cannot honor the lock's render dims (never a silent stage-resolution render).
+- **Own render pipeline** (`render/own-renderer.mjs`, studio v3): frame-exact renderer driving the registered paused timeline per frame via puppeteer-core + system Chrome + ffmpeg image2pipe. Lock-driven integer-multiple upscaling via deviceScaleFactor, autoplay disarm, fitStage neutralization, exact hyperframes frame-count parity (`ceil(duration * fps)`, verified empirically against the CLI).
+- **Per-use variables contract** (`effects/FORMAT.md` "Variables"): `meta.variables` defaults with `?vars=<json>` shallow atomic overrides; `speed` knob convention (timeScale XOR divide, never mix). Piloted on `wordmark-rise`, `dolly-zoom`, `donut-chart-fill`, `chat-input-typing`.
+
+### Fixed
+
+- `effects/_runtime.js` now enforces the `speed > 0` contract (invalid overrides drop to the effect default with a console error); the lock schema types `vars.speed` with `exclusiveMinimum: 0`.
+- `donut-chart-fill` legend is built with DOM APIs instead of `innerHTML` (closes an XSS sink reachable from URL-controlled `?vars` data).
+- `ajv`, `ajv-formats`, `puppeteer-core` moved from devDependencies to dependencies (the validator and own renderer import them at runtime from the installed plugin).
+- Render spawn failures (`npx`/`bun` missing) now surface the underlying error instead of a bare exit code.
+
 ## [0.15.0] - 2026-06-05
 
 ### Added

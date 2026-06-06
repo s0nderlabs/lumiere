@@ -45,14 +45,18 @@
     "height": 240
   },
   "scrubbable": false,
-  "variables": {}
+  "variables": {
+    "text": "Am I paying for subscriptions I don't need?",
+    "speed": 1
+  }
 }
 </script>
 <script data-effect-init>
 window.LUMIERE_INIT = function init(card) {
+      const V = window.LUMIERE_VARS
       const bar = card.querySelector("[data-cit-bar]")
       const text = card.querySelector("[data-cit-text]")
-      const msg = "Am I paying for subscriptions I don't need?"
+      const msg = V.text
       let timer = null
       text.textContent = msg
       return () => {
@@ -67,7 +71,7 @@ window.LUMIERE_INIT = function init(card) {
             clearInterval(timer)
             timer = null
           }
-        }, 45)
+        }, 45 / V.speed)
       }
     }
 </script>

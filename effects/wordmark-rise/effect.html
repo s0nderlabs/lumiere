@@ -40,7 +40,10 @@
     "height": 240
   },
   "scrubbable": false,
-  "variables": {}
+  "variables": {
+    "text": "lumiere",
+    "speed": 1
+  }
 }
 </script>
 <script data-effect-init>
@@ -61,13 +64,15 @@ function spanChars(el) {
 }
 
 window.LUMIERE_INIT = function init(card) {
+      const V = window.LUMIERE_VARS
       const el = card.querySelector("[data-wm]")
+      el.textContent = V.text
       const spans = spanChars(el)
       gsap.set(spans, { opacity: 1, y: 0 })
       return () => {
         gsap.killTweensOf(spans)
         gsap.set(spans, { opacity: 0, y: 60 })
-        gsap.to(spans, { opacity: 1, y: 0, duration: 0.7, ease: "expo.out", stagger: 0.07, delay: 0.25 })
+        gsap.to(spans, { opacity: 1, y: 0, duration: 0.7 / V.speed, ease: "expo.out", stagger: 0.07 / V.speed, delay: 0.25 / V.speed })
       }
     }
 </script>

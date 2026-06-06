@@ -77,6 +77,12 @@
   /* variables (defaults from meta, overridable via ?vars=) */
   const vars = Object.assign({}, META.variables || {})
   try { if (qs.get("vars")) Object.assign(vars, JSON.parse(qs.get("vars"))) } catch (e) { console.error("lumiere: bad ?vars JSON", e) }
+  /* speed contract: must be a number > 0 (0 freezes timelines, divides go to
+     Infinity). Invalid overrides fall back to the effect's default. */
+  if ("speed" in vars && !(typeof vars.speed === "number" && isFinite(vars.speed) && vars.speed > 0)) {
+    console.error("lumiere: ?vars speed must be a finite number > 0, got", vars.speed, "- using default")
+    vars.speed = (META.variables && typeof META.variables.speed === "number" && META.variables.speed > 0) ? META.variables.speed : 1
+  }
   window.LUMIERE_VARS = vars
 
   /* mount */

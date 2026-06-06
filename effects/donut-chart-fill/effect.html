@@ -46,20 +46,24 @@
     "height": 240
   },
   "scrubbable": false,
-  "variables": {}
+  "variables": {
+    "data": [
+      { "label": "Stocks", "pct": 47, "color": "#1a5e3a", "val": "$48,512" },
+      { "label": "ETFs", "pct": 19, "color": "#2e9b66", "val": "$19,134" },
+      { "label": "Bonds", "pct": 18, "color": "#5fcc88", "val": "$18,354" },
+      { "label": "Crypto", "pct": 10, "color": "#a8e6cf", "val": "$10,736" },
+      { "label": "Cash", "pct": 6, "color": "#87ceeb", "val": "$6,200" }
+    ],
+    "speed": 1
+  }
 }
 </script>
 <script data-effect-init>
 window.LUMIERE_INIT = function init(card) {
+      const V = window.LUMIERE_VARS
       const svg = card.querySelector("[data-dcf-svg]")
       const legend = card.querySelector("[data-dcf-legend]")
-      const data = [
-        { label: "Stocks", pct: 47, color: "#1a5e3a", val: "$48,512" },
-        { label: "ETFs", pct: 19, color: "#2e9b66", val: "$19,134" },
-        { label: "Bonds", pct: 18, color: "#5fcc88", val: "$18,354" },
-        { label: "Crypto", pct: 10, color: "#a8e6cf", val: "$10,736" },
-        { label: "Cash", pct: 6, color: "#87ceeb", val: "$6,200" }
-      ]
+      const data = V.data
       const R = 35, C = 2 * Math.PI * R
       let offset = 0
       const arcs = []
@@ -78,9 +82,19 @@ window.LUMIERE_INIT = function init(card) {
         arcs.push({ el: circle, len: (d.pct / 100) * C })
         offset += (d.pct / 100) * C
       })
-      legend.innerHTML = data.map(d =>
-        `<div class='dcf-legend-row'><span class='dcf-dot' style='background:${d.color}'></span>${d.label}<span class='dcf-legend-val'>${d.val}</span></div>`
-      ).join("")
+      /* DOM APIs, not innerHTML: ?vars data is URL-controlled input */
+      legend.replaceChildren(...data.map(d => {
+        const row = document.createElement("div")
+        row.className = "dcf-legend-row"
+        const dot = document.createElement("span")
+        dot.className = "dcf-dot"
+        dot.style.background = d.color
+        const val = document.createElement("span")
+        val.className = "dcf-legend-val"
+        val.textContent = d.val
+        row.append(dot, document.createTextNode(d.label), val)
+        return row
+      }))
       const legendRows = legend.querySelectorAll(".dcf-legend-row")
       gsap.set(arcs.map(a => a.el), { opacity: 1 })
       gsap.set(legendRows, { opacity: 1, x: 0 })
@@ -94,11 +108,11 @@ window.LUMIERE_INIT = function init(card) {
         arcs.forEach((a, i) => {
           gsap.to(a.el, {
             attr: { "stroke-dasharray": `${a.len} ${C}` },
-            duration: 0.6, ease: "power2.inOut", delay: 0.5 + i * 0.12
+            duration: 0.6 / V.speed, ease: "power2.inOut", delay: (0.5 + i * 0.12) / V.speed
           })
         })
         legendRows.forEach((r, i) => {
-          gsap.to(r, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out", delay: 0.7 + i * 0.08 })
+          gsap.to(r, { opacity: 1, x: 0, duration: 0.3 / V.speed, ease: "power2.out", delay: (0.7 + i * 0.08) / V.speed })
         })
       }
     }

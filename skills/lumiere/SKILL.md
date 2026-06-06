@@ -1,13 +1,13 @@
 ---
 name: lumiere
-description: "Video work mode. Load when the user wants to analyze a reference video, watch a video URL, study effects from a launch video, or work on a launch-video project. Triggered by explicit video intent only (e.g., 'analyze this trailer', 'watch this video', 'study the X launch video'), NOT by every URL mention."
+description: "Video work mode. Load when the user wants to analyze a reference video, watch a video URL, study effects from a launch video, or scaffold/build a launch video (storyboard, lock file, scenes). Triggered by explicit video intent only (e.g., 'analyze this trailer', 'watch this video', 'build the X launch video'), NOT by every URL mention."
 user-invocable: true
-argument-hint: "[dashboard] | [mode <low|mid|high|max>] | [video URL] | (none for interactive)"
+argument-hint: "[dashboard] | [mode <low|mid|high|max>] | [create | <storyboard>.md | <lock>.json] | [video URL] | (none for interactive)"
 ---
 
-# /lumiere: video perception (creation deferred)
+# /lumiere: video perception + creation
 
-You are now in lumiere video work mode. The user wants to do something with a video reference: analyze it, watch it, copy beats from it, or study what effects it uses.
+You are now in lumiere video work mode. The user wants to do something with a video: analyze a reference, watch it, copy beats from it, study what effects it uses, or scaffold a launch video of their own.
 
 ## Argument routing (first thing to check)
 
@@ -15,7 +15,8 @@ The user may have invoked this skill with an argument (`$ARGUMENTS`). Parse it F
 
 - `$ARGUMENTS` starts with `mode ` (e.g. `mode max`, `mode high`, `mode mid`, `mode low`): **dispatch to set-default-mode flow.** Call `configure(default_mode=<value>)` then confirm by reading back the saved config. Do not enter full video work mode.
 - `$ARGUMENTS` is `dashboard`, `library`, `motion-library`, or any of those phrases (e.g. `open dashboard`, `open the dashboard`, `show me the library`): **dispatch to open-dashboard flow** below. Do not enter full video work mode.
-- `$ARGUMENTS` is a URL (http://, https://, x.com/, youtube.com, youtu.be, vimeo.com, or a local path): **dispatch to "user shared a reference video URL" flow** below with that URL.
+- `$ARGUMENTS` is or STARTS WITH `create`, `creation`, `scaffold` (the dashboard composer's copy-command emits `create` followed by a `Storyboard:` block, all of which is the brief), OR is a path to a storyboard `.md` / a `launch-video.lock.json`: **dispatch to creation flow** below. Do not enter perception work mode. (This bullet matches BEFORE the URL bullet so storyboard/lock paths are never misread as videos.)
+- `$ARGUMENTS` is a URL (http://, https://, x.com/, youtube.com, youtu.be, vimeo.com, or a local VIDEO file path like .mp4/.mov/.webm/.mkv): **dispatch to "user shared a reference video URL" flow** below with that URL.
 - `$ARGUMENTS` is empty or anything else: enter interactive mode and ask what the user wants to do.
 
 ## Tools available
@@ -72,11 +73,11 @@ The dashboard is pure HTML and bundles GSAP + fonts locally, so no dev server is
 
 1. Pre-flight, then analyze.
 2. `watch(path, mode="max")` on each scene of interest for pixel-perfect inspection. Pass `narrative_mode=false` (explicit) if the segment is static; otherwise leave default.
-3. Cross-reference against the effects vocabulary (load `data/effects.json` if needed) and emit a beat sheet: `{start, end, effects: [name1, name2], content}`.
+3. Cross-reference against the canonical effects library (`$CLAUDE_PLUGIN_ROOT/effects/index.json` for ids; per-effect meta inside each `effects/<id>/effect.html`) and emit a beat sheet: `{start, end, effects: [name1, name2], content}`.
 
 ### When the user mentions [effect-name] tokens
 
-The `[effect-name]` syntax refers to a named effect in `data/effects.json`. When the user says "Scene 1 uses [typewriter] [asymmetric-scatter]", treat those as references to the effect manifest, not free-text descriptions.
+The `[effect-name]` syntax refers to a named effect in the canonical library (`effects/index.json`). When the user says "Scene 1 uses [typewriter] [asymmetric-scatter]", treat those as references to the effect manifest, not free-text descriptions.
 
 ### When the user wants to set the default tier
 
@@ -129,13 +130,22 @@ Example. You called `watch(0:00, 0:24, fps=25, view_sample=600)` and got 240 fra
 
 Why: temporal resolution is what catches fast actions (laser fires, particle bursts, sub-second transitions). Resolution drops mean missing those events entirely.
 
-## Creation phase
+## Creation flow (scaffold a launch video)
 
-Creation (scene scaffolding, HyperFrames render) is NOT in this skill yet. It will land in a follow-up release after the perception layer settles.
+When routed here (argument `create`, a storyboard `.md`, or a lock file path):
+
+1. **Resolve the creation docs.** Try `$CLAUDE_PLUGIN_ROOT/creation/` first (installed plugin); if the variable is unset or the dir is missing, fall back to the repo path the session was launched with (`--plugin-dir`). `LOCK.md` and `RESTAGE.md` MUST exist there; if not, report which paths you tried and stop.
+2. **Read the storyboard.** A composer-emitted storyboard references effects as absolute `effects/<id>/effect.html` paths inline in the prose; the `<id>` directory name is the canonical effect ref. A parenthetical right after a path, e.g. `(text="lumiere", speed=1.5)`, declares per-use knob overrides: record each `key=value` pair as that scene's `effects[].vars` in the lock (a `(duration=X)` override translates to `speed = natural_duration / X` per the effect's FORMAT.md contract).
+3. **Establish the lock.** If the target project already has a `launch-video.lock.json`, validate it: `bun <creation>/_tools/validate-lock.mjs <lock-path>`. If there is no lock yet, Read `creation/LOCK.md` and fill one WITH the user from their storyboard/brief (guided, 5-8 turns of decisions: palette, typography, motion, beats), then validate.
+4. **Scaffold.** Read `creation/RESTAGE.md` and follow it scene by scene: restage each `scenes[].effects[]` declaration into the project's root `index.html`. Canonical effects live at `$CLAUDE_PLUGIN_ROOT/effects/<id>/effect.html` (same fallback rule).
+5. **Gate.** `npx --yes hyperframes@0.6.7 lint` clean of ERRORs before any scene is called done. (`hyperframes inspect` is BEST-EFFORT only: it currently crashes with a `totalDuration` error on both 0.6.7 and 0.6.75 even on known-good projects, so a crash there is tool breakage, NOT a gate failure; lint + render + lumiere-watch carry the gate, per RESTAGE.md.) Render only when the user asks, via the stable entry point: `bun $CLAUDE_PLUGIN_ROOT/bin/lumiere-render.mjs <project-dir>` (defaults come from the lock; `--engine own` uses lumiere's own pipeline). Report the exact command first.
+
+All procedural depth lives in the two creation docs; read them on demand, never from memory of this summary.
 
 ## Auxiliary references
 
-- Effects vocabulary: `data/effects.json` (load on demand, not eagerly)
+- Effects library: `$CLAUDE_PLUGIN_ROOT/effects/index.json` + `effects/<id>/effect.html` (load on demand, not eagerly)
+- Creation playbooks: `$CLAUDE_PLUGIN_ROOT/creation/LOCK.md` (the design-lock spec + schema) and `$CLAUDE_PLUGIN_ROOT/creation/RESTAGE.md` (effect -> composition restage procedure). Read inside the creation flow, not eagerly.
 - HyperFrames pattern: `~/Documents/s0nderlabs/anima-launch/CLAUDE.md`
 - Cost model + tier comparison: see memory file `cost-model-100k-cap.md`
 - Narrative-coherence bug + v0.3 fix: see memory `perception-bug-narrative-coherence.md`

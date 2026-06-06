@@ -147,16 +147,21 @@
     "height": 240
   },
   "scrubbable": false,
-  "variables": {}
+  "variables": {
+    "tagline": "ships today.",
+    "speed": 1
+  }
 }
 </script>
 <script data-effect-init>
 window.LUMIERE_INIT = function init(card) {
+      const V = window.LUMIERE_VARS
       const mark     = card.querySelector('[data-dz="mark"]')
       const word     = card.querySelector('[data-dz="word"]')
       const mLetter  = card.querySelector('[data-dz="m"]')
       const tagline  = card.querySelector('[data-dz="tagline"]')
       const terminal = card.querySelector('[data-dz="terminal"]')
+      tagline.textContent = V.tagline
 
       let computedOrigin = '38% 58%'
 
@@ -200,6 +205,7 @@ window.LUMIERE_INIT = function init(card) {
         tl.set(word,     { scale: 1, transformOrigin: computedOrigin }, 3.5)
         tl.set(mark,     { opacity: 1 }, 3.5)
         tl.set(tagline,  { opacity: 1, y: 0 }, 3.5)
+        tl.timeScale(V.speed)
       }
     }
 </script>
