@@ -2,6 +2,16 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.17.1] - 2026-06-06
+
+### Fixed
+
+- **Whisper hallucination denylist hardened for punctuation variants**: the Spanish entry now tolerates leading inverted punctuation (`¡Gracias!`, `¿Gracias?`, doubled `¡¡Gracias!!`) and the German/French/Italian thanks entries accept trailing `!`/`?` and spaced punctuation (`Grazie!`, `Merci !`) instead of only a period. Previously `¡Gracias!` (observed verbatim on silent gym audio) slipped past transcript suppression.
+
+### Added
+
+- Unit suite for the hallucination denylist (`src/utils/hallucination.test.ts`): 34 cases anchoring suppressed phrases, the deliberate multi-word non-suppression boundary (`muchas gracias` stays), and Signal 3 flagging both ways.
+
 ## [0.17.0] - 2026-06-06
 
 ### Added

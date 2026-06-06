@@ -12,7 +12,9 @@ const LOW_LOUDNESS_THRESHOLD = -28
 
 // Known whisper.cpp credits-style hallucinations on near-silent / music audio.
 // These appear verbatim (or close to verbatim) when the audio has no actual speech.
-const HALLUCINATION_PHRASES = [
+// Exported for the unit suite; treat as a curated denylist - only add entries
+// for hallucinations actually observed in the wild.
+export const HALLUCINATION_PHRASES = [
   /thank you( for watching| for listening|\.|$)/i,
   /subtitles by/i,
   /tanya cushman reviewer/i,
@@ -27,10 +29,10 @@ const HALLUCINATION_PHRASES = [
   /www\.[a-z]+\.(com|org|net)/i,
   // Multilingual hallucinations observed on gym ambient audio (v0.12.1)
   /^\s*terima\s*kasih/i,                     // Indonesian "thank you"
-  /^\s*vielen\s*dank\.?\s*$/i,               // German "thank you"
-  /^\s*gracias\.?!?\s*$/i,                   // Spanish "thanks"
-  /^\s*merci\.?\s*$/i,                       // French "thanks"
-  /^\s*grazie\.?\s*$/i,                      // Italian "thanks"
+  /^\s*vielen\s*dank[\s.!?]*$/i,             // German "thank you"
+  /^\s*[¡!¿]*gracias[\s.!?]*$/i,             // Spanish "thanks"
+  /^\s*merci[\s.!?]*$/i,                     // French "thanks" (incl. spaced "Merci !")
+  /^\s*grazie[\s.!?]*$/i,                    // Italian "thanks"
   /^\s*谢谢/,                                // Chinese "thanks"
   /^\s*好\s*$/,                              // Chinese single-char filler
   /^\s*走\s*$/,                              // Chinese single-char filler
