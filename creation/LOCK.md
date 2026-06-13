@@ -34,8 +34,12 @@ bun creation/_tools/validate-lock.mjs <path/to/launch-video.lock.json>
 - **INTERVIEW phase** (formalized after the pilot): a 5-8 turn guided
   conversation walks the user through identity → references → beat budget →
   effect picks, writing fields as they lock.
-- **Hand-written** is always valid: the pipeline treats a hand-edited lock
-  identically (each phase is independently invokable).
+- **Hand-edited** locks are accepted (the pipeline treats a hand-edited lock
+  identically, each phase is independently invokable), but this is the escape
+  hatch, NOT the headline path. For a "make me a launch video" request the
+  canonical flow is compose/author → review in the dashboard Preview → export
+  (see the skill's creation flow); reach for a bare hand-edited lock only when
+  that flow does not fit.
 - **Reference-driven**: a perception beat sheet (REFERENCE phase) can prefill
   `scenes[]` (start/duration/effects from the analyzed video), then the
   interview refines.

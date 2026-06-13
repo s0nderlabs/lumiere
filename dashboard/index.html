@@ -387,6 +387,20 @@ html.theme-dark .nav-item.active .count{color:rgba(16,15,9,0.65)}
 
 .preview-path:focus{border-color:var(--line-strong)}
 
+/* version switcher: arrow across a versions.json set (v1/v2/v3...) */
+.preview-versions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.preview-version-arrow{
+    width:34px;height:34px;border-radius:999px;border:1px solid var(--line);
+    background:var(--paper);color:var(--ink);cursor:pointer;display:grid;place-items:center;
+    font-size:16px;line-height:1;transition:border-color .15s,opacity .15s;
+  }
+.preview-version-arrow:hover{border-color:var(--line-strong)}
+.preview-version-arrow:disabled{opacity:0.35;cursor:default}
+.preview-version-label{
+    font-family:'Geist Mono',monospace;font-size:12px;color:var(--ink-2);
+    min-width:150px;text-align:center;
+  }
+
 .preview-stage-wrap{
     background:var(--vp-bg);border:1px solid var(--line);border-radius:20px;
     overflow:hidden;position:relative;aspect-ratio:16/9;
@@ -915,6 +929,16 @@ html.theme-dark .fav.is-active{color:#ff6f5e}
         <span class="composer-status" id="renderStatus"></span>
       </div>
 
+      <div class="preview-bar">
+        <input id="previewDir" class="preview-path" spellcheck="false" placeholder="/absolute/path/to/versions-folder (holds versions.json)" />
+        <button class="composer-ghost" id="previewLoadVersions">Load versions</button>
+        <div class="preview-versions" id="previewVersions" hidden>
+          <button class="preview-version-arrow" id="previewPrev" aria-label="previous version">&lsaquo;</button>
+          <span class="preview-version-label" id="previewVersionLabel">no versions loaded</span>
+          <button class="preview-version-arrow" id="previewNext" aria-label="next version">&rsaquo;</button>
+        </div>
+      </div>
+
       <div class="preview-stage-wrap">
         <iframe id="previewFrame" title="composition preview" hidden></iframe>
         <div class="preview-empty" id="previewEmpty">No composition loaded.</div>
@@ -1268,6 +1292,14 @@ function showView(name) {
   localStorage.setItem("lumiere-view", name)
   if (name !== "preview") previewPause()
   if (name !== "composer") spotlightTeardown()
+  /* auto-surface: entering Preview with a remembered versions folder (the skill
+     writes lumiere-preview-dir after a build) loads the switcher unprompted.
+     Fires at most once per session so a failed/empty manifest never re-retries
+     on every re-entry; the manual "Load versions" button always still works. */
+  if (name === "preview" && !previewAutoLoaded && previewDirInput.value.trim() && !previewVersions.length) {
+    previewAutoLoaded = true
+    loadVersions(previewDirInput.value).catch(() => {})
+  }
 }
 
 document.querySelectorAll("#viewNav .nav-item[data-view]").forEach(item => {
@@ -1574,13 +1606,21 @@ const previewScrub = document.getElementById("previewScrub")
 const previewTime = document.getElementById("previewTime")
 const previewPathInput = document.getElementById("previewPath")
 
+const previewDirInput = document.getElementById("previewDir")
+const previewVersionsEl = document.getElementById("previewVersions")
+const previewVersionLabel = document.getElementById("previewVersionLabel")
+
 let previewTl = null
 let previewDuration = 0
 let previewTicker = null
 let previewPlaying = false
 let previewPoll = null
+let previewVersions = []
+let previewVersionIdx = 0
+let previewAutoLoaded = false   // the showView auto-load fires at most once per session
 
 previewPathInput.value = localStorage.getItem("lumiere-preview-path") || ""
+previewDirInput.value = localStorage.getItem("lumiere-preview-dir") || ""
 
 function previewSetEmpty(msg) {
   previewEmpty.textContent = msg
@@ -1639,10 +1679,12 @@ previewScrub.addEventListener("input", () => {
   previewTime.textContent = fmtTime(t) + " / " + fmtTime(previewDuration)
 })
 
-function previewLoad() {
+function previewLoad(opts) {
   const path = previewPathInput.value.trim()
   if (!path) { previewSetEmpty("Enter the absolute path of a composition index.html."); return }
-  localStorage.setItem("lumiere-preview-path", path)
+  /* switcher-driven loads pass persistPath:false so stepping versions does not
+     overwrite the user's remembered single-composition path */
+  if (!opts || opts.persistPath !== false) localStorage.setItem("lumiere-preview-path", path)
   previewPause()
   previewSetEmpty("Loading composition...")
   const src = (path.startsWith("file://") ? path : "file://" + path) + "?cb=" + Date.now()
@@ -1681,8 +1723,89 @@ function previewLoad() {
   }, 100)
 }
 
-document.getElementById("previewLoad").addEventListener("click", previewLoad)
-previewPathInput.addEventListener("keydown", e => { if (e.key === "Enter") previewLoad() })
+/* a manual single-file Load supersedes the switcher: clear the version set so
+   the strip + arrows do not point at a composition that is no longer shown */
+function manualPreviewLoad() { resetSwitcher(); previewLoad() }
+document.getElementById("previewLoad").addEventListener("click", manualPreviewLoad)
+previewPathInput.addEventListener("keydown", e => { if (e.key === "Enter") manualPreviewLoad() })
+
+/* version switcher: point at a folder holding versions.json
+   ({ versions: [{ dir, label?, file? }] }) and arrow across the set.
+   Cross-tree file:// fetch is permitted in qutebrowser (the static page can
+   read the manifest), but it CANNOT list a directory - the manifest is the
+   explicit enumeration. Composition path = <dir>/<entry.dir>/<entry.file|index.html>. */
+const previewPrevBtn = document.getElementById("previewPrev")
+const previewNextBtn = document.getElementById("previewNext")
+let previewVersionsToken = 0   // in-flight guard: only the latest loadVersions may commit
+
+function normPreviewDir(d) {
+  d = (d || "").trim().replace(/\/+$/, "")
+  if (!d) return ""
+  return d.startsWith("file://") ? d : "file://" + d
+}
+
+/* clear the version set so a manual single-file load (or a failed manifest)
+   never leaves a stale strip pointing at a composition no longer shown */
+function resetSwitcher() {
+  previewVersions = []
+  previewVersionIdx = 0
+  previewVersionsEl.hidden = true
+}
+
+async function loadVersions(rawDir) {
+  const base = normPreviewDir(rawDir)
+  if (!base) { resetSwitcher(); previewSetEmpty("Enter the folder that holds versions.json."); return }
+  const token = ++previewVersionsToken
+  let manifest
+  try {
+    manifest = await (await fetch(base + "/versions.json?cb=" + Date.now())).json()
+  } catch (e) {
+    if (token !== previewVersionsToken) return
+    localStorage.removeItem("lumiere-preview-dir")   // a bad dir must not re-seed + auto-retry forever
+    resetSwitcher()
+    previewSetEmpty("No readable versions.json in that folder (" + e + ").")
+    return
+  }
+  if (token !== previewVersionsToken) return
+  const list = Array.isArray(manifest && manifest.versions) ? manifest.versions : []
+  const baseNoScheme = base.replace(/^file:\/\//, "")
+  const trimSlash = s => String(s).replace(/^\/+|\/+$/g, "")
+  const built = []
+  for (const v of list) {
+    if (v && typeof v.dir === "string" && v.dir.trim()) {
+      built.push({ path: baseNoScheme + "/" + trimSlash(v.dir) + "/" + trimSlash(v.file || "index.html"), label: v.label || v.dir })
+    } else {
+      console.warn("lumiere: versions.json entry skipped (needs a string `dir`):", v)
+    }
+  }
+  previewVersions = built
+  if (!previewVersions.length) {
+    localStorage.removeItem("lumiere-preview-dir")
+    resetSwitcher()
+    previewSetEmpty("versions.json has no usable entries (each needs a {dir}).")
+    return
+  }
+  localStorage.setItem("lumiere-preview-dir", (rawDir || "").trim())   // persist only after a successful load
+  previewVersionIdx = 0
+  previewVersionsEl.hidden = false
+  previewShowVersion(0)
+}
+
+function previewShowVersion(i) {
+  if (!previewVersions.length) return
+  previewVersionIdx = Math.max(0, Math.min(i, previewVersions.length - 1))
+  const v = previewVersions[previewVersionIdx]
+  previewVersionLabel.textContent = v.label + "  (" + (previewVersionIdx + 1) + "/" + previewVersions.length + ")"
+  previewPrevBtn.disabled = previewVersionIdx === 0
+  previewNextBtn.disabled = previewVersionIdx === previewVersions.length - 1
+  previewPathInput.value = v.path
+  previewLoad({ persistPath: false })   // do not clobber the single-composition memory
+}
+
+document.getElementById("previewLoadVersions").addEventListener("click", () => { loadVersions(previewDirInput.value) })
+previewDirInput.addEventListener("keydown", e => { if (e.key === "Enter") loadVersions(previewDirInput.value) })
+previewPrevBtn.addEventListener("click", () => previewShowVersion(previewVersionIdx - 1))
+previewNextBtn.addEventListener("click", () => previewShowVersion(previewVersionIdx + 1))
 
 /* render trigger (studio v2): the dashboard is a static page, so the trigger
    follows the copy-command handoff pattern - it emits the exact shell command

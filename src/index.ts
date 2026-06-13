@@ -66,7 +66,25 @@ cleanExpiredSessions(SESSIONS_DIR, DEFAULTS.session_max_age_days)
 cleanExpiredDownloads(DEFAULTS.downloads_max_age_days)
 
 // 4. Build server + register tools
-const server = new McpServer({ name: "lumiere", version: "0.17.1" })
+// The `instructions` field is the one place an agent reads BEFORE it reasons
+// from the tool list. The five tools below are all PERCEPTION; without this
+// note an agent reverse-engineers "lumiere can only look at video, not make it"
+// and hand-rolls a video instead of using the creation pipeline. State the two
+// halves explicitly so that wrong inference never happens.
+const server = new McpServer(
+  { name: "lumiere", version: "0.18.0" },
+  {
+    instructions:
+      "lumiere is a TWO-HALF launch-video plugin. (1) PERCEPTION: the MCP tools " +
+      "here (inspect, analyze, watch, measure, configure) look at a reference " +
+      "video. (2) CREATION: lumiere ALSO builds launch videos end to end " +
+      "(storyboard -> lock -> scenes -> render). Creation is a SKILL flow, run " +
+      "`/lumiere create` (or open the dashboard composer), NOT an MCP tool. The " +
+      "absence of a 'render' or 'generate' tool here does NOT mean lumiere can't " +
+      "create. For any 'make/build a launch video' request, invoke the /lumiere " +
+      "skill; do not infer capability from this tool list alone.",
+  },
+)
 registerInspect(server)
 registerAnalyze(server)
 registerWatch(server)

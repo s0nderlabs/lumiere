@@ -2,6 +2,18 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-06-13
+
+### Added
+
+- **Dashboard Preview version switcher**: point the Preview folder box at a directory holding a `versions.json` manifest (`{ versions: [{ dir, label?, file? }] }`) and arrow prev/next across the set, each composition loaded frame-exactly. Built for autonomous multi-version output (e.g. v1/v2/v3 launch-video directions) reviewed in one place. The skill writes `localStorage["lumiere-preview-dir"]` after a build so the switcher auto-loads when the user opens Preview (once per session; a bad manifest no longer sticks or retries forever).
+- **MCP server `instructions` field**: states lumiere's two halves (perception MCP tools + creation skill flow) so a session can no longer reverse-engineer "lumiere can't generate" from the perception-only tool list. `inspect`'s description carries the same pointer.
+
+### Changed
+
+- **Creation flow reframed as author -> review-in-Preview -> export** (`skills/lumiere/SKILL.md`): a top-of-skill default-entry rule, a step-0 project-dir convention, headless composer-driving when a browser is reachable, a `storyboard.md` round-trip artifact, the `window.__timelines.main` previewable-by-construction contract, the `versions.json` schema, autonomous multi-version mode (default 3 distinct directions, no mp4 until a winner is picked), and an explicit Review step (Preview is the review surface; mp4 render is the final export). Export step now documents the audio caveat (hyperframes mixes audio; the own engine is video-only), the output/fps defaults, and the Preview error-to-cause map.
+- Hand-edited locks demoted to an escape hatch in `creation/LOCK.md` (the canonical path is author -> Preview -> export); `creation/RESTAGE.md` documents the previewable/renderable `__timelines` contract and the harmless render-time font double-fetch.
+
 ## [0.17.1] - 2026-06-06
 
 ### Fixed

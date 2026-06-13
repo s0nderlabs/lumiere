@@ -173,14 +173,14 @@ The SCAFFOLD phase: turn a storyboard into a rendered launch video.
 /lumiere create           # scaffold from a storyboard or brief
 ```
 
-The flow: write a freeform storyboard in the Composer (effect tokens + per-use overrides in parens), copy the command, and a Claude session establishes a `launch-video.lock.json` (validated by `creation/_tools/validate-lock.mjs`), restages each canonical effect into a composition per `creation/RESTAGE.md`, and renders:
+The flow is **author -> review in Preview -> export**: write a freeform storyboard in the Composer (effect tokens + per-use overrides in parens), and a Claude session establishes a `launch-video.lock.json` (validated by `creation/_tools/validate-lock.mjs`) and restages each canonical effect into a composition per `creation/RESTAGE.md`. The composition is then reviewed in the dashboard **Preview** pane, which loads its registered `window.__timelines.main` and scrubs it frame-exactly (the same registry the renderer drives, so previewable == renderable). For multiple versions, point the Preview folder box at a directory holding a `versions.json` manifest and arrow prev/next across the set. Export to mp4 is the final step, once a version is chosen:
 
 ```sh
 bun bin/lumiere-render.mjs <project-dir>                # hyperframes CLI engine (default)
 bun bin/lumiere-render.mjs <project-dir> --engine own   # lumiere's own frame-exact pipeline
 ```
 
-Defaults (fps, output, resolution) come from the lock. The own engine drives the registered paused timeline frame-by-frame via system Chrome + ffmpeg and matches the hyperframes frame count exactly; it needs Google Chrome installed and does not mix audio yet (use the default engine for locked audio tracks).
+Defaults (fps, output, resolution) come from the lock. The own engine drives the registered paused timeline frame-by-frame via system Chrome + ffmpeg and matches the hyperframes frame count exactly; it needs Google Chrome installed and does not mix audio yet (use the default hyperframes engine for locked audio tracks).
 
 Specs live in `creation/` (`LOCK.md`, `RESTAGE.md`, the JSON schema) and `effects/FORMAT.md` (the per-effect file format + per-use `?vars=` variables contract).
 

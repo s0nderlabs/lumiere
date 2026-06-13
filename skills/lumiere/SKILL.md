@@ -1,13 +1,41 @@
 ---
 name: lumiere
-description: "Video work mode. Load when the user wants to analyze a reference video, watch a video URL, study effects from a launch video, or scaffold/build a launch video (storyboard, lock file, scenes). Triggered by explicit video intent only (e.g., 'analyze this trailer', 'watch this video', 'build the X launch video'), NOT by every URL mention."
+description: "Launch-video work mode. Load whenever the user wants to MAKE / CREATE / BUILD / generate a launch video (storyboard, lock file, scenes, render, 'multiple versions') OR to analyze/watch/study a reference video. The phrase 'make/build/create a launch video' (or 'use lumiere' on such a task) ALWAYS routes here, never reverse-engineer capability from the MCP tool list (those tools are only the perception half; creation is this skill). Triggered by explicit launch-video or reference-video intent, NOT by every URL mention."
 user-invocable: true
 argument-hint: "[dashboard] | [mode <low|mid|high|max>] | [create | <storyboard>.md | <lock>.json] | [video URL] | (none for interactive)"
 ---
 
 # /lumiere: video perception + creation
 
-You are now in lumiere video work mode. The user wants to do something with a video: analyze a reference, watch it, copy beats from it, study what effects it uses, or scaffold a launch video of their own.
+You are now in lumiere video work mode. The user wants to do something with a video: analyze a reference, watch it, copy beats from it, study what effects it uses, or build a launch video of their own.
+
+## DEFAULT for "make / create / build a launch video" requests (read first)
+
+lumiere CREATES launch videos; it is not only a perception tool. If the request
+is to make/build/generate a launch video (one or several versions), the canonical
+shape is **author → review in the dashboard Preview → export to mp4**, in that
+order. Concretely:
+
+1. **The deliverable is a previewable composition, never a bare mp4.** A
+   composition is "previewable" iff its `index.html` registers
+   `window.__timelines = { main: <masterTimeline> }` (the restage process
+   guarantees this). The dashboard Preview and the renderer seek the SAME
+   registry, so previewable == renderable.
+2. **Review happens in the dashboard Preview**, not by shipping a file. When a
+   scaffold is done, surface the absolute `index.html` path(s) and tell the user
+   to load them in Preview (see the creation flow's Review step). mp4 render is
+   the FINAL EXPORT step, done only once a version is chosen.
+3. **Compose in the dashboard when a browser is available** (agent-browser /
+   Chrome). The composer is the user's own surface; driving it there means the
+   storyboard he sees is the one you built. Hand-authoring the storyboard/lock as
+   a file is the fallback when no browser is reachable, not the headline path.
+4. **"Multiple versions" / "your creativity" / "without guiding me" = autonomous
+   multi-version mode.** Generate N DISTINCT creative directions yourself, scaffold
+   each, surface all N in Preview; do not stop to ask which effects to use. See
+   the creation flow.
+
+Never conclude "lumiere can't generate" from the MCP tool list (inspect/analyze/
+watch/measure/configure are the perception half only). Creation is THIS skill.
 
 ## Argument routing (first thing to check)
 
@@ -72,7 +100,7 @@ The dashboard is pure HTML and bundles GSAP + fonts locally, so no dev server is
 ### When the user wants to copy 1:1 from a reference
 
 1. Pre-flight, then analyze.
-2. `watch(path, mode="max")` on each scene of interest for pixel-perfect inspection. Pass `narrative_mode=false` (explicit) if the segment is static; otherwise leave default.
+2. `watch` each scene of interest at the CONFIGURED tier (per "RESPECT THE CONFIGURED DEFAULT TIER" below). Pixel-perfect 1:1 recreation is forensic work where `max` genuinely helps, so if the configured tier is below `max` you MAY recommend `max` in your narrative and let the user opt in, but do not silently escalate, that is the documented tier-respect exception. Pass `narrative_mode=false` (explicit) if the segment is static; otherwise leave default.
 3. Cross-reference against the canonical effects library (`$CLAUDE_PLUGIN_ROOT/effects/index.json` for ids; per-effect meta inside each `effects/<id>/effect.html`) and emit a beat sheet: `{start, end, effects: [name1, name2], content}`.
 
 ### When the user mentions [effect-name] tokens
@@ -130,15 +158,52 @@ Example. You called `watch(0:00, 0:24, fps=25, view_sample=600)` and got 240 fra
 
 Why: temporal resolution is what catches fast actions (laser fires, particle bursts, sub-second transitions). Resolution drops mean missing those events entirely.
 
-## Creation flow (scaffold a launch video)
+## Creation flow (build a launch video)
 
-When routed here (argument `create`, a storyboard `.md`, or a lock file path):
+When routed here (argument `create`, a storyboard `.md`, or a lock file path).
+The flow is **author → review in Preview → export to mp4**; do not collapse it to
+"render an mp4 and hand it over" (see the DEFAULT section above).
 
+0. **Resolve the project directory.** A launch video lives in its OWN project dir, by s0nderlabs convention `~/Documents/s0nderlabs/<product>-launch/` (e.g. `anima-launch/`, `remit-launch/`), NOT inside the lumiere repo. If the user named a product and the dir does not exist, create it (confirm the path first). The lock, `index.html`, `assets/`, and any `vN/` version dirs all live under it. (See LOCK.md "How it gets filled".)
 1. **Resolve the creation docs.** Try `$CLAUDE_PLUGIN_ROOT/creation/` first (installed plugin); if the variable is unset or the dir is missing, fall back to the repo path the session was launched with (`--plugin-dir`). `LOCK.md` and `RESTAGE.md` MUST exist there; if not, report which paths you tried and stop.
-2. **Read the storyboard.** A composer-emitted storyboard references effects as absolute `effects/<id>/effect.html` paths inline in the prose; the `<id>` directory name is the canonical effect ref. A parenthetical right after a path, e.g. `(text="lumiere", speed=1.5)`, declares per-use knob overrides: record each `key=value` pair as that scene's `effects[].vars` in the lock (a `(duration=X)` override translates to `speed = natural_duration / X` per the effect's FORMAT.md contract).
-3. **Establish the lock.** If the target project already has a `launch-video.lock.json`, validate it: `bun <creation>/_tools/validate-lock.mjs <lock-path>`. If there is no lock yet, Read `creation/LOCK.md` and fill one WITH the user from their storyboard/brief (guided, 5-8 turns of decisions: palette, typography, motion, beats), then validate.
-4. **Scaffold.** Read `creation/RESTAGE.md` and follow it scene by scene: restage each `scenes[].effects[]` declaration into the project's root `index.html`. Canonical effects live at `$CLAUDE_PLUGIN_ROOT/effects/<id>/effect.html` (same fallback rule).
-5. **Gate.** `npx --yes hyperframes@0.6.7 lint` clean of ERRORs before any scene is called done. (`hyperframes inspect` is BEST-EFFORT only: it currently crashes with a `totalDuration` error on both 0.6.7 and 0.6.75 even on known-good projects, so a crash there is tool breakage, NOT a gate failure; lint + render + lumiere-watch carry the gate, per RESTAGE.md.) Render only when the user asks, via the stable entry point: `bun $CLAUDE_PLUGIN_ROOT/bin/lumiere-render.mjs <project-dir>` (defaults come from the lock; `--engine own` uses lumiere's own pipeline). Report the exact command first.
+2. **Get the storyboard.** Two ways in:
+   - **From the dashboard composer (preferred when a browser is reachable).** Open the dashboard, go to Composer, set the storyboard prose (effect tokens are `<effect-id>`; a parenthetical right after a token, e.g. `<wordmark-rise>(text="remit", speed=1.5)`, is a per-use override). With agent-browser/Chrome you can drive it yourself: set `#storyboardInput`'s value + dispatch an `input` event, then read the resolved command from `buildCommand()` (it expands `<token>` to absolute `effects/<id>/effect.html` paths). `buildCommand()` returns `{ cmd, unknown }`: CHECK `unknown` (tokens not in `effects/index.json`) is empty before handing off, a non-empty `unknown` means a typo'd/missing effect id that would ship an unresolved `<bad-token>`. Driving the composer means the user sees the exact storyboard you built and can tweak it.
+   - **As a file (fallback / no browser).** Author the storyboard prose directly. EITHER WAY, also write the composer-format `storyboard.md` next to the project so the user can reopen and tweak it in the composer later.
+   A composer-emitted storyboard references effects as absolute `effects/<id>/effect.html` paths inline; the `<id>` directory name is the canonical ref. Record each override `key=value` as that scene's `effects[].vars` in the lock (`(duration=X)` translates to `speed = natural_duration / X` per the effect's FORMAT.md contract).
+3. **Establish the lock.** If the target project already has a `launch-video.lock.json`, validate it: `bun <creation>/_tools/validate-lock.mjs <lock-path>`. If there is no lock yet, Read `creation/LOCK.md` and fill one from the storyboard/brief (when the user wants to be guided: 5-8 turns of decisions on palette, typography, motion, beats; when the user said "your creativity / don't guide me", decide them yourself), then validate.
+4. **Scaffold.** Read `creation/RESTAGE.md` and follow it scene by scene: restage each `scenes[].effects[]` declaration into the project's root `index.html`. Canonical effects live at `$CLAUDE_PLUGIN_ROOT/effects/<id>/effect.html` (same fallback rule). Two non-negotiables: (a) the composition MUST register `window.__timelines = { main: <masterTimeline> }` (RESTAGE guarantees this) or it is neither previewable nor renderable; (b) VENDOR gsap + fonts locally into the project (`assets/vendor/gsap.min.js` from `effects/_vendor/`, fonts from `effects/_fonts/`), never a CDN tag, a CDN `<script>` is silently blocked on `file://` in qutebrowser so the composition lints and renders fine but shows a BLANK Preview pane (RESTAGE rule 3, the #1 silent failure).
+5. **Lint gate.** `npx --yes hyperframes@0.6.7 lint` clean of ERRORs before any scene is called done. (`hyperframes inspect` is BEST-EFFORT only: it currently crashes with a `totalDuration` error on both 0.6.7 and 0.6.75 even on known-good projects, so a crash there is tool breakage, NOT a gate failure; lint + render + lumiere-watch carry the gate, per RESTAGE.md.)
+6. **Review in the dashboard Preview (this is the review surface, not an mp4).** Open the dashboard (use the Open-dashboard flow above so it lands in the user's `$LUMIERE_BROWSER`, never `open`/Chrome), go to Preview, and either paste the absolute `index.html` path into the path box + Load, or (for multiple versions) point the folder box at the parent dir and Load versions (see "Surfacing N versions" below). The Preview pane loads the composition in an iframe, finds `window.__timelines.main`, and gives a frame-exact scrub bar + play/pause, the same registry the renderer drives. Tell the user the exact path(s) to load. Pre-fill for the user when a dashboard tab is reachable: `localStorage["lumiere-preview-dir"]` = the versions folder AUTO-LOADS the switcher when they open Preview; `localStorage["lumiere-preview-path"]` = a single composition only PRE-FILLS the box (they still click Load). If Preview shows an error: "No window.__timelines registry" = the composition never registered `main` (step 4a); "duration is not finite" = a `repeat:-1` infinite loop reached the registry (give `main` a finite duration); blank cream pane = CDN gsap (step 4b).
+7. **Export to mp4 (final step, only once a version is chosen).** Render via the stable entry point: `bun $CLAUDE_PLUGIN_ROOT/bin/lumiere-render.mjs <project-dir>`. Report the exact command first. Output lands at the lock's `meta.render.output` else `renders/<project>.mp4`; fps from `meta.render.fps` else 30; override with `--out <file>` / `--fps <n>`. ENGINE CHOICE: `hyperframes` (DEFAULT) mixes the lock's audio into the mp4; `--engine own` is lumiere's frame-exact pipeline but is VIDEO-ONLY (no audio mix in v3.0), so a lock with `status:locked` audio MUST render with the hyperframes engine or it ships a silent mp4. The Preview pane's "Copy render command" button emits this for the loaded composition.
+
+### Autonomous multi-version mode ("multiple versions" / "your creativity" / "without guiding me")
+
+Honor an explicit count if the user gave one ("3 versions"); otherwise default to
+**3**. Generate them as DISTINCT creative DIRECTIONS, not parameter tweaks of one
+idea (e.g. a type-forward cut, a product-UI cut, a narrative/mascot cut). For each:
+scaffold into its own sibling dir `<project>/v1/`, `v2/`, ... each with an
+`index.html` registering `window.__timelines.main`; lint clean; lumiere-watch the
+render against the reference bar if you have one. Do NOT pre-render every version
+to mp4 (export comes after the user picks a winner in Preview) and do NOT stop
+mid-flow to ask which effects to use, the whole point is autonomous output the user
+reviews in Preview. Write the `versions.json` manifest (below) and surface all N at
+once via the switcher.
+
+### Surfacing N versions in Preview (the version switcher)
+
+Write a `versions.json` in the PARENT dir enumerating the set (the static page
+cannot list a directory, so the manifest is the explicit enumeration):
+
+```json
+{ "versions": [ { "dir": "v1", "label": "Blueprint" }, { "dir": "v2", "label": "Live-Product" } ] }
+```
+
+`dir` required (relative to the manifest), `label` optional (defaults to `dir`),
+`file` optional (defaults `index.html`); composition path = `<parent>/<dir>/<file>`.
+Then tell the user to open Preview and point the folder box at the parent dir, or
+pre-fill `localStorage["lumiere-preview-dir"]` with the absolute parent path so the
+switcher loads unprompted. The Preview switcher reads the manifest and gives
+prev/next across the set, each loading frame-exactly.
 
 All procedural depth lives in the two creation docs; read them on demand, never from memory of this summary.
 
@@ -150,4 +215,4 @@ All procedural depth lives in the two creation docs; read them on demand, never 
 - Cost model + tier comparison: see memory file `cost-model-100k-cap.md`
 - Narrative-coherence bug + v0.3 fix: see memory `perception-bug-narrative-coherence.md`
 
-Out of scope today: ElevenLabs SFX/BGM generation (deferred until perception ships).
+Out of scope today: generative SFX/BGM (e.g. ElevenLabs). Audio that is already a file can be mixed by the hyperframes render engine (the own engine is video-only, see creation flow step 7).

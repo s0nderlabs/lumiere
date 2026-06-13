@@ -96,12 +96,22 @@ Shell rules (each one is load-bearing, learned from the working reference):
 1. `paused: true` + `defaults.lazy: false` are MANDATORY. `lazy:false` makes
    onUpdate/eases fire on every scrub position; without it the render skips
    frames.
-2. Register on `window.__timelines["main"]` LAST, after the full build.
+2. Register on `window.__timelines["main"]` LAST, after the full build. This
+   registration is the SINGLE contract that makes a composition both previewable
+   (dashboard Preview pane) AND renderable (both engines) - they seek the same
+   `__timelines.main`. A composition that does not register it is neither. So
+   every scaffold is previewable by construction; surface its `index.html` path
+   in the Preview pane as the review step (mp4 export comes after).
 3. **gsap is vendored** at `assets/vendor/gsap.min.js` (copy from
    `effects/_vendor/`). This is a deliberate upgrade over the reference
    (anima ships a CDN tag, which `hyperframes render` inlines fine): a CDN
    tag is silently blocked on file:// in qutebrowser, which would kill the
-   dashboard preview pane. Vendored works everywhere.
+   dashboard preview pane. Vendored works everywhere. Same for fonts: vendor
+   the woff2 under `assets/fonts/`. NOTE: the `hyperframes render` compiler
+   ALSO fetches its own Google Fonts faces at render time even when you have
+   vendored them. That double-fetch is harmless and expected, do NOT remove
+   the vendored fonts to "dedupe" it - the vendored copies are what make the
+   file:// Preview pane render correctly (the compiler fetch is render-only).
 4. **No `requestAnimationFrame` anywhere in the file.** hyperframes lint
    flags it and the renderer downgrades to screenshot-capture mode and cuts
    workers (anima's 4k render: 4 -> 2 workers, cost multiplier 2, for ONE
