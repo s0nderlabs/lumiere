@@ -4,7 +4,7 @@ Video perception + launch-video creation for Claude Code.
 
 **Perception**: point it at any video (local file or URL), get a structured analysis the model can reason about: scenes, motion windows, action attribution, transcription, and base64 frames with temporal narrative guidance. Five MCP tools: `inspect` (cheap forecast), `analyze` (structural pass), `watch` (frames + audio), `measure` (exact token forecast via Anthropic's count_tokens), `configure` (settings).
 
-**Creation** (v0.16): scaffold a launch video from a storyboard. A 79-effect canonical library, a studio dashboard (library / composer / preview), a machine-readable design lock, a restage procedure, and two render engines behind one entry point. See [Creation](#creation-v016).
+**Creation** (v0.16): scaffold a launch video from a storyboard. A 79-effect canonical library, a studio dashboard (library / composer / preview), a machine-readable design lock, a restage procedure, and three render engines (hyperframes, own, own-parallel) behind one entry point. See [Creation](#creation-v016).
 
 ## Install
 
@@ -176,11 +176,12 @@ The SCAFFOLD phase: turn a storyboard into a rendered launch video.
 The flow is **author -> review in Preview -> export**: write a freeform storyboard in the Composer (effect tokens + per-use overrides in parens), and a Claude session establishes a `launch-video.lock.json` (validated by `creation/_tools/validate-lock.mjs`) and restages each canonical effect into a composition per `creation/RESTAGE.md`. The composition is then reviewed in the dashboard **Preview** pane, which loads its registered `window.__timelines.main` and scrubs it frame-exactly (the same registry the renderer drives, so previewable == renderable). For multiple versions, point the Preview folder box at a directory holding a `versions.json` manifest and arrow prev/next across the set. Export to mp4 is the final step, once a version is chosen:
 
 ```sh
-bun bin/lumiere-render.mjs <project-dir>                # hyperframes CLI engine (default)
-bun bin/lumiere-render.mjs <project-dir> --engine own   # lumiere's own frame-exact pipeline
+bun bin/lumiere-render.mjs <project-dir>                          # hyperframes CLI engine (default)
+bun bin/lumiere-render.mjs <project-dir> --engine own             # lumiere's own frame-exact pipeline
+bun bin/lumiere-render.mjs <project-dir> --engine own-parallel    # sharded fast 4K (--shards N, default 4)
 ```
 
-Defaults (fps, output, resolution) come from the lock. The own engine drives the registered paused timeline frame-by-frame via system Chrome + ffmpeg and matches the hyperframes frame count exactly; it needs Google Chrome installed and does not mix audio yet (use the default hyperframes engine for locked audio tracks).
+Defaults (fps, output, resolution) come from the lock. The own engine drives the registered paused timeline frame-by-frame via system Chrome + ffmpeg and matches the hyperframes frame count exactly; it needs Google Chrome installed and does not mix audio yet (use the default hyperframes engine for locked audio tracks). `own-parallel` shards that pipeline across N worker processes for fast 4K and is the engine for compositions that embed a per-frame-seeked `<video>`: it loads over `file://` (so a `file://` video src resolves, which the hyperframes http server blocks) and waits for each frame's `seeked` before capturing, so the video lands frame-exactly instead of tearing. Both own engines are video-only; mux locked audio after with `ffmpeg -i master.mp4 -i <audio> -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac final.mp4`.
 
 Specs live in `creation/` (`LOCK.md`, `RESTAGE.md`, the JSON schema) and `effects/FORMAT.md` (the per-effect file format + per-use `?vars=` variables contract).
 

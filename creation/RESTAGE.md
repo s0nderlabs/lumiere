@@ -249,6 +249,17 @@ timeline keyframes; same visuals, frame-exact.
 - **Audio**: only `status: "locked"` tracks from the lock are wired, as
   `<audio class="clip" id="...">` with `src`, `data-start`, `data-duration`,
   `data-track-index`, `data-volume`. tbd tracks render silent by design.
+- **Embedded `<video>` driven by the timeline** (a full-bleed product-demo
+  cut, not an effect): seek its `currentTime` from the master playhead inside
+  an `onUpdate` (`tl.to(proxy,{t:dur,ease:"none",onUpdate(){ if(!PREVIEW)
+  video.currentTime=proxy.t }},start)`), gated on `!PREVIEW` - in the dashboard
+  iframe play the video natively + drift-correct instead, because seeking it
+  60x/s lags the live Preview. Such a composition MUST render with
+  `--engine own-parallel`: it loads the page over `file://` (same-origin to a
+  `file://` video src, which hyperframes' http server would BLOCK) and waits
+  for each frame's `seeked` before capturing (hyperframes has no seeked-wait
+  and tears the video). The own engines are video-only, so mux the locked
+  audio after (SKILL.md creation step 7).
 
 ## De-timer recipes (the 7 wall-clock effects)
 

@@ -2,6 +2,17 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.19.0] - 2026-06-15
+
+### Added
+
+- **`--engine own-parallel` render engine (studio v3.1)** (`render/own-renderer-parallel.mjs`, wired into `bin/lumiere-render.mjs`): a sharded, frame-exact pipeline for fast 4K. It splits the frame range across N worker processes (`--shards`, default 4), each rendering its slice to an H.264 segment, then concat-copies the segments into the master (closed-GOP segments make the seams provably clean; no intermediate PNG dump). It is the engine for compositions that **embed a per-frame-seeked `<video>`** (a full-bleed product-demo cut): it loads the composition over `file://` (same-origin to a `file://` video src, which the hyperframes http server blocks) and waits for each frame's `seeked` (plus a one-time video-readiness gate per worker) before screenshotting, so the all-intra decode lands frame-exactly instead of tearing. Built to render the remit launch film's 4K/60 master.
+
+### Changed
+
+- `skills/lumiere/SKILL.md` creation step 7 and `creation/RESTAGE.md` now document the embedded-`<video>` path: route such compositions to `--engine own-parallel`, and mux the locked audio after (both own engines are video-only) via `ffmpeg -i master.mp4 -i <audio> -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac`.
+- `bin/lumiere-render.mjs`: the hyperframes resolution-preset derivation is now scoped to the hyperframes engine (own / own-parallel honor any integer-multiple render dim directly and never consult a preset), and `--shards` passed to a non-parallel engine emits a notice instead of being silently ignored.
+
 ## [0.18.0] - 2026-06-13
 
 ### Added
