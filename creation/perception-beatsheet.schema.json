@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://s0nderlabs.com/lumiere/perception-beatsheet.schema.json",
+  "title": "lumiere perception beat sheet",
+  "description": "The structured output of a reference-video watch. Produced by the perceive workflow (scout-spine -> per-segment fan-out -> merge). Designed to prefill launch-video.lock.json scenes[] (one beat -> one scene; the scene id slug is synthesized at lock time) so a watched reference can seed a creation lock. One file per analyzed reference video.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "spine", "narrative_summary", "coverage", "beats"],
+  "properties": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "duration_seconds", "watched_at_tier"],
+      "description": "Provenance of the watched video.",
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "description": "Local path or URL of the reference video." },
+        "duration_seconds": { "type": "number", "exclusiveMinimum": 0, "description": "Video duration in seconds (from inspect)." },
+        "watched_at_tier": { "enum": ["low", "mid", "high", "max"], "description": "The detail tier the fan-out segments were watched at (the configured default unless the user opted into another)." },
+        "has_audio": { "type": "boolean", "description": "Whether the source carries an audio track." },
+        "original_fps": { "type": "number", "exclusiveMinimum": 0, "description": "Source frame rate." },
+        "resolution": { "type": "string", "description": "Source resolution, e.g. 3840x2160." }
+      }
+    },
+    "spine": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The narrative arc as understood from the cheap low-tier full-video skim, BEFORE detailed per-segment watching. 2-4 sentences. This is the prior each segment agent was handed so parallel watching keeps temporal coherence."
+    },
+    "narrative_summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The refined whole-video narrative AFTER detailed watching: what the video is, its arc, the product, the house-style read. Supersedes the spine."
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "chunk_count", "segments_covered", "subchunks_watched"],
+      "description": "Audit trail proving the biblical thorough-coverage rule was honored: total subchunks watched across all segments equals the tier's chunks_for_full_coverage_thorough (N) from inspect.",
+      "properties": {
+        "tier": { "enum": ["low", "mid", "high", "max"] },
+        "chunk_count": { "type": "integer", "minimum": 1, "description": "N = chunks_for_full_coverage_thorough from inspect for this tier. The number of frame-coverage subchunks the whole video should be split into." },
+        "chunk_duration_seconds": { "type": "number", "exclusiveMinimum": 0, "description": "Seconds each frame-coverage subchunk spans." },
+        "segments_covered": { "type": "integer", "minimum": 1, "description": "M = number of parallel fan-out segments the N subchunks were grouped into." },
+        "subchunks_watched": { "type": "integer", "minimum": 1, "description": "Total subchunks actually watched across all segments. MUST equal chunk_count for full coverage." }
+      }
+    },
+    "palette_hex": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^#?[0-9a-fA-F]{3,8}$" },
+      "description": "Dominant / notable colors observed across the video, as hex. Union of per-segment palettes."
+    },
+    "scene_cuts_seconds": {
+      "type": "array",
+      "items": { "type": "number", "minimum": 0 },
+      "description": "Detected hard-cut timestamps in seconds (from analyze), sorted ascending."
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Audio read (absent or minimal for silent launch videos).",
+      "properties": {
+        "has_speech": { "type": "boolean" },
+        "summary": { "type": "string", "description": "Transcription gist or sound-design notes." }
+      }
+    },
+    "beats": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The merged, time-sorted beats across all segments. Each beat maps onto one launch-video.lock.json scenes[] entry.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["timestamp_seconds", "duration_seconds", "description"],
+        "properties": {
+          "timestamp_seconds": { "type": "number", "minimum": 0, "description": "Beat start on the master timeline. Maps to scenes[].start." },
+          "duration_seconds": { "type": "number", "exclusiveMinimum": 0, "description": "Beat length. Maps to scenes[].duration." },
+          "description": { "type": "string", "minLength": 1, "description": "What happens in this beat, in prose. Maps to scenes[].storyboard." },
+          "energy": { "type": "string", "description": "Beat energy: rising | settle | focused | building | reset | peak | resolve | steady. Maps to scenes[].energy." },
+          "effect_category_tags": {
+            "type": "array",
+            "items": { "enum": ["Camera", "Chat", "Data Viz", "Layer", "Motion", "Reveal", "Text", "UI"] },
+            "description": "Which of the 8 canonical effect categories this beat draws on. Perception reasoning trail; no direct lock counterpart."
+          },
+          "effect_ids": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Best-guess canonical effect ids from effects/index.json that recreate this beat. Validated against the catalog by validate-beatsheet.mjs. Maps to scenes[].effects[].ref."
+          },
+          "motion_notes": { "type": "string", "description": "Observed motion mechanics (ease, stagger, direction, timing). Perception-only; informs restage." },
+          "text_on_screen": { "type": "string", "description": "Verbatim copy/text visible in this beat. Feeds scenes[].content." },
+          "segment_index": { "type": "integer", "minimum": 0, "description": "Which fan-out segment surfaced this beat (provenance for debugging coverage)." }
+        }
+      }
+    },
+    "continuity_notes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Cross-segment observations: effects or motions that span a segment boundary, repeated motifs (bookends), or beats that the merge flagged as possible duplicates from overlap windows."
+    }
+  }
+}

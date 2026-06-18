@@ -2,6 +2,18 @@
 
 All notable changes to lumiere. Format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-06-18
+
+### Added
+
+- **Perception fan-out workflow** (`skills/lumiere/perceive.workflow.mjs`): watching a reference video now delegates to throwaway subagents (scout-spine -> per-segment deep watch -> merge), so the frame-heavy work stays out of the caller's context and only a small structured beat sheet returns. Honors the thorough-coverage rule internally (total subchunks watched == the tier's `chunks_for_full_coverage_thorough`); a low-tier scout skim hands every segment worker a narrative spine so parallel watching keeps temporal coherence.
+- `creation/perception-beatsheet.schema.json`: structured beat-sheet schema (JSON Schema 2020-12) that prefills a launch-video lock's `scenes[]`, closing the perception -> creation gap.
+- `creation/_tools/validate-beatsheet.mjs`: beat-sheet validator (schema + thorough-coverage audit + effect-id resolution against the catalog + beat ordering/range checks).
+
+### Changed
+
+- `/lumiere` perception route: sharing a reference video now launches the fan-out workflow by default (a skill instruction is a valid Workflow opt-in), with the inline N-chunk loop kept as a labeled fallback when the Workflow tool is unavailable. A/B vs inline on a 14s clip: identical coverage and quality, roughly 90x less caller context (about 445K tokens of frames down to a small beat sheet).
+
 ## [0.19.0] - 2026-06-15
 
 ### Added

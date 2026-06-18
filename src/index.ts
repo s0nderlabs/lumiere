@@ -72,7 +72,7 @@ cleanExpiredDownloads(DEFAULTS.downloads_max_age_days)
 // and hand-rolls a video instead of using the creation pipeline. State the two
 // halves explicitly so that wrong inference never happens.
 const server = new McpServer(
-  { name: "lumiere", version: "0.19.0" },
+  { name: "lumiere", version: "0.20.0" },
   {
     instructions:
       "lumiere is a TWO-HALF launch-video plugin. (1) PERCEPTION: the MCP tools " +

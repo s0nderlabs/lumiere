@@ -44,7 +44,7 @@ brew install ffmpeg yt-dlp whisper-cpp
 /lumiere https://x.com/.../status/123
 ```
 
-The skill calls `inspect` first (cost preview), `analyze` to plan, then `watch` with the appropriate tier and narrative mode. You get a narrative back.
+By default the skill fans the watching out to a background workflow (`skills/lumiere/perceive.workflow.mjs`): a low-tier scout skims the whole video for the narrative arc, then one subagent per segment deep-watches its slice at the configured tier, and the results merge into a structured **beat sheet** (`creation/perception-beatsheet.schema.json`). The frame-heavy work stays in the subagents, so your session stays clean, and the beat sheet prefills a creation lock's `scenes[]`. If the Workflow tool is unavailable it falls back to an inline `inspect` -> `analyze` -> chunked `watch` loop that returns a narrative.
 
 ## Tools
 

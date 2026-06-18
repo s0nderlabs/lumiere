@@ -82,20 +82,55 @@ When the user asks to open the dashboard / library / motion library:
 
 The dashboard is pure HTML and bundles GSAP + fonts locally, so no dev server is needed and no network requests are required to render. It only persists state via `localStorage` (theme preference, favourited effects).
 
-### When the user shares a reference video URL
+### When the user shares a reference video URL (DEFAULT: fan-out workflow)
 
-1. Pre-flight (above). Capture the thorough-coverage plan from inspect.
-2. Call `analyze(path, filters={scene_changes: true, silence: true, loudness: true, motion: true, transcription: true})` for a structural map.
-3. Read scene cuts + silence intervals + motion_windows.
-4. **Thorough-coverage chunking (HARD RULE, NO EXCEPTIONS).** Read the chunk plan from `cost_estimate.per_tier[<configured>]`:
-   - N = `chunks_for_full_coverage_thorough`
-   - chunk_duration = `chunk_duration_thorough_seconds`
-   - You MUST make EXACTLY N watch() calls. Do NOT merge chunks, skip chunks, or reduce N for any reason. If N feels large, that is by design. The user chose this tier knowing the cost. If you are concerned about context consumption, ask the user before deviating. Never silently reduce N on your own judgment.
-5. Issue EXACTLY N watch() calls with uniform chunk boundaries:
-   - For i in 0..N-1: `watch(path, start_time=hms(i * chunk_duration), end_time=hms(min((i+1) * chunk_duration, duration)), mode=<configured>, narrative_mode=true)`
-   - Do NOT batch or parallelize more than 6 calls at once (MCP concurrency limit).
-   - Do NOT adjust chunk boundaries based on content. Use the uniform grid from inspect.
-6. Synthesize narrative across ALL N chunks. Cite timestamps from each.
+Watching thoroughly burns enormous context, every `watch()` returns inline base64
+frames, so done INLINE "watch thoroughly" and "save context" fight each other. The
+default path delegates the watching to a **fan-out workflow**: throwaway subagents
+do the frame-heavy watching (frames live and die in their contexts) and only a
+small structured **beat sheet** returns to this session. Same thorough coverage,
+clean main context. Coherence is preserved by a low-tier scout skim whose narrative
+spine is handed to every segment worker, so no slice is read blind.
+
+1. **Pre-flight** (above): `inspect(path)`. The autocompact gate is about the INLINE
+   path; the workflow keeps frames out of THIS session, so a high `N`/`pct_of_1m_window_thorough`
+   no longer threatens your context. What still scales with `N` is total token spend
+   and wall-clock (each subagent burns its own budget), so if `chunks_for_full_coverage_thorough`
+   is very large (hundreds), tell the user the rough cost before launching, do not gate on autocompact.
+2. **Launch the perceive workflow.** Resolve the script path: `$CLAUDE_PLUGIN_ROOT/skills/lumiere/perceive.workflow.mjs`
+   (fall back to the `--plugin-dir` repo path if the variable is unset). Read the
+   canonical effect ids from `$CLAUDE_PLUGIN_ROOT/effects/index.json` to pass as
+   `effect_catalog` (so workers tag beats with real ids). Then call the **Workflow**
+   tool:
+   - `Workflow({ scriptPath: "<resolved>/skills/lumiere/perceive.workflow.mjs", args: { path: "<url>", mode: "<configured tier>", effect_catalog: [<ids>] } })`
+   - `mode` is the configured default tier (RESPECT THE CONFIGURED DEFAULT TIER, same
+     rule as inline). The workflow honors the biblical rule internally: total subchunks
+     watched == `chunks_for_full_coverage_thorough` for that tier, grouped into parallel
+     segments. You do NOT issue watch() calls yourself; the workflow's subagents do.
+   - The Workflow tool returns a RECEIPT immediately (a `runId`, not the sheet); the
+     fan-out runs in the background. Wait for the completion notification.
+3. **Persist + validate the beat sheet.** When the run completes, its result IS the beat
+   sheet object (delivered in the completion notification and written to the run's output
+   file). Write that object to `./<video-basename>.beatsheet.json` (cwd, or the project
+   dir if heading into creation). Validate it: `bun $CLAUDE_PLUGIN_ROOT/creation/_tools/validate-beatsheet.mjs <path>`.
+   A clean validation confirms full coverage (`subchunks_watched == chunk_count`),
+   time-ordered beats, and that every `effect_ids` resolves to a real catalog id.
+4. **Present** `narrative_summary` + the notable beats (cite timestamps). The beat
+   sheet prefills a creation lock's `scenes[]` (see `creation/perception-beatsheet.schema.json`),
+   so "watch this trailer" then "now build me one like it" is one continuous flow: each
+   beat maps onto a scene (`timestamp`->`start`, `duration`, `description`->`storyboard`,
+   `text_on_screen`->`content`, `effect_ids`->`effects[].ref`; the scene `id` slug is synthesized).
+
+**If the Workflow tool is unavailable** (not present in this session, or the user
+declined orchestration), fall back to the INLINE loop:
+
+1. `analyze(path, filters={scene_changes: true, silence: true, loudness: true, motion: true, transcription: true})`.
+2. **Thorough-coverage chunking (HARD RULE).** N = `chunks_for_full_coverage_thorough`,
+   chunk_duration = `chunk_duration_thorough_seconds`. Make EXACTLY N watch() calls,
+   uniform grid, `mode=<configured>`, `narrative_mode=true`; do NOT merge/skip/reduce N.
+   Do NOT parallelize more than 6 at once. (This floods THIS session's context, that is
+   the cost the workflow path avoids, so prefer the workflow whenever it is available.)
+3. Synthesize narrative across ALL N chunks. Cite timestamps from each.
 
 ### When the user wants to copy 1:1 from a reference
 
@@ -209,6 +244,7 @@ All procedural depth lives in the two creation docs; read them on demand, never 
 
 ## Auxiliary references
 
+- Perception fan-out: `$CLAUDE_PLUGIN_ROOT/skills/lumiere/perceive.workflow.mjs` (the watch workflow) + `$CLAUDE_PLUGIN_ROOT/creation/perception-beatsheet.schema.json` (its output shape) + `creation/_tools/validate-beatsheet.mjs` (validator)
 - Effects library: `$CLAUDE_PLUGIN_ROOT/effects/index.json` + `effects/<id>/effect.html` (load on demand, not eagerly)
 - Creation playbooks: `$CLAUDE_PLUGIN_ROOT/creation/LOCK.md` (the design-lock spec + schema) and `$CLAUDE_PLUGIN_ROOT/creation/RESTAGE.md` (effect -> composition restage procedure). Read inside the creation flow, not eagerly.
 - HyperFrames pattern: `~/Documents/s0nderlabs/anima-launch/CLAUDE.md`
